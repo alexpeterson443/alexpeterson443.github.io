@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>REDLINE — Spot it. Scan it. Own it.</title>
+<meta name="description" content="Turn real-world car spotting into a collection. Photograph a car, mint it as a card, fill the dex. 230+ vehicles, six rarity tiers, works offline, and every byte stays on your phone.">
+
+<meta name="theme-color" content="#08090b">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="REDLINE">
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./assets/icon-180.png">
+<link rel="stylesheet" href="./css/app.css">
+
+<meta property="og:title" content="REDLINE — Spot it. Scan it. Own it.">
+<meta property="og:description" content="Real-world car spotting, turned into a card collection. Offline-first, private by default.">
+<meta property="og:type" content="website">
+
+<style>
+  /* pre-boot splash — avoids a flash of empty shell on cold start */
+  .boot {
+    position: fixed; inset: 0; z-index: 200;
+    display: grid; place-content: center; justify-items: center; gap: 14px;
+    background: #08090b; color: #f3f5f8;
+    transition: opacity .35s ease, visibility .35s ease;
+  }
+  body:not(.booting) .boot { opacity: 0; visibility: hidden; }
+  .boot .mark { font: 800 30px/1 system-ui, sans-serif; letter-spacing: .3em; text-indent: .3em; }
+  .boot .rev { width: 132px; height: 3px; border-radius: 100px; background: #22262f; overflow: hidden; }
+  .boot .rev i { display: block; height: 100%; width: 40%; border-radius: 100px;
+    background: linear-gradient(90deg, #ff7a3d, #ff2f4d); animation: rev 1.1s cubic-bezier(.6,0,.4,1) infinite; }
+  @keyframes rev { 0% { transform: translateX(-120%); } 100% { transform: translateX(340%); } }
+  .boot small { color: #667080; font: 500 11px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+</style>
+</head>
+
+<body class="booting">
+
+<div class="boot" role="status" aria-label="Loading REDLINE">
+  <div class="mark">REDLINE</div>
+  <div class="rev"><i></i></div>
+  <small>Spot it. Scan it. Own it.</small>
+</div>
+
+<div class="app">
+  <main id="view" class="view" role="main"></main>
+  <nav id="tabbar" class="tabbar" role="tablist" aria-label="Sections"></nav>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<noscript>
+  <div style="padding:40px 24px;text-align:center;color:#99a1ad;font:15px/1.6 system-ui">
+    <h1 style="color:#f3f5f8">REDLINE</h1>
+    <p>This is an offline-first web app — it needs JavaScript to run the camera, the dex and your local collection.</p>
+  </div>
+</noscript>
+
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

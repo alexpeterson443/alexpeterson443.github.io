@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="REDLINE">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16191f"/>
+      <stop offset="1" stop-color="#08090b"/>
+    </linearGradient>
+    <linearGradient id="hot" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff7a3d"/>
+      <stop offset="1" stop-color="#ff2f4d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
+
+  <!-- dial sweep -->
+  <path d="M126.1,347 A150,150 0 1 1 385.9,347"
+        fill="none" stroke="#2c313b" stroke-width="34" stroke-linecap="round"/>
+
+  <!-- the last stretch before the limiter -->
+  <path d="M391.9,208.6 A150,150 0 0 1 385.9,347"
+        fill="none" stroke="url(#hot)" stroke-width="34" stroke-linecap="round"/>
+
+  <!-- ticks -->
+  <g stroke="#525a68" stroke-width="9" stroke-linecap="round">
+    <path d="M152.7,301.5 L173.3,290.6"/>
+    <path d="M158.4,225.6 L177.2,239.6"/>
+    <path d="M215.4,166.3 L226.1,187.1"/>
+    <path d="M296.6,166.3 L285.9,187.1"/>
+  </g>
+
+  <!-- needle, buried in the red -->
+  <path d="M256,272 L390,261" stroke="#f5f7fa" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="256" cy="272" r="30" fill="#0b0d10" stroke="#f5f7fa" stroke-width="12"/>
+</svg>
