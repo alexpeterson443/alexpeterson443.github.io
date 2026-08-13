@@ -914,6 +914,65 @@ body[data-tab='scan'] .toast { bottom: calc(var(--sab) + 118px); }
 
 .swatch { width: 15px; height: 15px; border-radius: 5px; border: 1px solid rgba(255,255,255,.22); flex: 0 0 auto; }
 
+/* ------------------------------------------------- on-device identify --- */
+
+/* The pitch shown when visual identify is switched off. Deliberately states
+   the download cost up front — it's an 11 MB opt-in, not a free feature. */
+.aioffer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--info) 32%, transparent);
+  background: color-mix(in srgb, var(--info) 9%, var(--surface));
+  transition: transform .14s var(--ease);
+}
+.aioffer:active { transform: scale(.98); }
+.aioffer-ic {
+  width: 36px; height: 36px; flex: 0 0 auto;
+  border-radius: 11px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--info) 20%, transparent);
+  color: var(--info);
+  font-size: 19px;
+}
+.aioffer-t { display: block; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; }
+.aioffer-s { display: block; font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+
+.aipanel {
+  padding: 12px 12px 6px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-2);
+}
+.aihead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.aihead .micro { color: var(--info); }
+.aistate { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.aipanel .bar[data-prog] { margin-bottom: 10px; }
+.aipanel .pickitem:active { background: var(--surface-3); }
+
+.bar.conf { display: block; height: 3px; margin-top: 6px; max-width: 150px; }
+.bar.conf > i { background: var(--r); }
+.confpct { font-size: 12.5px; font-weight: 750; color: var(--r); }
+
+.ainote {
+  margin: 4px 2px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

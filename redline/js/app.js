@@ -8,9 +8,10 @@ import * as store from './store.js';
 import { state, commit } from './store.js';
 import {
   levelFromXP, scoreSpot, dexStats, collection, setProgress, activeHunts,
-  BADGES, checkBadges, currentStreak, rankSuggestions, distance, dayKey,
+  BADGES, checkBadges, currentStreak, rankSuggestions, priorScores, distance, dayKey,
 } from './engine.js';
 import { Camera, shotFromFile, getCoords } from './scan.js';
+import * as ai from './ai.js';
 
 /* ============================================================== helpers == */
 
@@ -70,6 +71,7 @@ const ICON = {
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;vertical-align:-.12em"><path d="M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9z"/><path d="M18.5 3v3M20 4.5h-3M6 16.5v2.5M7.25 17.75h-2.5"/></svg>',
   nophoto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 13v8M21.5 16.5h-7"/></svg>',
 };
 
@@ -484,6 +486,13 @@ views.garage = function renderGarage() {
         <div class="row"><span class="lbl">Haptics</span><button class="switch" role="switch" data-act="haptics" aria-checked="${state.settings.haptics}"></button></div>
         <div class="row"><span class="lbl">Save location</span><button class="switch" role="switch" data-act="loc" aria-checked="${state.settings.saveLocation}"></button></div>
         <div class="row"><span class="lbl">Save photos</span><button class="switch" role="switch" data-act="photos" aria-checked="${state.settings.savePhotos}"></button></div>
+        <div class="row">
+          <span>
+            <span class="lbl">${ICON.sparkle} Visual identify</span>
+            <span style="display:block;font-size:11.5px;color:var(--text-faint);margin-top:2px;max-width:24ch">On-device model · ${ai.MODEL_SIZE_MB}&nbsp;MB once</span>
+          </span>
+          <button class="switch" role="switch" data-act="ai" aria-checked="${state.settings.ai}"></button>
+        </div>
         <button class="row" data-act="rename"><span class="lbl">Spotter name</span><span class="val">${esc(state.profile.name)}</span></button>
       </div>
 
@@ -539,9 +548,10 @@ function onGarageClick(e) {
   if (!act) return;
   buzz(6);
 
-  const toggles = { haptics: 'haptics', loc: 'saveLocation', photos: 'savePhotos' };
+  const toggles = { haptics: 'haptics', loc: 'saveLocation', photos: 'savePhotos', ai: 'ai' };
   if (toggles[act]) {
     commit((s) => { s.settings[toggles[act]] = !s.settings[toggles[act]]; });
+    if (act === 'ai' && !state.settings.ai) ai.unload();
     return render();
   }
 
@@ -732,6 +742,7 @@ async function identify(shot) {
           <div class="micro" style="margin-top:5px">${coords ? 'Location saved' : 'No location'}</div>
         </div>
       </div>` : ''}
+      <div data-ai></div>
       <div class="searchbar">${ICON.search}<input type="search" placeholder="Which car is it?" aria-label="Search cars"></div>
       <div class="micro" data-heading>Likely round here</div>
       <div data-list style="margin-top:6px"></div>
@@ -780,12 +791,113 @@ async function identify(shot) {
     paintList(hits, `${hits.length} match${hits.length === 1 ? '' : 'es'}`);
   });
 
-  listEl.addEventListener('click', (e) => {
-    const btn = e.target.closest("[data-carpick]");
+  body.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-carpick]');
     if (!btn) return;
     sheet.close();
     confirmSpot(btn.dataset.carpick, shot, coords);
   });
+
+  wireVisualID($('[data-ai]', body), shot, coords);
+}
+
+/* ------------------------------------------------------- visual identify -- */
+
+/**
+ * Drives the on-device recognition strip at the top of the identify sheet.
+ * Everything here is best-effort: if the model is off, still downloading or
+ * unavailable, the manual list below is untouched and remains the real answer.
+ */
+async function wireVisualID(host, shot, coords = null) {
+  if (!host) return;
+
+  if (!shot) {
+    host.innerHTML = '';
+    return;
+  }
+
+  const enabled = state.settings.ai;
+
+  if (!enabled) {
+    host.innerHTML = `
+      <button class="aioffer" data-enable-ai>
+        <span class="aioffer-ic">${ICON.sparkle}</span>
+        <span>
+          <span class="aioffer-t">Identify it for me</span>
+          <span class="aioffer-s">Runs a vision model on this device · ${ai.MODEL_SIZE_MB} MB once</span>
+        </span>
+      </button>`;
+    host.querySelector('[data-enable-ai]').addEventListener('click', async () => {
+      commit((s) => { s.settings.ai = true; });
+      buzz(8);
+      wireVisualID(host, shot, coords);
+    });
+    return;
+  }
+
+  const cached = await ai.isCached();
+  host.innerHTML = `
+    <div class="aipanel">
+      <div class="aihead">
+        <span class="micro">${ICON.sparkle} Best guess</span>
+        <span class="aistate" data-state>${cached ? 'Looking…' : `Fetching model · ${ai.MODEL_SIZE_MB} MB`}</span>
+      </div>
+      <div class="bar" data-prog hidden><i style="width:0%"></i></div>
+      <div data-guesses></div>
+    </div>`;
+
+  const stateEl = host.querySelector('[data-state]');
+  const progEl = host.querySelector('[data-prog]');
+  const listEl = host.querySelector('[data-guesses]');
+
+  try {
+    if (ai.getStatus() !== ai.STATUS.READY) {
+      if (!cached) progEl.hidden = false;
+      await ai.load({
+        onProgress: (p) => { progEl.querySelector('i').style.width = `${(p * 100).toFixed(0)}%`; },
+      });
+    }
+    progEl.hidden = true;
+    stateEl.textContent = 'Looking…';
+
+    const t0 = performance.now();
+    const guesses = await ai.identify(shot.blob, { topK: 5, prior: priorScores(state, { coords }) });
+    const ms = Math.round(performance.now() - t0);
+
+    stateEl.textContent = `${ms} ms · ${ai.getBackend()}`;
+    listEl.innerHTML = guesses
+      .map((g) => {
+        const car = CARS_BY_ID.get(g.id);
+        if (!car) return '';
+        const pct = Math.round(g.confidence * 100);
+        return `
+          <button class="pickitem" data-rarity="${car.rarity}" data-carpick="${esc(car.id)}">
+            <span class="thumb">${silhouette(car.body)}</span>
+            <span>
+              <span class="nm" style="display:block">${esc(car.name)}</span>
+              <span class="sb">${car.flag} ${esc(car.years)} · ${esc(car.bodyLabel)}</span>
+              <span class="bar conf"><i style="width:${pct}%"></i></span>
+            </span>
+            <span class="confpct num">${pct}%</span>
+          </button>`;
+      })
+      .join('');
+
+    if (guesses[0]?.confidence < 0.5) {
+      listEl.insertAdjacentHTML(
+        'beforeend',
+        `<p class="ainote">Not confident about this one — check the full list below.</p>`
+      );
+    }
+  } catch (err) {
+    progEl.hidden = true;
+    stateEl.textContent = 'Unavailable';
+    listEl.innerHTML = `<p class="ainote">${esc(
+      navigator.onLine
+        ? 'Could not load the vision model. Pick from the list below.'
+        : 'The model needs one online visit to download. Pick from the list below.'
+    )}</p>`;
+  }
 }
 
 /* -------------------------------------------------------------- commit -- */

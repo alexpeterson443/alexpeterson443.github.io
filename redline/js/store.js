@@ -74,6 +74,8 @@ function freshState() {
       units: 'imperial',
       saveLocation: true,
       savePhotos: true,
+      // Off by default: turning it on costs an ~11 MB one-time model download.
+      ai: false,
     },
     hunts: {},
     badges: [],

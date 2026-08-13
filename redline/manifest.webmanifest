@@ -1,7 +1,7 @@
 {
   "name": "REDLINE — Car Spotting Dex",
   "short_name": "REDLINE",
-  "description": "Spot a car in the wild, scan it, keep it as a card. 230+ vehicles across six rarity tiers. Works offline and stores everything on your device.",
+  "description": "Spot a car in the wild, scan it, keep it as a card. An on-device vision model names it for you. 257 vehicles across six rarity tiers. Works offline and stores everything on your device.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

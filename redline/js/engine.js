@@ -333,6 +333,40 @@ export function checkBadges(state) {
 /* ---------------- suggestion ranking for the identify sheet ---------------- */
 
 /**
+ * A 0..1 prior over the catalog from your own history: what you log often and
+ * what has been seen near this spot before. Used to break ties between cars the
+ * vision model genuinely can't separate — a Camry and an Altima look the same
+ * from the front, but only one of them is parked on your street every day.
+ */
+export function priorScores(state, { coords = null } = {}) {
+  const prior = new Map();
+  if (!state.spots.length) return prior;
+
+  const recent = new Map();
+  state.spots.slice(0, 80).forEach((s, i) => {
+    recent.set(s.carId, (recent.get(s.carId) || 0) + (80 - i) / 80);
+  });
+
+  const nearby = new Map();
+  if (coords) {
+    for (const s of state.spots) {
+      if (s.coords && distance(coords, s.coords) < 800) {
+        nearby.set(s.carId, (nearby.get(s.carId) || 0) + 1);
+      }
+    }
+  }
+
+  let max = 0;
+  for (const car of CARS) {
+    const score = (recent.get(car.id) || 0) + (nearby.get(car.id) || 0) * 2;
+    if (score > 0) prior.set(car.id, score);
+    if (score > max) max = score;
+  }
+  if (max > 0) for (const [k, v] of prior) prior.set(k, v / max);
+  return prior;
+}
+
+/**
  * Order the catalog for the picker: things you see a lot, near where you are,
  * float up. Keeps the common stuff one tap away without burying the exotica.
  */

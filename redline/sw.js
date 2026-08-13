@@ -6,18 +6,21 @@
  * no signal — which is exactly where you find the interesting cars.
  */
 
-const VERSION = 'redline-v1';
+const VERSION = 'redline-v2';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './css/app.css',
   './js/app.js',
+  './js/ai.js',
   './js/catalog.js',
   './js/engine.js',
   './js/scan.js',
   './js/store.js',
   './js/silhouettes.js',
+  './ai/car-embeddings.bin',
+  './ai/car-embeddings.json',
   './assets/icon.svg',
   './assets/icon-192.png',
   './assets/icon-512.png',
