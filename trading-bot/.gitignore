@@ -1,0 +1,17 @@
+# Secrets. Never commit API keys.
+.env
+*.key
+
+# Local state and generated output
+paper_state.json
+data/
+reports/
+*.report.html
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
