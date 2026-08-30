@@ -23,7 +23,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from . import indicators as ind
 from . import metrics as metrics_mod
 from .core import Action, Bar, BacktestResult, EquityPoint, Signal
-from .portfolio import CostModel, InsufficientFunds, Portfolio
+from .portfolio import (
+    CostModel, ExposureLimit, InsufficientFunds, Portfolio, ShortingDisabled,
+)
 from .risk import RiskConfig, RiskManager
 from .strategies import Strategy
 
@@ -38,6 +40,10 @@ class EngineConfig:
     liquidate_on_halt: bool = True
     verbose: bool = False
 
+    @property
+    def allow_short(self) -> bool:
+        return self.risk.allow_short
+
 
 class Backtester:
     """Runs one strategy over one or more symbols."""
@@ -46,7 +52,11 @@ class Backtester:
         self.strategy = strategy
         self.config = config or EngineConfig()
         self.portfolio = Portfolio(
-            self.config.starting_cash, self.config.costs, fractional=self.config.fractional
+            self.config.starting_cash,
+            self.config.costs,
+            fractional=self.config.fractional,
+            allow_short=self.config.risk.allow_short,
+            max_gross_exposure=self.config.risk.max_gross_exposure,
         )
         self.risk = RiskManager(self.config.risk)
         self._pending: List[Tuple[str, Action, str]] = []
@@ -79,6 +89,7 @@ class Backtester:
 
             self._fill_pending(ts, today)
             self._apply_stops(ts, today)
+            self.portfolio.accrue_borrow(ts)
 
             closes = {s: bar.close for s, bar in today.items()}
             self._last_price.update(closes)
@@ -148,15 +159,16 @@ class Backtester:
                 self._pending.append((symbol, action, reason))
                 continue
 
-            if action is Action.EXIT_LONG:
-                if self.portfolio.is_long(symbol):
-                    self.portfolio.sell(ts, symbol, self.portfolio.position(symbol).qty, bar.open, reason)
-                    self._log(ts, f"SELL {symbol} at {bar.open:.2f} ({reason})")
+            if action.is_exit:
+                if self.portfolio.position(symbol).is_open:
+                    self.portfolio.close(ts, symbol, bar.open, reason)
+                    self._log(ts, f"CLOSE {symbol} at {bar.open:.2f} ({reason})")
                 continue
 
-            if self.portfolio.is_long(symbol) or self.risk.halted:
+            if self.portfolio.position(symbol).is_open or self.risk.halted:
                 continue
 
+            direction = action.direction
             i = self._index[symbol][ts]
             qty = self.risk.target_qty(
                 equity=self.portfolio.equity,
@@ -165,20 +177,27 @@ class Backtester:
                 atr=self._atr[symbol][i],
                 open_positions=len(self.portfolio.open_symbols),
                 fractional=self.config.fractional,
+                gross_exposure=self.portfolio.gross_exposure,
             )
             if qty <= 0:
                 continue
             try:
-                fill = self.portfolio.buy(ts, symbol, qty, bar.open, reason)
-            except InsufficientFunds:
+                if direction > 0:
+                    fill = self.portfolio.buy(ts, symbol, qty, bar.open, reason)
+                else:
+                    fill = self.portfolio.sell(ts, symbol, qty, bar.open, reason)
+            except (InsufficientFunds, ExposureLimit, ShortingDisabled) as exc:
+                self._log(ts, f"SKIP {symbol}: {exc}")
                 continue
             if fill is None:
                 continue
             position = self.portfolio.position(symbol)
-            position.stop_price = self.risk.initial_stop(fill.price, self._atr[symbol][i])
-            position.target_price = self.risk.initial_target(fill.price)
+            position.stop_price = self.risk.initial_stop(fill.price, self._atr[symbol][i], direction)
+            position.target_price = self.risk.initial_target(fill.price, direction)
             position.high_water = bar.open
-            self._log(ts, f"BUY  {symbol} {fill.qty:g} at {fill.price:.2f} ({reason})")
+            position.low_water = bar.open
+            verb = "BUY " if direction > 0 else "SHORT"
+            self._log(ts, f"{verb} {symbol} {fill.qty:g} at {fill.price:.2f} ({reason})")
 
     def _apply_stops(self, ts: date, today: Dict[str, Bar]) -> None:
         for symbol, bar in today.items():
@@ -187,7 +206,7 @@ class Backtester:
                 continue
             decision = self.risk.check_exit(position, bar)
             if decision.should_exit:
-                self.portfolio.sell(ts, symbol, position.qty, decision.price, decision.reason)
+                self.portfolio.close(ts, symbol, decision.price, decision.reason)
                 self._log(ts, f"EXIT {symbol} at {decision.price:.2f} ({decision.reason})")
                 # A stop-out cancels any entry queued for this symbol.
                 self._pending = [p for p in self._pending if p[0] != symbol]
@@ -197,13 +216,13 @@ class Backtester:
             i = self._index[symbol][ts]
             if i < self.strategy.warmup:
                 continue
-            in_position = self.portfolio.is_long(symbol)
-            signal: Signal = self.strategy.evaluate(symbol, i, in_position)
+            position = self.portfolio.direction(symbol)
+            signal: Signal = self.strategy.evaluate(symbol, i, position)
             if signal.action is Action.HOLD:
                 continue
-            if signal.is_entry and in_position:
+            if signal.is_entry and position != 0:
                 continue
-            if signal.is_exit and not in_position:
+            if signal.is_exit and position == 0:
                 continue
             self._pending.append((symbol, signal.action, signal.reason))
 
@@ -212,7 +231,7 @@ class Backtester:
             bar = today.get(symbol)
             price = bar.close if bar else self._last_price.get(symbol)
             if price:
-                self.portfolio.sell(ts, symbol, self.portfolio.position(symbol).qty, price, reason)
+                self.portfolio.close(ts, symbol, price, reason)
                 self._log(ts, f"LIQUIDATE {symbol} at {price:.2f} ({reason})")
         self._pending = []
 

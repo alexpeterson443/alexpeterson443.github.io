@@ -1,7 +1,9 @@
 import unittest
 from datetime import date
 
-from tradingbot.portfolio import CostModel, InsufficientFunds, Portfolio
+from tradingbot.portfolio import (
+    CostModel, InsufficientFunds, Portfolio, ShortingDisabled,
+)
 
 DAY1 = date(2024, 1, 2)
 DAY2 = date(2024, 3, 1)
@@ -46,6 +48,12 @@ class TestPortfolio(unittest.TestCase):
         with self.assertRaises(InsufficientFunds):
             self.portfolio.buy(DAY1, "AAPL", 1_000, 100.0)
 
+    def test_a_failed_buy_leaves_cash_intact(self):
+        with self.assertRaises(InsufficientFunds):
+            self.portfolio.buy(DAY1, "AAPL", 1_000, 100.0)
+        self.assertEqual(self.portfolio.cash, 10_000.0)
+        self.assertFalse(self.portfolio.position("AAPL").is_open)
+
     def test_shares_are_whole_unless_fractional_is_enabled(self):
         self.portfolio.buy(DAY1, "AAPL", 10.7, 100.0)
         self.assertEqual(self.portfolio.position("AAPL").qty, 10)
@@ -67,15 +75,32 @@ class TestPortfolio(unittest.TestCase):
         self.assertEqual(len(self.portfolio.trades), 1)
         self.assertAlmostEqual(self.portfolio.trades[0].pnl, 300.0)
 
-    def test_cannot_sell_more_than_held(self):
+    def test_overselling_a_long_is_refused_when_shorting_is_off(self):
+        """Selling past flat would open a short, so it is rejected outright."""
         self.portfolio.buy(DAY1, "AAPL", 10, 100.0)
-        self.portfolio.sell(DAY2, "AAPL", 999, 110.0)
-        self.assertEqual(self.portfolio.trades[0].qty, 10)
-        self.assertFalse(self.portfolio.is_long("AAPL"))
+        with self.assertRaises(ShortingDisabled):
+            self.portfolio.sell(DAY2, "AAPL", 999, 110.0)
 
-    def test_selling_nothing_is_a_no_op(self):
-        self.assertIsNone(self.portfolio.sell(DAY2, "AAPL", 5, 100.0))
+    def test_a_rejected_order_leaves_the_portfolio_untouched(self):
+        """Refusals must be atomic, or a rejected order silently half executes."""
+        self.portfolio.buy(DAY1, "AAPL", 10, 100.0)
+        cash_before = self.portfolio.cash
+        with self.assertRaises(ShortingDisabled):
+            self.portfolio.sell(DAY2, "AAPL", 999, 110.0)
+        self.assertEqual(self.portfolio.cash, cash_before)
+        self.assertEqual(self.portfolio.position("AAPL").qty, 10)
         self.assertEqual(self.portfolio.trades, [])
+
+    def test_selling_when_flat_is_refused_when_shorting_is_off(self):
+        with self.assertRaises(ShortingDisabled):
+            self.portfolio.sell(DAY2, "AAPL", 5, 100.0)
+        self.assertEqual(self.portfolio.trades, [])
+
+    def test_selling_zero_is_a_no_op(self):
+        self.assertIsNone(self.portfolio.sell(DAY2, "AAPL", 0, 100.0))
+
+    def test_close_on_a_flat_symbol_is_a_no_op(self):
+        self.assertIsNone(self.portfolio.close(DAY2, "AAPL", 100.0))
 
     def test_trade_pnl_reconciles_with_the_equity_change(self):
         """The most important invariant in the whole accounting layer."""

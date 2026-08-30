@@ -26,11 +26,20 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .core import Bar, parse_date
+from .core import Bar, parse_date, parse_timestamp
 
 USER_AGENT = "Mozilla/5.0 (compatible; tradingbot/1.0; +https://github.com/alexpeterson443)"
 DEFAULT_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "cache")
-PROVIDERS = ("csv", "yahoo", "stooq", "synthetic")
+PROVIDERS = ("csv", "yahoo", "stooq", "alpaca", "tiingo", "finnhub", "synthetic")
+
+# Providers that can serve bars finer than one day, and the interval names the
+# CLI accepts. Yahoo serves intraday too, with a much shorter history window.
+INTERVALS = ("1d", "1h", "30m", "15m", "5m", "1m")
+INTRADAY_PROVIDERS = ("yahoo", "alpaca", "csv", "synthetic")
+
+_YAHOO_INTERVALS = {"1d": "1d", "1h": "1h", "30m": "30m", "15m": "15m", "5m": "5m", "1m": "1m"}
+_ALPACA_TIMEFRAMES = {"1d": "1Day", "1h": "1Hour", "30m": "30Min", "15m": "15Min",
+                      "5m": "5Min", "1m": "1Min"}
 
 
 class DataError(RuntimeError):
@@ -66,15 +75,16 @@ def _symbol_seed(symbol: str, seed: Optional[int]) -> int:
 
 
 def _clean(bars: List[Bar], start: Optional[date], end: Optional[date]) -> List[Bar]:
-    """Sort, deduplicate by date, and clip to the requested window."""
-    by_date: Dict[date, Bar] = {}
+    """Sort, deduplicate by timestamp, and clip to the requested window."""
+    by_ts: Dict[object, Bar] = {}
     for bar in bars:
-        if start and bar.ts < start:
+        day = bar.ts.date() if isinstance(bar.ts, datetime) else bar.ts
+        if start and day < start:
             continue
-        if end and bar.ts > end:
+        if end and day > end:
             continue
-        by_date[bar.ts] = bar
-    return [by_date[key] for key in sorted(by_date)]
+        by_ts[bar.ts] = bar
+    return [by_ts[key] for key in sorted(by_ts)]
 
 
 # --------------------------------------------------------------------------
@@ -106,7 +116,7 @@ def read_csv_bars(path: str) -> List[Bar]:
             try:
                 bars.append(
                     Bar(
-                        ts=parse_date(raw_date),
+                        ts=parse_timestamp(raw_date),
                         open=float(row[columns["open"]]),
                         high=float(row[columns["high"]]),
                         low=float(row[columns["low"]]),
@@ -130,15 +140,18 @@ def write_csv_bars(path: str, bars: Sequence[Bar]) -> None:
             writer.writerow(
                 [bar.ts.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume]
             )
+        # isoformat round trips through parse_timestamp for both date and datetime.
 
 
-def fetch_yahoo(symbol: str, start: date, end: date) -> List[Bar]:
-    """Daily split and dividend adjusted bars from the Yahoo chart endpoint."""
+def fetch_yahoo(symbol: str, start: date, end: date, interval: str = "1d") -> List[Bar]:
+    """Split and dividend adjusted bars from the Yahoo chart endpoint."""
+    if interval not in _YAHOO_INTERVALS:
+        raise DataError(f"yahoo does not serve the {interval!r} interval")
     query = urllib.parse.urlencode(
         {
             "period1": _to_epoch(start),
             "period2": _to_epoch(end + timedelta(days=1)),
-            "interval": "1d",
+            "interval": _YAHOO_INTERVALS[interval],
             "events": "div|split",
             "includeAdjustedClose": "true",
         }
@@ -164,9 +177,10 @@ def fetch_yahoo(symbol: str, start: date, end: date) -> List[Bar]:
         # Scale the whole bar by the adjusted close so splits do not fake a gap.
         ratio = (adjusted[i] / c) if adjusted and adjusted[i] and c else 1.0
         volume = quote.get("volume", [0] * len(stamps))[i] or 0
+        moment = datetime.fromtimestamp(stamp, tz=timezone.utc).replace(tzinfo=None)
         bars.append(
             Bar(
-                ts=datetime.fromtimestamp(stamp, tz=timezone.utc).date(),
+                ts=moment.date() if interval == "1d" else moment,
                 open=o * ratio,
                 high=h * ratio,
                 low=l * ratio,
@@ -207,6 +221,132 @@ def fetch_stooq(symbol: str, start: date, end: date) -> List[Bar]:
             continue
     if not bars:
         raise DataError(f"stooq returned no usable bars for {symbol}")
+    return bars
+
+
+def fetch_alpaca(symbol: str, start: date, end: date, interval: str = "1d") -> List[Bar]:
+    """Bars from Alpaca's market data API.
+
+    Uses the same ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY as the broker, so
+    a free paper account is enough. The IEX feed is requested because it is the
+    one available without a paid subscription.
+    """
+    key = os.environ.get("ALPACA_API_KEY_ID", "")
+    secret = os.environ.get("ALPACA_API_SECRET_KEY", "")
+    if not key or not secret:
+        raise DataError(
+            "alpaca data needs ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY in the environment"
+        )
+    if interval not in _ALPACA_TIMEFRAMES:
+        raise DataError(f"alpaca does not serve the {interval!r} interval")
+
+    bars: List[Bar] = []
+    page_token = None
+    for _ in range(20):        # bounded, so a bad cursor cannot loop forever
+        params = {
+            "timeframe": _ALPACA_TIMEFRAMES[interval],
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "adjustment": "all",
+            "feed": "iex",
+            "limit": "10000",
+        }
+        if page_token:
+            params["page_token"] = page_token
+        url = (f"https://data.alpaca.markets/v2/stocks/{urllib.parse.quote(symbol.upper())}"
+               f"/bars?{urllib.parse.urlencode(params)}")
+        request = urllib.request.Request(
+            url, headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret,
+                          "User-Agent": USER_AGENT},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=25) as response:
+                payload = json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            raise DataError(
+                f"alpaca rejected {symbol} [{exc.code}]: "
+                f"{exc.read().decode('utf-8', 'replace')[:200]}"
+            ) from exc
+        except (urllib.error.URLError, OSError, TimeoutError) as exc:
+            raise DataError(f"alpaca unreachable for {symbol}: {exc}") from exc
+
+        for row in payload.get("bars") or []:
+            moment = parse_timestamp(row["t"])
+            bars.append(
+                Bar(
+                    ts=moment.date() if interval == "1d" and isinstance(moment, datetime) else moment,
+                    open=float(row["o"]), high=float(row["h"]),
+                    low=float(row["l"]), close=float(row["c"]),
+                    volume=float(row.get("v") or 0),
+                )
+            )
+        page_token = payload.get("next_page_token")
+        if not page_token:
+            break
+
+    if not bars:
+        raise DataError(f"alpaca returned no bars for {symbol}")
+    return bars
+
+
+def fetch_tiingo(symbol: str, start: date, end: date) -> List[Bar]:
+    """Daily adjusted bars from Tiingo. Needs TIINGO_API_KEY in the environment."""
+    token = os.environ.get("TIINGO_API_KEY", "")
+    if not token:
+        raise DataError("tiingo needs TIINGO_API_KEY in the environment")
+    query = urllib.parse.urlencode(
+        {"startDate": start.isoformat(), "endDate": end.isoformat(),
+         "format": "json", "token": token}
+    )
+    url = f"https://api.tiingo.com/tiingo/daily/{urllib.parse.quote(symbol.lower())}/prices?{query}"
+    rows = json.loads(_http_get(url))
+    if not isinstance(rows, list) or not rows:
+        raise DataError(f"tiingo returned no bars for {symbol}")
+    bars = []
+    for row in rows:
+        try:
+            bars.append(
+                Bar(
+                    ts=parse_date(row["date"][:10]),
+                    open=float(row["adjOpen"]), high=float(row["adjHigh"]),
+                    low=float(row["adjLow"]), close=float(row["adjClose"]),
+                    volume=float(row.get("adjVolume") or 0),
+                )
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not bars:
+        raise DataError(f"tiingo returned no usable bars for {symbol}")
+    return bars
+
+
+def fetch_finnhub(symbol: str, start: date, end: date) -> List[Bar]:
+    """Daily bars from Finnhub. Needs FINNHUB_API_KEY in the environment."""
+    token = os.environ.get("FINNHUB_API_KEY", "")
+    if not token:
+        raise DataError("finnhub needs FINNHUB_API_KEY in the environment")
+    query = urllib.parse.urlencode(
+        {"symbol": symbol.upper(), "resolution": "D",
+         "from": _to_epoch(start), "to": _to_epoch(end + timedelta(days=1)), "token": token}
+    )
+    payload = json.loads(_http_get(f"https://finnhub.io/api/v1/stock/candle?{query}"))
+    if payload.get("s") != "ok":
+        raise DataError(f"finnhub returned no data for {symbol} (status {payload.get('s')!r})")
+    bars = []
+    for i, stamp in enumerate(payload.get("t", [])):
+        try:
+            bars.append(
+                Bar(
+                    ts=datetime.fromtimestamp(stamp, tz=timezone.utc).date(),
+                    open=float(payload["o"][i]), high=float(payload["h"][i]),
+                    low=float(payload["l"][i]), close=float(payload["c"][i]),
+                    volume=float(payload["v"][i]),
+                )
+            )
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+    if not bars:
+        raise DataError(f"finnhub returned no usable bars for {symbol}")
     return bars
 
 
@@ -273,10 +413,18 @@ def load_bars(
     cache_dir: Optional[str] = DEFAULT_CACHE_DIR,
     use_cache: bool = True,
     seed: Optional[int] = None,
+    interval: str = "1d",
 ) -> List[Bar]:
-    """Load daily bars for one symbol from the named provider."""
+    """Load bars for one symbol from the named provider."""
     if provider not in PROVIDERS:
         raise DataError(f"unknown provider {provider!r}, expected one of {', '.join(PROVIDERS)}")
+    if interval not in INTERVALS:
+        raise DataError(f"unknown interval {interval!r}, expected one of {', '.join(INTERVALS)}")
+    if interval != "1d" and provider not in INTRADAY_PROVIDERS:
+        raise DataError(
+            f"provider {provider!r} only serves daily bars. "
+            f"Intraday providers: {', '.join(INTRADAY_PROVIDERS)}"
+        )
     start_d, end_d = parse_date(start), parse_date(end)
     if start_d > end_d:
         raise DataError(f"start {start_d} is after end {end_d}")
@@ -291,13 +439,23 @@ def load_bars(
     cache_path = None
     if use_cache and cache_dir:
         cache_path = os.path.join(
-            cache_dir, f"{provider}_{symbol.upper()}_{start_d.isoformat()}_{end_d.isoformat()}.csv"
+            cache_dir,
+            f"{provider}_{symbol.upper()}_{interval}_{start_d.isoformat()}_{end_d.isoformat()}.csv",
         )
         if os.path.exists(cache_path):
             return _clean(read_csv_bars(cache_path), start_d, end_d)
 
-    fetch = fetch_yahoo if provider == "yahoo" else fetch_stooq
-    bars = _clean(fetch(symbol, start_d, end_d), start_d, end_d)
+    if provider == "yahoo":
+        bars = fetch_yahoo(symbol, start_d, end_d, interval)
+    elif provider == "alpaca":
+        bars = fetch_alpaca(symbol, start_d, end_d, interval)
+    elif provider == "tiingo":
+        bars = fetch_tiingo(symbol, start_d, end_d)
+    elif provider == "finnhub":
+        bars = fetch_finnhub(symbol, start_d, end_d)
+    else:
+        bars = fetch_stooq(symbol, start_d, end_d)
+    bars = _clean(bars, start_d, end_d)
     if not bars:
         raise DataError(f"no bars for {symbol} between {start_d} and {end_d}")
     if cache_path:

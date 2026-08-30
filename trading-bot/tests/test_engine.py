@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from tradingbot import data as data_mod
 from tradingbot import strategies as strategies_mod
-from tradingbot.core import Action, Bar, Signal
+from tradingbot.core import Bar
 from tradingbot.engine import Backtester, EngineConfig
 from tradingbot.portfolio import CostModel
 from tradingbot.risk import RiskConfig
@@ -26,7 +26,7 @@ def make_bars(closes, start=date(2024, 1, 1)):
 
 
 class EnterOnBar(Strategy):
-    """Test double: enter on one named index, exit on another."""
+    """Test double: hold a long between two named bar indexes."""
 
     name = "enter_on_bar"
 
@@ -37,12 +37,10 @@ class EnterOnBar(Strategy):
     def prepare(self, symbol, bars):
         self._state[symbol] = len(bars)
 
-    def evaluate(self, symbol, i, in_position):
-        if i == self.params["entry_index"] and not in_position:
-            return Signal(symbol, Action.ENTER_LONG, "test entry")
-        if i == self.params["exit_index"] and in_position:
-            return Signal(symbol, Action.EXIT_LONG, "test exit")
-        return Signal(symbol, Action.HOLD)
+    def stance(self, symbol, i):
+        if i < self.params["entry_index"]:
+            return None
+        return 1 if i < self.params["exit_index"] else 0
 
 
 FRICTIONLESS = EngineConfig(
@@ -92,9 +90,9 @@ class SpyStrategy(Strategy):
     def prepare(self, symbol, bars):
         self._state[symbol] = list(bars)
 
-    def evaluate(self, symbol, i, in_position):
+    def stance(self, symbol, i):
         self.seen.append(self._state[symbol][i].ts)
-        return Signal(symbol, Action.HOLD)
+        return None
 
 
 class TestNoLookahead(unittest.TestCase):

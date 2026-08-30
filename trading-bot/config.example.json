@@ -1,13 +1,20 @@
 {
-  "_comment": "Copy to config.json and edit. Every value here matches a CLI flag.",
-
-  "symbols": ["AAPL", "MSFT", "NVDA", "SPY"],
+  "_comment": "Settings for the trading bot. Command line flags override these.",
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "SPY"
+  ],
   "start": "2015-01-01",
   "provider": "yahoo",
-
   "strategy": "macd_trend",
-  "params": { "fast": 12, "slow": 26, "signal": 9, "trend_filter": 200 },
-
+  "params": {
+    "fast": 12,
+    "slow": 26,
+    "signal": 9,
+    "trend_filter": 200
+  },
   "cash": 10000,
   "sizing": "atr_risk",
   "risk_per_trade": 0.01,
@@ -16,8 +23,11 @@
   "max_positions": 4,
   "stop_loss": 0.08,
   "trailing_stop": 0.15,
-  "max_drawdown": 0.20,
-
+  "max_drawdown": 0.2,
   "commission": 0.0,
-  "slippage_bps": 5.0
+  "slippage_bps": 5.0,
+  "allow_short": false,
+  "broker": "paper",
+  "state": "paper_state.json",
+  "journal": "journal.csv"
 }

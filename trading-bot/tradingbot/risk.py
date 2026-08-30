@@ -41,6 +41,9 @@ class RiskConfig:
     max_position_pct: float = 0.35     # cap on any single position's weight
     max_open_positions: int = 5
     cash_buffer_pct: float = 0.02      # never deploy the last slice of cash
+    # Total absolute exposure as a multiple of equity. 1.0 means no leverage.
+    max_gross_exposure: float = 1.0
+    allow_short: bool = False
 
     stop_loss_pct: Optional[float] = 0.08     # hard stop below entry
     take_profit_pct: Optional[float] = None   # fixed target above entry
@@ -60,6 +63,8 @@ class RiskConfig:
             raise ValueError("max_open_positions must be at least 1")
         if not 0 <= self.cash_buffer_pct < 1:
             raise ValueError("cash_buffer_pct must be between 0 and 1")
+        if not 0 < self.max_gross_exposure <= 4:
+            raise ValueError("max_gross_exposure must be between 0 and 4")
         if self.sizing == SizingMode.ATR_RISK and not 0 < self.risk_per_trade <= 0.1:
             raise ValueError("risk_per_trade should be a small fraction such as 0.01")
         for name in ("stop_loss_pct", "take_profit_pct", "trailing_stop_pct",
@@ -100,8 +105,9 @@ class RiskManager:
         atr: Optional[float] = None,
         open_positions: int = 0,
         fractional: bool = False,
+        gross_exposure: float = 0.0,
     ) -> float:
-        """Quantity to buy, already clipped by every configured limit."""
+        """Quantity to trade, already clipped by every configured limit."""
         cfg = self.config
         if self.halted or price <= 0 or equity <= 0:
             return 0.0
@@ -122,26 +128,35 @@ class RiskManager:
         notional = min(notional, equity * cfg.max_position_pct)
         spendable = max(cash - equity * cfg.cash_buffer_pct, 0.0)
         notional = min(notional, spendable)
+        # Never let a new position push total exposure past the leverage cap.
+        headroom = max(equity * cfg.max_gross_exposure - gross_exposure, 0.0)
+        notional = min(notional, headroom)
         qty = notional / price
         return qty if fractional else float(int(qty))
 
-    def initial_stop(self, entry_price: float, atr: Optional[float] = None) -> Optional[float]:
-        """Stop price to attach at entry, or ``None`` if no stop is configured."""
+    def initial_stop(
+        self, entry_price: float, atr: Optional[float] = None, direction: int = 1
+    ) -> Optional[float]:
+        """Stop price to attach at entry, or ``None`` if no stop is configured.
+
+        A long stop sits below the entry, a short stop above it. In both cases
+        the tightest candidate wins, because that is the one that actually
+        limits the loss.
+        """
         cfg = self.config
         candidates = []
         if cfg.stop_loss_pct:
-            candidates.append(entry_price * (1 - cfg.stop_loss_pct))
+            candidates.append(entry_price * (1 - direction * cfg.stop_loss_pct))
         if cfg.sizing == SizingMode.ATR_RISK and atr:
-            candidates.append(entry_price - cfg.atr_stop_mult * atr)
+            candidates.append(entry_price - direction * cfg.atr_stop_mult * atr)
         if not candidates:
             return None
-        # The tightest stop is the one that actually protects capital.
-        return max(candidates)
+        return max(candidates) if direction > 0 else min(candidates)
 
-    def initial_target(self, entry_price: float) -> Optional[float]:
+    def initial_target(self, entry_price: float, direction: int = 1) -> Optional[float]:
         if not self.config.take_profit_pct:
             return None
-        return entry_price * (1 + self.config.take_profit_pct)
+        return entry_price * (1 + direction * self.config.take_profit_pct)
 
     # ------------------------------------------------------------------
     # exits
@@ -151,32 +166,47 @@ class RiskManager:
         """Test stops and targets against a bar's full range.
 
         When a bar touches both the stop and the target, the stop is assumed to
-        have hit first. Being pessimistic here keeps backtests honest.
+        have hit first. When price gaps straight through a level, the fill is
+        the open rather than the level. Both assumptions make results worse and
+        more honest.
+
+        Mirrored for shorts: the stop sits above the position and triggers on
+        the bar's high, and the trailing stop follows the lowest price seen.
         """
         cfg = self.config
         if not position.is_open:
             return ExitDecision(False)
 
+        if position.is_long:
+            stop = position.stop_price
+            if cfg.trailing_stop_pct and position.high_water:
+                trail = position.high_water * (1 - cfg.trailing_stop_pct)
+                stop = trail if stop is None else max(stop, trail)
+            if stop is not None and bar.low <= stop:
+                fill = min(stop, bar.open)
+                return ExitDecision(True, fill, f"stop hit at {fill:.2f}")
+            target = position.target_price
+            if target is not None and bar.high >= target:
+                fill = max(target, bar.open)
+                return ExitDecision(True, fill, f"target hit at {fill:.2f}")
+            return ExitDecision(False)
+
         stop = position.stop_price
-        if cfg.trailing_stop_pct and position.high_water:
-            trail = position.high_water * (1 - cfg.trailing_stop_pct)
-            stop = trail if stop is None else max(stop, trail)
-
-        if stop is not None and bar.low <= stop:
-            # A gap down fills at the open, not at the stop price.
-            fill = min(stop, bar.open)
-            return ExitDecision(True, fill, f"stop hit at {fill:.2f}")
-
+        if cfg.trailing_stop_pct and position.low_water:
+            trail = position.low_water * (1 + cfg.trailing_stop_pct)
+            stop = trail if stop is None else min(stop, trail)
+        if stop is not None and bar.high >= stop:
+            fill = max(stop, bar.open)
+            return ExitDecision(True, fill, f"short stop hit at {fill:.2f}")
         target = position.target_price
-        if target is not None and bar.high >= target:
-            fill = max(target, bar.open)
-            return ExitDecision(True, fill, f"target hit at {fill:.2f}")
-
+        if target is not None and bar.low <= target:
+            fill = min(target, bar.open)
+            return ExitDecision(True, fill, f"short target hit at {fill:.2f}")
         return ExitDecision(False)
 
     def update_trailing(self, position: Position, price: float) -> None:
-        if price > position.high_water:
-            position.high_water = price
+        position.high_water = max(position.high_water or price, price)
+        position.low_water = min(position.low_water or price, price)
 
     # ------------------------------------------------------------------
     # kill switch

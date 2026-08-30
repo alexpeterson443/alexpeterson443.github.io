@@ -10,7 +10,7 @@ import math
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 
 class Side(str, Enum):
@@ -33,14 +33,42 @@ class Action(str, Enum):
 
     ENTER_LONG = "enter_long"
     EXIT_LONG = "exit_long"
+    ENTER_SHORT = "enter_short"
+    EXIT_SHORT = "exit_short"
     HOLD = "hold"
+
+    @property
+    def is_entry(self) -> bool:
+        return self in (Action.ENTER_LONG, Action.ENTER_SHORT)
+
+    @property
+    def is_exit(self) -> bool:
+        return self in (Action.EXIT_LONG, Action.EXIT_SHORT)
+
+    @property
+    def direction(self) -> int:
+        """+1 for the long side, -1 for the short side, 0 for hold."""
+        if self in (Action.ENTER_LONG, Action.EXIT_LONG):
+            return 1
+        if self in (Action.ENTER_SHORT, Action.EXIT_SHORT):
+            return -1
+        return 0
+
+
+LONG = 1
+FLAT = 0
+SHORT = -1
 
 
 @dataclass(frozen=True)
 class Bar:
-    """A single OHLCV price bar."""
+    """A single OHLCV price bar.
 
-    ts: date
+    ``ts`` is a ``date`` for daily bars and a ``datetime`` for intraday ones.
+    A single run never mixes the two, so ordering and arithmetic stay valid.
+    """
+
+    ts: Union[date, datetime]
     open: float
     high: float
     low: float
@@ -71,11 +99,15 @@ class Signal:
 
     @property
     def is_entry(self) -> bool:
-        return self.action is Action.ENTER_LONG
+        return self.action.is_entry
 
     @property
     def is_exit(self) -> bool:
-        return self.action is Action.EXIT_LONG
+        return self.action.is_exit
+
+    @property
+    def direction(self) -> int:
+        return self.action.direction
 
 
 @dataclass
@@ -120,28 +152,68 @@ class Fill:
 
 @dataclass
 class Position:
+    """A holding in one symbol.
+
+    ``qty`` is signed: positive is long, negative is short. Keeping the sign on
+    the quantity means market value, equity, and profit all fall out of the same
+    arithmetic for both sides instead of needing parallel code paths.
+    """
+
     symbol: str
     qty: float = 0.0
     avg_price: float = 0.0
     opened_at: Optional[date] = None
-    # Highest close seen while the position was open, for trailing stops.
+    # Best price seen while the position was open, for trailing stops. For a
+    # long that is the highest price; for a short, the lowest.
     high_water: float = 0.0
+    low_water: float = 0.0
     stop_price: Optional[float] = None
     target_price: Optional[float] = None
 
     @property
     def is_open(self) -> bool:
-        return self.qty > 0
+        return abs(self.qty) > 1e-9
+
+    @property
+    def is_long(self) -> bool:
+        return self.qty > 1e-9
+
+    @property
+    def is_short(self) -> bool:
+        return self.qty < -1e-9
+
+    @property
+    def direction(self) -> int:
+        if self.is_long:
+            return 1
+        if self.is_short:
+            return -1
+        return 0
+
+    @property
+    def abs_qty(self) -> float:
+        return abs(self.qty)
 
     @property
     def cost_basis(self) -> float:
-        return self.qty * self.avg_price
+        """Absolute capital committed, always positive."""
+        return abs(self.qty) * self.avg_price
 
     def market_value(self, price: float) -> float:
+        """Signed value. Negative for a short, which is a liability."""
         return self.qty * price
 
     def unrealized_pnl(self, price: float) -> float:
         return (price - self.avg_price) * self.qty
+
+    def reset(self) -> None:
+        self.qty = 0.0
+        self.avg_price = 0.0
+        self.opened_at = None
+        self.stop_price = None
+        self.target_price = None
+        self.high_water = 0.0
+        self.low_water = 0.0
 
 
 @dataclass
@@ -153,14 +225,25 @@ class Trade:
     entry_price: float
     exit_ts: date
     exit_price: float
+    # Always positive. The side lives in ``direction``.
     qty: float
     # Commission only. Slippage is already reflected in entry_price/exit_price.
     costs: float = 0.0
     exit_reason: str = ""
+    # +1 for a long round trip, -1 for a short one.
+    direction: int = 1
+
+    @property
+    def is_short(self) -> bool:
+        return self.direction < 0
+
+    @property
+    def side(self) -> str:
+        return "short" if self.is_short else "long"
 
     @property
     def pnl(self) -> float:
-        return (self.exit_price - self.entry_price) * self.qty - self.costs
+        return (self.exit_price - self.entry_price) * self.qty * self.direction - self.costs
 
     @property
     def return_pct(self) -> float:
@@ -202,6 +285,28 @@ class BacktestResult:
     @property
     def final_equity(self) -> float:
         return self.equity_curve[-1].equity if self.equity_curve else self.starting_cash
+
+
+def parse_timestamp(value) -> Union[date, datetime]:
+    """Parse a value into a datetime when it carries a time, else a date."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return value
+    text = str(value).strip().replace("Z", "").replace("T", " ")
+    if not text:
+        raise ValueError("empty timestamp")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(text[:19], fmt)
+        except ValueError:
+            continue
+    return datetime.strptime(text[:10], "%Y-%m-%d").date()
+
+
+def as_date(value) -> date:
+    """Reduce a bar timestamp to its calendar date."""
+    return value.date() if isinstance(value, datetime) else value
 
 
 def parse_date(value) -> date:

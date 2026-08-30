@@ -1,11 +1,15 @@
 # Secrets. Never commit API keys.
 .env
 *.key
+config.json
 
 # Local state and generated output
 paper_state.json
+journal.csv
 data/
+logs/
 reports/
+pine/
 *.report.html
 
 # Python
@@ -15,3 +19,6 @@ __pycache__/
 venv/
 .pytest_cache/
 .coverage
+
+# macOS
+.DS_Store

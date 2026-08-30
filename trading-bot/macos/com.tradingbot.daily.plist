@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent for the trading bot on macOS.
+
+  Runs one paper trading cycle every weekday at 15:50 US Eastern. The bot
+  checks the market calendar itself, so it does nothing on holidays.
+
+  Install:
+    1. Edit PROJECT_DIR below to your actual path.
+    2. Adjust the StartCalendarInterval hours for your own timezone.
+       These entries are LOCAL time. Chicago is Eastern minus one hour,
+       so 15:50 Eastern is 14:50 Central.
+    3. cp macos/com.tradingbot.daily.plist ~/Library/LaunchAgents/
+    4. launchctl load ~/Library/LaunchAgents/com.tradingbot.daily.plist
+
+  Check it:   launchctl list | grep tradingbot
+  Stop it:    launchctl unload ~/Library/LaunchAgents/com.tradingbot.daily.plist
+  Logs:       tail -f PROJECT_DIR/logs/launchd.out
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tradingbot.daily</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>PROJECT_DIR/run.py</string>
+        <string>paper</string>
+        <string>--config</string>
+        <string>PROJECT_DIR/config.json</string>
+        <string>--market-hours-only</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>PROJECT_DIR</string>
+
+    <!-- 14:50 local, which is 15:50 Eastern from Chicago. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>50</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>50</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>50</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>50</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>50</integer></dict>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>PROJECT_DIR/logs/launchd.out</string>
+    <key>StandardErrorPath</key>
+    <string>PROJECT_DIR/logs/launchd.err</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
