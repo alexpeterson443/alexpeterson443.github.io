@@ -634,6 +634,10 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true")
     init.set_defaults(func=cmd_init_config)
 
+    pm = subparsers.add_parser("pm", help="Polymarket prediction market tools")
+    from .polymarket.cli import build_parser as build_pm_parser
+    build_pm_parser(pm)
+
     pine = subparsers.add_parser("pine", help="export strategies as TradingView Pine Script")
     pine.add_argument("--strategy", default="all",
                       choices=["all"] + sorted(strategies_mod.REGISTRY))

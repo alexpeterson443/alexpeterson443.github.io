@@ -1,7 +1,8 @@
 # Trading Bot
 
-Backtesting engine, robustness analysis, risk management, and automated paper
-or live trading. Pure Python, **zero third party dependencies**, 302 tests.
+Backtesting engine, robustness analysis, risk management, automated paper or
+live trading, and a Polymarket prediction market toolkit. Pure Python,
+**zero third party dependencies**, 390 tests.
 
 Runs on the Python that ships with macOS. Nothing to install.
 
@@ -78,6 +79,7 @@ entire requirement list.
 | `fetch` | Download history to CSV for offline work |
 | `init-config` | Write a starter config file |
 | `pine` | Export the strategies as TradingView Pine Script |
+| `pm` | Polymarket tools: markets, books, arbitrage, Kelly sizing, paper trading |
 
 ### Backtest
 
@@ -353,6 +355,136 @@ strategies; running them on a 5 minute chart tests something else entirely.
 
 ---
 
+## Polymarket
+
+The same machinery, pointed at binary prediction markets. A share pays exactly
+$1 if the outcome happens and $0 if it does not, so its price is a probability.
+
+```bash
+python3 run.py pm models                                   # probability models
+python3 run.py pm markets --search "fed" --limit 20        # find markets
+python3 run.py pm book --slug some-market-slug             # book and slippage curve
+python3 run.py pm arb --pages 2                            # scan for YES+NO under $1
+python3 run.py pm scan --model longshot_fade --bankroll 500
+python3 run.py pm paper --model fixed --param probability=0.7 --slug some-slug
+python3 run.py pm status
+```
+
+No API key is needed for any of the reads. The public Gamma, CLOB, and Data
+endpoints are all reachable without authentication.
+
+### Three things that differ from equities
+
+**Loss is bounded.** A share cannot fall below zero, so the most a position can
+lose is its stake. That makes Kelly sizing genuinely well defined here:
+
+    f* = (p - c) / (1 - c)
+
+where `c` is the price and `p` is your probability. `sizing.py` implements it
+and defaults to a quarter of full Kelly, because full Kelly is optimal only if
+your `p` is exactly right, and it never is.
+
+**YES and NO are complements.** One of each pays exactly $1 at resolution, so if
+both can be bought for less than a dollar the profit is locked in with no view
+on the outcome. `pm arb` walks both ask books in lockstep and takes every
+profitable pair, stopping at the exact size where the edge runs out.
+
+**Capital is trapped until resolution.** A 2 percent edge resolving in a week
+annualises to 187 percent. The same 2 percent locked up for two years is 1
+percent, which is worse than doing nothing. Every arbitrage result is reported
+annualised for this reason.
+
+### What the scanners actually found
+
+Run against 120 live markets, `pm arb` found **zero** opportunities. Measuring
+the distribution explains why:
+
+```
+best-ask YES + best-ask NO across 55 live markets
+  min    1.0010     <- exactly one tick above a dollar
+  median 1.0070
+  below 1.00 (true arbitrage): 0
+```
+
+Every market is priced at or above a dollar, and the tightest is exactly one
+tick wide. Market makers hold that line and automated traders close anything
+wider within milliseconds. The scanner works; the opportunity does not exist.
+
+`pm scan` with the longshot fade model found zero candidates too, and prints
+why each market was rejected rather than leaving you guessing:
+
+```
+  no_opinion       23      model had no view at these prices
+  no_quote          4      no ask side
+  sized_to_zero    28      price outside the tradeable band
+```
+
+The worked example is the useful part. A market with YES at 0.006, shaded 25
+percent by the model, gives a true estimate of 0.0041. That is a shade of
+**0.0019** on the YES side. On the NO side, where you would actually place the
+bet, NO trades at 0.995 against an implied 0.9959, so the edge is **+0.0009** —
+nine hundredths of a cent, against a spread of one full tick.
+
+The favourite longshot bias is real and well documented. It is also, at these
+prices, smaller than the spread. That is worth understanding before assuming a
+documented market anomaly is a tradeable one.
+
+### Depth aware execution
+
+The most common way a prediction market strategy lies to itself is assuming it
+fills at the quoted price. `pm book` walks the real book and shows what a given
+size actually costs:
+
+```
+Will Arsenal FC win on 2026-08-31?
+  Yes  bid 0.55  ask 0.56  spread 0.01  mid 0.555
+       depth within 5c: 154,548 shares ($89,440)
+           size    filled   avg price   slippage  levels
+             25        25      0.5600    +0.0000       1
+            500       500      0.5600    +0.0000       1
+           2000      2000      0.5625    +0.0025       2
+          10000     10000      0.5685    +0.0085       2
+```
+
+`trader.py` runs every candidate through that walk and rejects it if slippage
+eats the edge. On a contract that pays at most a dollar, a cent of slippage is
+enormous.
+
+### Probability models
+
+| Model | Claim |
+| --- | --- |
+| `market_price` | The null model. Believes the market, so its edge is zero by construction |
+| `longshot_fade` | Fades the favourite longshot bias at the extremes |
+| `momentum` | Recent drift in the odds continues |
+| `reversion` | A sharp move gives part of itself back |
+| `fixed` | Your own researched number, sized properly with Kelly |
+
+`market_price` exists to be beaten. Compare anything you write against it; most
+models lose. `momentum` and `reversion` cannot both be right about the same
+series, which is stated plainly rather than hidden behind two nice backtests.
+
+### Where the real question lives
+
+Everything in this package except `models.py` is mechanics. To profit you must
+believe a probability differs from its price, and that belief is the entire
+edge. Sizing, execution, and risk control are all downstream of one number you
+have to supply. Returning "no opinion" is the correct answer far more often
+than people expect, which is why every model is allowed to.
+
+### Legality
+
+Polymarket US operates as a CFTC registered exchange, but at least eleven
+states have issued cease and desist orders and the federal government sued
+several of them in April 2026 to overturn those actions. **Illinois is one of
+them, and that litigation is unresolved.** Whether federal registration
+preempts state law is exactly what is being argued.
+
+This package reads public market data and simulates trades. It does not sign
+orders, does not want a wallet private key, and has no live execution path.
+
+---
+
 ## Running it unattended on macOS
 
 ```bash
@@ -408,9 +540,19 @@ trading-bot/
 │   ├── config.py           JSON config with strict validation
 │   ├── report.py           terminal and HTML reports
 │   ├── pine.py             TradingView Pine Script export
-│   └── cli.py              argument parsing
+│   ├── cli.py              argument parsing
+│   └── polymarket/         prediction markets
+│       ├── api.py          Gamma, CLOB, and Data API client
+│       ├── types.py        Market, OrderBook, Fill
+│       ├── book.py         depth aware fills and slippage curves
+│       ├── sizing.py       Kelly for bounded loss bets
+│       ├── arbitrage.py    YES plus NO pair arbitrage
+│       ├── models.py       probability models
+│       ├── trader.py       model to sized candidate
+│       ├── paper.py        binary outcome paper book
+│       └── cli.py          the pm subcommands
 ├── macos/                  launchd agent and installer
-└── tests/                  302 tests
+└── tests/                  390 tests
 ```
 
 ---
@@ -422,7 +564,7 @@ python3 -m unittest discover -s tests -t .
 ```
 
 ```
-Ran 302 tests in 11s
+Ran 390 tests in 9s
 OK
 ```
 
