@@ -386,7 +386,8 @@ SNAPSHOT_FIELDS = [
     "down_bid", "down_ask", "down_ask_size", "ladder_floor", "decision", "decision_side",
     "decision_price", "decision_shares", "blocked_by",
 ]
-RESOLUTION_FIELDS = ["resolved_at", "slug", "window_start", "winner", "final_up", "final_down"]
+RESOLUTION_FIELDS = ["resolved_at", "slug", "window_start", "winner",
+                     "gamma_up_at_settle", "gamma_down_at_settle"]
 
 
 class Recorder:
@@ -478,8 +479,12 @@ class Recorder:
                     winner = self._last_leader(slug)
                 else:
                     winner = UP if final_up >= 0.5 else DOWN
+            # Gamma's prices ~20s after close are mid settlement (0.655 observed
+            # on a window that resolved Up), so they pick the winner but are not
+            # the payout. Named accordingly.
             row = {"resolved_at": _now(), "slug": slug, "window_start": start_ts,
-                   "winner": winner, "final_up": final_up, "final_down": final_down}
+                   "winner": winner, "gamma_up_at_settle": final_up,
+                   "gamma_down_at_settle": final_down}
             self._append(self.resolutions_path, RESOLUTION_FIELDS, row)
             settled.append(row)
             del self._pending[slug]

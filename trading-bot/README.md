@@ -2,7 +2,7 @@
 
 Backtesting engine, robustness analysis, risk management, automated paper or
 live trading, and a Polymarket prediction market toolkit. Pure Python,
-**zero third party dependencies**, 429 tests.
+**zero third party dependencies**, 430 tests.
 
 Runs on the Python that ships with macOS. Nothing to install.
 
@@ -527,6 +527,12 @@ then logs how the window resolved. Join the two and you have the win rate at
 every entry price, measured. The pitch asserted 83.3 percent and measured
 nothing.
 
+One live window, recorded end to end with the fixed loop: the leader offered
+at 97 to 98 cents from T-89s to T-69s, the ask was pulled at T-63s and never
+returned, and the distance rule was first satisfied at T-3s with nothing to
+buy. Inside the ladder's active window there was not a single purchasable
+observation. The window resolved as the leader.
+
 Fifty windows is a start. Five hundred is an answer.
 
 No orders are placed. Every gate in the pitch's checklist is kept, including
@@ -614,7 +620,7 @@ trading-bot/
 │       ├── sniper.py       5 minute BTC up/down: rules, fees, recorder
 │       └── cli.py          the pm subcommands
 ├── macos/                  launchd agent and installer
-└── tests/                  429 tests
+└── tests/                  430 tests
 ```
 
 ---
@@ -626,7 +632,7 @@ python3 -m unittest discover -s tests -t .
 ```
 
 ```
-Ran 429 tests in 12s
+Ran 430 tests in 12s
 OK
 ```
 
