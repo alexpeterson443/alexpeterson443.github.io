@@ -5,7 +5,9 @@ config.json
 
 # Local state and generated output
 paper_state.json
+pm_paper.json
 journal.csv
+snipe_data/
 data/
 logs/
 reports/
