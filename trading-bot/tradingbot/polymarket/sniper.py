@@ -485,6 +485,10 @@ class Recorder:
             del self._pending[slug]
         return settled
 
+    def pending_count(self) -> int:
+        """Windows observed but not yet settled."""
+        return len(self._pending)
+
     def _last_leader(self, slug: str) -> str:
         last = ""
         with open(self.snapshots_path, newline="", encoding="utf-8") as handle:

@@ -319,17 +319,34 @@ def cmd_snipe_watch(args) -> int:
     print(f"\nRecording 5 minute BTC windows to {args.out}/  (Ctrl-C to stop)")
     print(f"sampling every {args.every}s inside the final {args.window}s of each window\n")
     seen = 0
+
+    def settle_now() -> None:
+        nonlocal seen
+        for row in recorder.settle():
+            seen += 1
+            print(f"  RESOLVED {row['slug']} -> {row['winner']}   ({seen} windows so far)")
+
     try:
         while True:
+            # Settle on every pass. Once a window closes the "current" market is
+            # already the next one and seconds_left jumps to ~300, so a settle
+            # call that lives only in the close branch would lag a full window.
+            settle_now()
+            if args.max_windows and seen >= args.max_windows:
+                break
             current, _ = sniper_mod.current_and_next(api)
             if current is None:
                 time.sleep(10)
                 continue
             left = sniper_mod.seconds_until_close(current) or 0
             if left > args.window:
-                # Keep the TWAP estimate warm, then sleep up to the window.
+                # Keep the TWAP estimate warm, then sleep up to the window, but
+                # never past a pending settlement.
                 feed.spot()
-                time.sleep(min(max(left - args.window, 2), 30))
+                nap = min(max(left - args.window, 2), 30)
+                if recorder.pending_count():
+                    nap = min(nap, 5)
+                time.sleep(nap)
                 continue
             if left > 0:
                 decision = recorder.snapshot(current, sniper_mod.window_start())
@@ -337,16 +354,15 @@ def cmd_snipe_watch(args) -> int:
                     print(f"  T-{left:>5.0f}s  {decision.summary()}")
                 time.sleep(args.every)
             else:
-                for row in recorder.settle():
-                    seen += 1
-                    print(f"  RESOLVED {row['slug']} -> {row['winner']}   ({seen} windows so far)")
                 time.sleep(5)
-            if args.max_windows and seen >= args.max_windows:
-                break
     except KeyboardInterrupt:
         print("\nstopped")
-    for row in recorder.settle():
-        print(f"  RESOLVED {row['slug']} -> {row['winner']}")
+    # Give the last window its oracle delay before reporting, bounded.
+    deadline = time.time() + 45
+    while recorder.pending_count() and time.time() < deadline:
+        settle_now()
+        if recorder.pending_count():
+            time.sleep(5)
     print(json.dumps(recorder.report(), indent=2))
     return 0
 

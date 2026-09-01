@@ -330,6 +330,13 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(rung["win_rate"], 1.0)
         self.assertAlmostEqual(rung["median_ask"], 0.86)
 
+    def test_pending_count_tracks_unsettled_windows(self):
+        self.assertEqual(self.rec.pending_count(), 0)
+        self.rec.snapshot(market(20), int(__import__("time").time()))
+        self.assertEqual(self.rec.pending_count(), 1)
+        self.rec.settle()                       # too early for the oracle
+        self.assertEqual(self.rec.pending_count(), 1)
+
     def test_report_on_empty_data_is_empty(self):
         self.assertEqual(self.rec.report()["rungs"], {})
 
