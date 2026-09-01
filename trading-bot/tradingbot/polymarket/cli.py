@@ -14,10 +14,12 @@ import argparse
 import json
 import os
 import sys
+import time
 from typing import List, Optional
 
 from . import arbitrage as arb_mod
 from . import models as models_mod
+from . import sniper as sniper_mod
 from .api import PolymarketAPI, PolymarketError
 from .book import slippage_curve
 from .paper import InsufficientCash, PaperBook
@@ -244,6 +246,130 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_snipe_math(args) -> int:
+    """The pitch's arithmetic, redone with the real fee and its own win rate."""
+    S = sniper_mod
+    rate = args.win_rate
+    print("\nBreak even and expectancy for the 5 minute BTC snipe, fee = shares x 0.07 x p x (1-p)")
+    print(f"assumed win rate {rate:.1%} (the pitch claims 10 of 12 = 83.3%)\n")
+    print(f"  {'entry':>6}{'fee/share':>11}{'breakeven':>11}{'wins/loss':>11}{'EV/share':>11}  verdict")
+    print("  " + "-" * 64)
+    for p in (0.70, 0.75, 0.80, 0.85, 0.88, 0.90, 0.92, 0.95, 0.99):
+        ev = S.expectancy(p, rate)
+        verdict = "profitable" if ev > 0 else "LOSES"
+        print(f"  {p:>6.2f}{S.fee_per_share(p):>11.4f}{S.breakeven_win_rate(p):>11.1%}"
+              f"{S.wins_to_recover(p):>11.2f}{ev:>+11.4f}  {verdict}")
+    print(f"\nThe pitch's daily table, {args.trades} trades a day at a ${args.stake:.2f} stake:\n")
+    print(f"  {'entry':>6}{'daily':>10}{'monthly':>11}{'yearly':>12}  breakeven  edge")
+    print("  " + "-" * 60)
+    for p in (0.75, 0.80, 0.85, 0.88, 0.92):
+        d = S.daily_projection(stake=args.stake, trades_per_day=args.trades, price=p, win_rate=rate)
+        print(f"  {p:>6.2f}{d['daily']:>+10.2f}{d['monthly']:>+11.2f}{d['yearly']:>+12.2f}"
+              f"  {d['breakeven_win_rate']:>8.1%}  {d['edge_vs_breakeven']:>+6.1%}")
+    print("\n  The pitch's $48 a day is the 0.75 row. Its rules require 0.85 and above.")
+    print("  At its own win rate, every price its ladder accepts has negative expectancy.")
+    print("  Break even at 0.85 is 85.9 percent. 10 of 12 is 83.3. That gap is the whole story.")
+    print(f"\n  Note: {DISCLAIMER}\n")
+    return 0
+
+
+def cmd_snipe_now(args) -> int:
+    """Evaluate the live window once and show every gate."""
+    api = PolymarketAPI(timeout=10)
+    feed = sniper_mod.BtcFeed()
+    current, following = sniper_mod.current_and_next(api)
+    market = current or following
+    if market is None:
+        print("no live 5 minute BTC market found", file=sys.stderr)
+        return 1
+    start = sniper_mod.window_start() if current else sniper_mod.window_start() + 300
+    left = sniper_mod.seconds_until_close(market)
+    print(f"\n{market.question}")
+    print(f"  {left:.0f}s to close   fees={market.fees_enabled} rate={market.fee_rate}   "
+          f"twap lookback={sniper_mod.twap_lookback(market)}s")
+    # Sample spot a few times so the TWAP estimate has something to average.
+    for _ in range(3):
+        feed.spot()
+    up = api.book_or_none(market.token_for("Up") or "")
+    down = api.book_or_none(market.token_for("Down") or "")
+    decision = sniper_mod.evaluate(
+        sniper_mod.SnipeRules(stake=args.stake, price_ceiling=None if args.no_ceiling else 0.80),
+        seconds_left=left or 0, up_book=up, down_book=down,
+        twap_now=feed.twap(sniper_mod.twap_lookback(market)),
+        open_price=feed.open_price_for(start), atr_1m=feed.atr_1m(),
+    )
+    for book, name in ((up, "Up"), (down, "Down")):
+        if book:
+            print(f"  {name:<5} bid {book.best_bid}  ask {book.best_ask}  "
+                  f"ask size {book.asks[0].size if book.asks else 0:.0f}")
+    print()
+    for gate in decision.gates:
+        print(f"  [{'x' if gate.passed else ' '}] {gate.name:<9} {gate.detail}")
+    print(f"\n  {decision.summary()}")
+    print(f"\n  Note: {DISCLAIMER}\n")
+    return 0
+
+
+def cmd_snipe_watch(args) -> int:
+    """Record live windows until stopped. This builds the dataset the pitch lacked."""
+    api = PolymarketAPI(timeout=10)
+    feed = sniper_mod.BtcFeed()
+    rules = sniper_mod.SnipeRules(stake=args.stake, price_ceiling=None if args.no_ceiling else 0.80)
+    recorder = sniper_mod.Recorder(api, feed, rules, out_dir=args.out)
+    print(f"\nRecording 5 minute BTC windows to {args.out}/  (Ctrl-C to stop)")
+    print(f"sampling every {args.every}s inside the final {args.window}s of each window\n")
+    seen = 0
+    try:
+        while True:
+            current, _ = sniper_mod.current_and_next(api)
+            if current is None:
+                time.sleep(10)
+                continue
+            left = sniper_mod.seconds_until_close(current) or 0
+            if left > args.window:
+                # Keep the TWAP estimate warm, then sleep up to the window.
+                feed.spot()
+                time.sleep(min(max(left - args.window, 2), 30))
+                continue
+            if left > 0:
+                decision = recorder.snapshot(current, sniper_mod.window_start())
+                if decision:
+                    print(f"  T-{left:>5.0f}s  {decision.summary()}")
+                time.sleep(args.every)
+            else:
+                for row in recorder.settle():
+                    seen += 1
+                    print(f"  RESOLVED {row['slug']} -> {row['winner']}   ({seen} windows so far)")
+                time.sleep(5)
+            if args.max_windows and seen >= args.max_windows:
+                break
+    except KeyboardInterrupt:
+        print("\nstopped")
+    for row in recorder.settle():
+        print(f"  RESOLVED {row['slug']} -> {row['winner']}")
+    print(json.dumps(recorder.report(), indent=2))
+    return 0
+
+
+def cmd_snipe_report(args) -> int:
+    api = PolymarketAPI()
+    recorder = sniper_mod.Recorder(api, sniper_mod.BtcFeed(), sniper_mod.SnipeRules(), out_dir=args.out)
+    report = recorder.report()
+    print(f"\nObserved results from {args.out}/  ({report['windows_resolved']} windows resolved)\n")
+    if not report["rungs"]:
+        print("  no resolved observations yet. Run: python3 run.py pm snipe watch")
+        return 0
+    print(f"  {'rung':<10}{'obs':>6}{'win rate':>10}{'median ask':>12}{'breakeven':>11}{'EV/share':>10}")
+    print("  " + "-" * 60)
+    for rung, r in report["rungs"].items():
+        be = f"{r['breakeven_at_median_ask']:.1%}" if r["breakeven_at_median_ask"] else "-"
+        ev = f"{r['expectancy_per_share']:+.4f}" if r["expectancy_per_share"] is not None else "-"
+        print(f"  {rung:<10}{r['observations']:>6}{r['win_rate']:>10.1%}{r['median_ask']:>12.3f}{be:>11}{ev:>10}")
+    print("\n  Win rate above breakeven at a rung means the snipe had an edge there, in this sample.")
+    print("  Small samples lie. Fifty windows is a start; five hundred is an answer.")
+    return 0
+
+
 # ----------------------------------------------------------------------
 
 
@@ -315,6 +441,33 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
     status = subs.add_parser("status", help="show the paper book")
     status.add_argument("--state", default="pm_paper.json")
     status.set_defaults(func=cmd_status)
+
+    snipe = subs.add_parser("snipe", help="5 minute BTC up/down sniping: math, live check, recorder")
+    snipe_subs = snipe.add_subparsers(dest="snipe_command", required=True)
+
+    math = snipe_subs.add_parser("math", help="break even and expectancy tables with real fees")
+    math.add_argument("--win-rate", type=float, default=10 / 12)
+    math.add_argument("--stake", type=float, default=2.0)
+    math.add_argument("--trades", type=int, default=288)
+    math.set_defaults(func=cmd_snipe_math)
+
+    now = snipe_subs.add_parser("now", help="evaluate the live window once, every gate shown")
+    now.add_argument("--stake", type=float, default=5.0)
+    now.add_argument("--no-ceiling", action="store_true", help="drop the pitch's 0.80 ceiling")
+    now.set_defaults(func=cmd_snipe_now)
+
+    watch = snipe_subs.add_parser("watch", help="record live windows to CSV until stopped")
+    watch.add_argument("--out", default="snipe_data")
+    watch.add_argument("--every", type=float, default=5.0, help="seconds between samples")
+    watch.add_argument("--window", type=float, default=90.0, help="start sampling this far out")
+    watch.add_argument("--stake", type=float, default=5.0)
+    watch.add_argument("--no-ceiling", action="store_true")
+    watch.add_argument("--max-windows", type=int, default=None)
+    watch.set_defaults(func=cmd_snipe_watch)
+
+    report = snipe_subs.add_parser("report", help="observed win rate per ladder rung")
+    report.add_argument("--out", default="snipe_data")
+    report.set_defaults(func=cmd_snipe_report)
 
     return parser
 

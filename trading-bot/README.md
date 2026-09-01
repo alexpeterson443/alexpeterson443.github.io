@@ -2,7 +2,7 @@
 
 Backtesting engine, robustness analysis, risk management, automated paper or
 live trading, and a Polymarket prediction market toolkit. Pure Python,
-**zero third party dependencies**, 390 tests.
+**zero third party dependencies**, 429 tests.
 
 Runs on the Python that ships with macOS. Nothing to install.
 
@@ -472,6 +472,67 @@ edge. Sizing, execution, and risk control are all downstream of one number you
 have to supply. Returning "no opinion" is the correct answer far more often
 than people expect, which is why every model is allowed to.
 
+### The 5 minute Bitcoin snipe
+
+A strategy pitch was supplied for Polymarket's five minute "Bitcoin Up or
+Down" markets: in the final minute the outcome is nearly decided, so buy the
+leader at 85 to 92 cents and collect the rest. High win rate, small profit.
+
+`pm snipe` implements it exactly as pitched, then does the arithmetic the
+pitch skipped.
+
+```bash
+python3 run.py pm snipe math      # break even and expectancy with real fees
+python3 run.py pm snipe now       # evaluate the live window, every gate shown
+python3 run.py pm snipe watch     # record live windows to CSV until stopped
+python3 run.py pm snipe report    # observed win rate at each entry price
+```
+
+Three facts, each verified against the live market rather than assumed:
+
+**The fee.** `fee = shares x 0.07 x p x (1 - p)`, taker only. About 0.9 cents a
+share at 85 cents, six percent of the gross margin.
+
+**The resolution.** A Chainlink TWAP with a lookback read from each market's
+own config (60 seconds on every window inspected), compared to a TWAP at the
+open. The spot price at the buzzer does not decide it, and the final fifteen
+seconds carry a quarter of the weight rather than all of it. `pm snipe`
+tracks the running TWAP against the open, not spot against a strike.
+
+**The break even.** Buying at price `c` needs a win rate of at least `c`. The
+pitch claims 10 of 12 and requires 85 cents and above:
+
+```
+   entry  fee/share  breakeven  wins/loss   EV/share  verdict
+    0.75     0.0131      76.3%       3.22    +0.0702  profitable
+    0.80     0.0112      81.1%       4.30    +0.0221  profitable
+    0.85     0.0089      85.9%       6.09    -0.0256  LOSES
+    0.92     0.0052      92.5%      12.36    -0.0918  LOSES
+```
+
+The pitch's $48 a day is the 0.75 row. Its own rules forbid buying there. At
+its own win rate, every price its ladder accepts has negative expectancy.
+
+**What the live book showed.** At T-100s one window had Up bid 0.99 and no
+asks at all. At T-68s another had Down at 0.96/0.98. When the outcome is
+clear the price is 96 to 99 cents, not 85; when it is 85, the outcome is not
+clear. The 15 cent margin the pitch describes is the market being uncertain,
+and it prices that uncertainty correctly.
+
+**What cannot be backtested.** Gamma drops resolved five minute windows within
+minutes; one of the previous seventy two was still there. So the recorder
+watches forward instead: every few seconds inside the final ninety, it logs
+both books, spot, the running TWAP, the ATR, and the rule engine's verdict,
+then logs how the window resolved. Join the two and you have the win rate at
+every entry price, measured. The pitch asserted 83.3 percent and measured
+nothing.
+
+Fifty windows is a start. Five hundred is an answer.
+
+No orders are placed. Every gate in the pitch's checklist is kept, including
+its own contradictory 0.80 ceiling from the second tab, so a skipped trade
+always says exactly why.
+
 ### Legality
 
 Polymarket US operates as a CFTC registered exchange, but at least eleven
@@ -550,9 +611,10 @@ trading-bot/
 │       ├── models.py       probability models
 │       ├── trader.py       model to sized candidate
 │       ├── paper.py        binary outcome paper book
+│       ├── sniper.py       5 minute BTC up/down: rules, fees, recorder
 │       └── cli.py          the pm subcommands
 ├── macos/                  launchd agent and installer
-└── tests/                  390 tests
+└── tests/                  429 tests
 ```
 
 ---
@@ -564,7 +626,7 @@ python3 -m unittest discover -s tests -t .
 ```
 
 ```
-Ran 390 tests in 9s
+Ran 429 tests in 12s
 OK
 ```
 

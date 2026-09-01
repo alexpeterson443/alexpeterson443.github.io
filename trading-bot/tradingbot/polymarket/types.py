@@ -155,6 +155,11 @@ class Market:
     accepting_orders: bool = True
     order_book_enabled: bool = True
     neg_risk: bool = False
+    # Crypto up/down markets carry their resolution config. None elsewhere.
+    fees_enabled: bool = False
+    fee_rate: Optional[float] = None
+    twap_lookback_seconds: Optional[int] = None
+    event_start: Optional[datetime] = None
 
     # ------------------------------------------------------------------
 
@@ -188,6 +193,9 @@ class Market:
             except (TypeError, ValueError):
                 return None
 
+        schedule = row.get("feeSchedule") if isinstance(row.get("feeSchedule"), dict) else {}
+        crypto = row.get("cryptoMarketConfig") if isinstance(row.get("cryptoMarketConfig"), dict) else {}
+
         return cls(
             id=str(row.get("id") or ""),
             question=str(row.get("question") or ""),
@@ -211,6 +219,11 @@ class Market:
             accepting_orders=bool(row.get("acceptingOrders", True)),
             order_book_enabled=bool(row.get("enableOrderBook", True)),
             neg_risk=bool(row.get("negRisk", False)),
+            fees_enabled=bool(row.get("feesEnabled", False)),
+            fee_rate=as_optional_float(schedule.get("rate")),
+            twap_lookback_seconds=(int(crypto["twapLookbackSeconds"])
+                                   if crypto.get("twapLookbackSeconds") else None),
+            event_start=parse_iso(row.get("eventStartTime")),
         )
 
     # ------------------------------------------------------------------
