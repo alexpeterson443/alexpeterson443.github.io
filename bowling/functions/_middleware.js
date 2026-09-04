@@ -1,8 +1,9 @@
 import { keyMatches, hasValidSession, makeSessionCookie } from "./_lib/auth.js";
 
-// Private link gate. The site opens only for browsers that have visited
-// /?key=<ACCESS_KEY> once; that visit sets a one year cookie. Everyone else
-// gets a plain 404 so the site does not even look like it exists.
+// Private link gate. Any request carrying ?key=<ACCESS_KEY> is allowed and
+// also receives a one year cookie. The key is deliberately left in the URL so
+// bookmarks and iPhone home screen icons keep working even in browsers with a
+// separate cookie jar. Everyone else gets a plain 404.
 export async function onRequest({ request, env, next }) {
   const url = new URL(request.url);
 
@@ -11,30 +12,30 @@ export async function onRequest({ request, env, next }) {
   }
 
   const key = url.searchParams.get("key");
+  let authed = await hasValidSession(env, request);
+  let setCookie = null;
+
   if (key !== null) {
     if (await keyMatches(env, key)) {
-      url.searchParams.delete("key");
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: url.pathname + (url.search || ""),
-          "Set-Cookie": await makeSessionCookie(env, request),
-        },
-      });
+      authed = true;
+      setCookie = await makeSessionCookie(env, request);
+    } else if (!authed) {
+      await new Promise((r) => setTimeout(r, 800));
     }
-    await new Promise((r) => setTimeout(r, 800));
   }
 
-  if (await hasValidSession(env, request)) {
+  const noStore = { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" };
+
+  if (authed) {
     const res = await next();
     const out = new Response(res.body, res);
-    out.headers.set("Cache-Control", "private, no-store");
-    out.headers.set("X-Robots-Tag", "noindex, nofollow");
+    for (const [k, v] of Object.entries(noStore)) out.headers.set(k, v);
+    if (setCookie) out.headers.append("Set-Cookie", setCookie);
     return out;
   }
 
   if (url.pathname.startsWith("/api/")) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+    return Response.json({ error: "unauthorized" }, { status: 401, headers: noStore });
   }
-  return new Response("Not found", { status: 404, headers: { "X-Robots-Tag": "noindex" } });
+  return new Response("Not found", { status: 404, headers: noStore });
 }

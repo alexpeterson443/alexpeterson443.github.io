@@ -2,8 +2,20 @@ const $ = (id) => document.getElementById(id);
 let state = null;
 let timer = null;
 
+// Remember the private link key on this device as a backup to the cookie.
+const KEY_STORE = "bowl_key";
+const urlKey = new URLSearchParams(location.search).get("key");
+if (urlKey) {
+  try { localStorage.setItem(KEY_STORE, urlKey); } catch {}
+}
+function storedKey() {
+  try { return urlKey || localStorage.getItem(KEY_STORE); } catch { return urlKey; }
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
+  const k = storedKey();
+  const url = k ? `${path}${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(k)}` : path;
+  const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });

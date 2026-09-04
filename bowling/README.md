@@ -1,8 +1,10 @@
 # Bowling Streak
 
 A private daily streak tracker. Tap **I bowled today** once a day. There is no
-password: the site opens only for a browser that has visited the private link
-(`/?key=<ACCESS_KEY>`) once, which sets a one year cookie. Everyone else sees a 404.
+password: the site opens only through the private link (`/?key=<ACCESS_KEY>`).
+The key stays in the address so bookmarks and home screen icons keep working, and
+the page also sets a one year cookie and remembers the key on the device.
+Everyone else sees a 404.
 The streak started on **Friday, August 28, 2026** (the day after move in) and the
 first week is pre seeded as verified. Days roll over at midnight Central time.
 
@@ -41,8 +43,9 @@ npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak
 npm run deploy -- --branch main
 ```
 
-Open `https://<site>.pages.dev/?key=<ACCESS_KEY>` once on each device, then add it
-to your home screen from Safari's share sheet for an app like feel.
+Open `https://<site>.pages.dev/?key=<ACCESS_KEY>` in Safari itself (not an in app
+browser), then add it to your home screen from the share sheet. The icon keeps
+the key in its address, so it always opens.
 
 Redeploy after any change with `npm run deploy`.
 
