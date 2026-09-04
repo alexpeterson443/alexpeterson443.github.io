@@ -7,6 +7,9 @@ first week is pre seeded as verified. Days roll over at midnight Central time.
 Runs on Cloudflare Pages with Pages Functions for the API and a KV namespace for
 storage, so the streak is the same on your phone and laptop.
 
+**Live:** https://bowling-streak.pages.dev (Pages project `bowling-streak`, KV namespace `BOWLING_STREAK`).
+Secrets `PASSWORD` and `SESSION_SECRET` are already set on the project.
+
 ## What is in here
 
 ```
@@ -34,15 +37,11 @@ npx wrangler login
 
 # 1. The KV namespace (BOWLING_STREAK) already exists and its id is in wrangler.toml.
 
-# 2. Create the Pages project (first time only)
-npx wrangler pages project create bowling-streak --production-branch main
+# 2. Pages project and secrets already exist. To rotate the password:
+npx wrangler pages secret put PASSWORD --project-name bowling-streak
 
-# 3. Set the two secrets (you will be prompted for each value)
-npx wrangler pages secret put PASSWORD         # the password you type on the site
-npx wrangler pages secret put SESSION_SECRET   # any long random string
-
-# 4. Deploy
-npm run deploy
+# 3. Deploy (secrets apply on the next deploy, so redeploy after changing one)
+npm run deploy -- --branch main
 ```
 
 Wrangler prints a `*.pages.dev` URL. Open it, enter the password, and you are in.
