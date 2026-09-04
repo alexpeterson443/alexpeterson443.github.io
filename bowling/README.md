@@ -1,7 +1,8 @@
 # Bowling Streak
 
-A daily streak tracker. Tap **I bowled today** once a day. There is no login: anyone
-with the link can see and tap it.
+A private daily streak tracker. Tap **I bowled today** once a day. There is no
+password: the site opens only for a browser that has visited the private link
+(`/?key=<ACCESS_KEY>`) once, which sets a one year cookie. Everyone else sees a 404.
 The streak started on **Friday, August 28, 2026** (the day after move in) and the
 first week is pre seeded as verified. Days roll over at midnight Central time.
 
@@ -15,6 +16,7 @@ storage, so the streak is the same on your phone and laptop.
 ```
 public/            static site (index.html, app.js, style.css)
 functions/
+  _middleware.js   private link gate for every route
   api/state.js     GET  -> streak stats
   api/checkin.js   POST {date?} verify today (or yesterday), DELETE {date} undo
   _lib/streak.js   pure date + streak math (unit tested)
@@ -34,12 +36,13 @@ npx wrangler login
 
 # 1. The KV namespace (BOWLING_STREAK) already exists and its id is in wrangler.toml.
 
-# 2. Deploy
+# 2. Set the secret key (any long random string), then deploy
+npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak
 npm run deploy -- --branch main
 ```
 
-Wrangler prints a `*.pages.dev` URL. Add it to your home screen from Safari's share
-sheet for an app like feel.
+Open `https://<site>.pages.dev/?key=<ACCESS_KEY>` once on each device, then add it
+to your home screen from Safari's share sheet for an app like feel.
 
 Redeploy after any change with `npm run deploy`.
 
@@ -47,7 +50,7 @@ Redeploy after any change with `npm run deploy`.
 
 In the Cloudflare dashboard: Workers & Pages > bowling-streak > Custom domains.
 
-### Optional: make it private with Cloudflare Access
+### Optional: swap the private link for Cloudflare Access
 
 To require your email login before the page loads, go to Zero Trust > Access >
 Applications, add a self hosted app for the `pages.dev` domain, and allow only your
@@ -56,7 +59,8 @@ email. Free for up to 50 users.
 ## Local development
 
 ```bash
-npm run dev                       # http://localhost:8788
+echo 'ACCESS_KEY=dev' > .dev.vars
+npm run dev                       # http://localhost:8788/?key=dev
 npm test
 ```
 
@@ -68,6 +72,7 @@ npm test
 | ---------------- | -------------- | ---------------------------------------- |
 | `START_DATE`     | wrangler.toml  | First day of the challenge               |
 | `TIMEZONE`       | wrangler.toml  | Day boundary (America/Chicago)           |
+| `ACCESS_KEY`     | secret         | Key in the private link                  |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.

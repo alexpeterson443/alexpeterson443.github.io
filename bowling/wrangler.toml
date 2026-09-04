@@ -15,3 +15,6 @@ id = "5a22857ff2534e83a8ea89871c179cd2"
 START_DATE = "2026-08-28"
 # All day boundaries are computed in this timezone (Milwaukee / Chicago).
 TIMEZONE = "America/Chicago"
+
+# Secret (never commit). The private link is https://<site>/?key=<ACCESS_KEY>
+#   npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak

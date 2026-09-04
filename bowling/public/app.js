@@ -7,6 +7,10 @@ async function api(path, opts = {}) {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });
+  if (res.status === 401) {
+    $("subtitle").textContent = "This device is not linked. Open your private link again.";
+    throw new Error("unauthorized");
+  }
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }
