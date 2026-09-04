@@ -26,6 +26,8 @@ functions/
   manifest.webmanifest.js  web app manifest; start_url carries the key when fetched through the private link
   api/score.js     POST {score?, date?} log a game (verifies that day; null score = not noted), DELETE {date, index}
   _lib/scores.js   score stats (unit tested)
+  _lib/ics.js      iCalendar parser with recurrence (unit tested)
+  _lib/calendar.js fetches the feed, caches it, finds bowling sessions
   _lib/streak.js   pure date + streak math (unit tested)
   _lib/store.js    KV read/write and first run seeding
 test/              node --test
@@ -64,6 +66,21 @@ To require your email login before the page loads, go to Zero Trust > Access >
 Applications, add a self hosted app for the `pages.dev` domain, and allow only your
 email. Free for up to 50 users.
 
+## Calendar
+
+Set the `CALENDAR_ICS_URL` secret to a private iCal feed and the page shows
+whether bowling is on today's calendar, when it starts and ends, and the next
+session. Any event whose title, notes, or location contains `CALENDAR_KEYWORD`
+(default `bowl`) counts. The feed is cached for 10 minutes in KV.
+
+- Google Calendar: Settings > your calendar > Integrate calendar > Secret address in iCal format.
+- iCloud: Calendar app > tap the calendar's info button > Public Calendar > copy the `webcal://` link.
+
+```bash
+npx wrangler pages secret put CALENDAR_ICS_URL --project-name bowling-streak
+npm run deploy -- --branch main
+```
+
 ## Local development
 
 ```bash
@@ -81,6 +98,8 @@ npm test
 | `START_DATE`     | wrangler.toml  | First day of the challenge               |
 | `TIMEZONE`       | wrangler.toml  | Day boundary (America/Chicago)           |
 | `ACCESS_KEY`     | secret         | Key in the private link                  |
+| `CALENDAR_ICS_URL` | secret       | Private iCal feed (optional)             |
+| `CALENDAR_KEYWORD` | wrangler.toml | Word that marks a bowling event         |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.

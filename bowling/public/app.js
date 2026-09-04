@@ -121,6 +121,36 @@ function render() {
     games.appendChild(li);
   }
 
+  // Calendar: what the schedule says about bowling.
+  const cal = s.calendar || { configured: false };
+  const calEl = $("calendar");
+  calEl.hidden = !cal.configured;
+  calEl.className = "calendar small";
+  if (cal.configured) {
+    if (cal.error && !cal.today.length && !cal.next) {
+      calEl.textContent = "📅 Calendar unavailable right now";
+    } else if (cal.today.length) {
+      const t = cal.today[0];
+      const where = t.location ? ` · ${t.location}` : "";
+      const more = cal.today.length > 1 ? ` (+${cal.today.length - 1} more)` : "";
+      if (t.inProgress) {
+        calEl.classList.add("live");
+        calEl.textContent = `🎳 You're bowling now · until ${t.time.split(" to ")[1]}${where}`;
+      } else if (t.ended) {
+        calEl.classList.add("today");
+        calEl.textContent = `📅 Today's session ended · ${t.time}${where}${more}`;
+        if (!s.verifiedToday) status.textContent = "Your session is over. Did you bowl? Tap to verify.";
+      } else {
+        calEl.classList.add("today");
+        calEl.textContent = `📅 Bowling today · ${t.time}${where}${more}`;
+      }
+    } else if (cal.next) {
+      calEl.textContent = `📅 Next on calendar: ${prettyDate(cal.next.date)} · ${cal.next.allDay ? "all day" : cal.next.time.split(" to ")[0]}`;
+    } else {
+      calEl.textContent = "📅 No bowling on your calendar in the next 3 weeks";
+    }
+  }
+
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
 

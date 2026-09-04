@@ -15,6 +15,11 @@ id = "5a22857ff2534e83a8ea89871c179cd2"
 START_DATE = "2026-08-28"
 # All day boundaries are computed in this timezone (Milwaukee / Chicago).
 TIMEZONE = "America/Chicago"
+# Case insensitive word that marks a calendar event as a bowling session.
+CALENDAR_KEYWORD = "bowl"
 
 # Secret (never commit). The private link is https://<site>/?key=<ACCESS_KEY>
 #   npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak
+# Optional calendar link (secret, it grants read access to your calendar):
+#   npx wrangler pages secret put CALENDAR_ICS_URL --project-name bowling-streak
+# Events whose title, notes, or location contain CALENDAR_KEYWORD count as bowling.

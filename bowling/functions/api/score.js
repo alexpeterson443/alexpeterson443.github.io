@@ -25,7 +25,7 @@ export async function onRequestPost({ request, env }) {
 
   // A logged game is proof you bowled that day.
   const days = await saveDays(env, [...(await loadDays(env)), date]);
-  return Response.json(buildState(env, days, scores));
+  return Response.json(await buildState(env, days, scores));
 }
 
 export async function onRequestDelete({ request, env }) {
@@ -37,5 +37,5 @@ export async function onRequestDelete({ request, env }) {
   }
   list.splice(body.index, 1);
   await saveScores(env, scores);
-  return Response.json(buildState(env, await loadDays(env), scores));
+  return Response.json(await buildState(env, await loadDays(env), scores));
 }

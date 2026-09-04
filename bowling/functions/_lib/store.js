@@ -1,5 +1,6 @@
 import { todayIn, msUntilMidnight, computeStats, dateRange, addDays } from "./streak.js";
 import { scoreStats } from "./scores.js";
+import { bowlingSchedule } from "./calendar.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -36,13 +37,15 @@ export async function saveScores(env, scores) {
   return scores;
 }
 
-export function buildState(env, days, scores = {}) {
+export async function buildState(env, days, scores = {}) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   const stats = computeStats(days, today, env.START_DATE);
+  const calendar = await bowlingSchedule(env).catch((e) => ({ configured: true, today: [], next: null, error: e.message }));
   return {
     ...stats,
     scores: scoreStats(scores),
+    calendar,
     timezone: tz,
     yesterday: addDays(today, -1),
     msUntilMidnight: msUntilMidnight(tz),
