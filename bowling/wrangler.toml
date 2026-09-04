@@ -8,7 +8,7 @@ compatibility_date = "2026-08-01"
 # Settings > Bindings if you deploy through the dashboard instead of the CLI).
 [[kv_namespaces]]
 binding = "STREAK_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "5a22857ff2534e83a8ea89871c179cd2"
 
 [vars]
 # First day of the streak: the day after move in.

@@ -32,8 +32,7 @@ cd bowling
 npm install
 npx wrangler login
 
-# 1. Create the KV namespace and paste the id into wrangler.toml
-npx wrangler kv namespace create STREAK_KV
+# 1. The KV namespace (BOWLING_STREAK) already exists and its id is in wrangler.toml.
 
 # 2. Create the Pages project (first time only)
 npx wrangler pages project create bowling-streak --production-branch main
