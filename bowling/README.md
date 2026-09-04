@@ -23,6 +23,7 @@ functions/
   _middleware.js   private link gate for every route
   api/state.js     GET  -> streak stats
   api/checkin.js   POST {date?} verify today (or yesterday), DELETE {date} undo
+  manifest.webmanifest.js  web app manifest; start_url carries the key when fetched through the private link
   api/score.js     POST {score?, date?} log a game (verifies that day; null score = not noted), DELETE {date, index}
   _lib/scores.js   score stats (unit tested)
   _lib/streak.js   pure date + streak math (unit tested)
@@ -48,8 +49,8 @@ npm run deploy -- --branch main
 ```
 
 Open `https://<site>.pages.dev/?key=<ACCESS_KEY>` in Safari itself (not an in app
-browser), then add it to your home screen from the share sheet. The icon keeps
-the key in its address, so it always opens.
+browser), then Share > Add to Home Screen. It installs as a full screen app with
+its own icon, and the launch address keeps the key so it always opens unlocked.
 
 Redeploy after any change with `npm run deploy`.
 

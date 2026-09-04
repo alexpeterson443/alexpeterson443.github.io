@@ -8,6 +8,11 @@ const urlKey = new URLSearchParams(location.search).get("key");
 if (urlKey) {
   try { localStorage.setItem(KEY_STORE, urlKey); } catch {}
 }
+// Point the manifest at the keyed version so Add to Home Screen keeps the key.
+if (urlKey) {
+  $("manifest").href = `/manifest.webmanifest?key=${encodeURIComponent(urlKey)}`;
+}
+
 function storedKey() {
   try { return urlKey || localStorage.getItem(KEY_STORE); } catch { return urlKey; }
 }
