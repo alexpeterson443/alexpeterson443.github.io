@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Bowling Streak</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card login">
+    <div class="ball">🎳</div>
+    <h1>Bowling Streak</h1>
+    <p class="muted">Private. Enter the password to continue.</p>
+    <form id="login">
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" autofocus required />
+      <button type="submit">Unlock</button>
+      <p id="error" class="error" hidden>Wrong password.</p>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById("login");
+    const err = document.getElementById("error");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: document.getElementById("password").value }),
+      });
+      if (res.ok) location.href = "/";
+      else err.hidden = false;
+    });
+  </script>
+</body>
+</html>

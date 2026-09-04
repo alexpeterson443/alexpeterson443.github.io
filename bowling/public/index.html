@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0b0d14" />
+  <title>Bowling Streak</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card app">
+    <header>
+      <div class="ball" id="ball">🎳</div>
+      <h1>Bowling Streak</h1>
+      <p class="muted" id="subtitle">Loading…</p>
+    </header>
+
+    <section class="streak">
+      <div class="big" id="streak">–</div>
+      <div class="label">day streak</div>
+      <p class="status" id="status"></p>
+    </section>
+
+    <section class="action">
+      <button id="verify" class="primary" disabled>I bowled today</button>
+      <button id="undo" class="ghost" hidden>Undo today</button>
+      <p class="muted small" id="countdown"></p>
+    </section>
+
+    <section class="stats">
+      <div><span id="total">–</span><small>days bowled</small></div>
+      <div><span id="longest">–</span><small>longest</small></div>
+      <div><span id="dayof">–</span><small>day of challenge</small></div>
+    </section>
+
+    <section class="calendar">
+      <h2>Since move in</h2>
+      <div class="grid" id="grid"></div>
+      <div class="legend">
+        <span><i class="dot hit"></i>bowled</span>
+        <span><i class="dot miss"></i>missed</span>
+        <span><i class="dot today"></i>today</span>
+      </div>
+      <p class="muted small" id="yesterday-hint" hidden>
+        Forgot to tap yesterday? <button id="verify-yesterday" class="link">Mark yesterday as bowled</button>
+      </p>
+    </section>
+
+    <footer>
+      <button id="logout" class="link muted">Lock</button>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
