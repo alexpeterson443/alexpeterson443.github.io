@@ -37,9 +37,11 @@
     <section class="scores">
       <h2>Games</h2>
       <form id="score-form" class="score-form">
-        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" required />
-        <button type="submit">Log game</button>
+        <input id="score-date" type="date" required />
+        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" />
+        <button type="submit">Log</button>
       </form>
+      <p class="muted small">Leave the score blank if you did not note it.</p>
       <p class="muted small" id="score-summary"></p>
       <ul class="games" id="games"></ul>
     </section>

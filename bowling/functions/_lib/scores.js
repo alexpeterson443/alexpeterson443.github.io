@@ -1,24 +1,25 @@
-// Pure helpers for game scores. Scores are stored as { "YYYY-MM-DD": [n, n] }.
+// Pure helpers for game scores. Stored as { "YYYY-MM-DD": [n | null, ...] }.
+// A null entry is a game that was bowled but whose score was not recorded.
 
 export function isValidScore(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 300;
+  return n === null || (Number.isInteger(n) && n >= 0 && n <= 300);
 }
 
-/** Flatten to a list of games, newest date first, in the order bowled. */
-export function gameList(scores) {
-  const out = [];
-  for (const date of Object.keys(scores).sort().reverse()) {
-    scores[date].forEach((score, index) => out.push({ date, index, score }));
-  }
-  return out;
+/** Per day summary, newest first. */
+export function dayList(scores) {
+  return Object.keys(scores)
+    .sort()
+    .reverse()
+    .map((date) => ({ date, games: scores[date].length, scores: scores[date] }));
 }
 
 export function scoreStats(scores) {
   const all = Object.values(scores).flat();
+  const known = all.filter((n) => n !== null);
   const games = all.length;
-  const high = games ? Math.max(...all) : null;
-  const average = games ? Math.round(all.reduce((a, b) => a + b, 0) / games) : null;
+  const high = known.length ? Math.max(...known) : null;
+  const average = known.length ? Math.round(known.reduce((a, b) => a + b, 0) / known.length) : null;
   const highDate = high === null ? null
     : Object.keys(scores).sort().find((d) => scores[d].includes(high));
-  return { games, high, highDate, average, list: gameList(scores).slice(0, 20) };
+  return { games, scored: known.length, high, highDate, average, days: dayList(scores).slice(0, 30) };
 }

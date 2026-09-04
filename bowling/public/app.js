@@ -76,31 +76,43 @@ function render() {
     }
   }
 
-  // Games list and score summary.
+  // Games per day and score summary.
   const sc = s.scores;
+  const dateInput = $("score-date");
+  dateInput.min = s.start;
+  dateInput.max = s.today;
+  if (!dateInput.value || dateInput.value > s.today || dateInput.value < s.start) dateInput.value = s.today;
   $("score-summary").textContent = sc.games
-    ? `${sc.games} game${sc.games === 1 ? "" : "s"} · average ${sc.average} · best ${sc.high} on ${prettyDate(sc.highDate)}`
+    ? `${sc.games} game${sc.games === 1 ? "" : "s"}` +
+      (sc.scored ? ` · average ${sc.average} · best ${sc.high} on ${prettyDate(sc.highDate)}` : "")
     : "No games logged yet.";
   const games = $("games");
   games.innerHTML = "";
-  for (const g of sc.list) {
+  for (const d of sc.days) {
     const li = document.createElement("li");
-    const score = document.createElement("span");
-    score.className = "score" + (g.score === sc.high ? " best" : "");
-    score.textContent = g.score;
     const date = document.createElement("span");
     date.className = "date";
-    date.textContent = prettyDate(g.date);
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "link";
-    del.textContent = "remove";
-    del.addEventListener("click", async () => {
-      if (!confirm(`Remove the ${g.score} game?`)) return;
-      state = await api("/api/score", { method: "DELETE", body: JSON.stringify({ date: g.date, index: g.index }) });
-      render();
+    date.textContent = prettyDate(d.date);
+    const chips = document.createElement("span");
+    chips.className = "chips";
+    d.scores.forEach((score, index) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (score === null ? " unknown" : score === sc.high ? " best" : "");
+      chip.textContent = score === null ? "?" : score;
+      chip.title = "Tap to remove";
+      chip.addEventListener("click", async () => {
+        const label = score === null ? "an unscored game" : `the ${score} game`;
+        if (!confirm(`Remove ${label} on ${prettyDate(d.date)}?`)) return;
+        state = await api("/api/score", { method: "DELETE", body: JSON.stringify({ date: d.date, index }) });
+        render();
+      });
+      chips.appendChild(chip);
     });
-    li.append(score, date, del);
+    const count = document.createElement("span");
+    count.className = "count";
+    count.textContent = `${d.games} game${d.games === 1 ? "" : "s"}`;
+    li.append(date, chips, count);
     games.appendChild(li);
   }
 
@@ -171,9 +183,10 @@ $("undo").addEventListener("click", async () => {
 $("score-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("score");
-  const score = Number(input.value);
-  if (!Number.isInteger(score) || score < 0 || score > 300) return;
-  state = await api("/api/score", { method: "POST", body: JSON.stringify({ score }) });
+  const score = input.value === "" ? null : Number(input.value);
+  if (score !== null && (!Number.isInteger(score) || score < 0 || score > 300)) return;
+  const date = $("score-date").value || state.today;
+  state = await api("/api/score", { method: "POST", body: JSON.stringify({ score, date }) });
   input.value = "";
   $("ball").classList.add("spin");
   setTimeout(() => $("ball").classList.remove("spin"), 900);

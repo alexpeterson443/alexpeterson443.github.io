@@ -2,13 +2,14 @@ import { loadDays, saveDays, loadScores, saveScores, buildState } from "../_lib/
 import { todayIn } from "../_lib/streak.js";
 import { isValidScore } from "../_lib/scores.js";
 
-// POST /api/score {score, date?}      -> log a game (also verifies that day)
+// POST /api/score {score?, date?}     -> log a game (also verifies that day);
+//                                        score null or missing = score unknown
 // DELETE /api/score {date, index}     -> remove one game
 export async function onRequestPost({ request, env }) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   const body = await request.json().catch(() => ({}));
-  const score = Number(body.score);
+  const score = body.score === null || body.score === undefined || body.score === "" ? null : Number(body.score);
   const date = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : today;
 
   if (!isValidScore(score)) {
