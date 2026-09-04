@@ -7,6 +7,8 @@ import { keyMatches, hasValidSession, makeSessionCookie } from "./_lib/auth.js";
 export async function onRequest({ request, env, next }) {
   const url = new URL(request.url);
 
+  if (url.pathname === "/ping") return next();
+
   if (!env.ACCESS_KEY) {
     return new Response("ACCESS_KEY secret is not set.", { status: 500 });
   }
