@@ -56,8 +56,9 @@ export async function bowlingSchedule(env) {
   const fromMs = dayNumber(addDays(today, -1)) * 86_400_000;
   const toMs = dayNumber(addDays(today, 21)) * 86_400_000;
   const events = parseEvents(feed.text, tz);
+  // Title or location only: notes on other events often mention bowling.
   const matches = expandOccurrences(events, fromMs, toMs).filter((o) =>
-    `${o.summary}\n${o.description}\n${o.location}`.toLowerCase().includes(keyword),
+    `${o.summary}\n${o.location}`.toLowerCase().includes(keyword),
   );
 
   const describe = (o) => ({

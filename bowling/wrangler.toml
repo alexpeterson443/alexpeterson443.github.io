@@ -22,4 +22,4 @@ CALENDAR_KEYWORD = "bowl"
 #   npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak
 # Optional calendar link (secret, it grants read access to your calendar):
 #   npx wrangler pages secret put CALENDAR_ICS_URL --project-name bowling-streak
-# Events whose title, notes, or location contain CALENDAR_KEYWORD count as bowling.
+# Events whose title or location contain CALENDAR_KEYWORD count as bowling.

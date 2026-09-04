@@ -70,7 +70,7 @@ email. Free for up to 50 users.
 
 Set the `CALENDAR_ICS_URL` secret to a private iCal feed and the page shows
 whether bowling is on today's calendar, when it starts and ends, and the next
-session. Any event whose title, notes, or location contains `CALENDAR_KEYWORD`
+session. Any event whose title or location contains `CALENDAR_KEYWORD`
 (default `bowl`) counts. The feed is cached for 10 minutes in KV.
 
 - Google Calendar: Settings > your calendar > Integrate calendar > Secret address in iCal format.
