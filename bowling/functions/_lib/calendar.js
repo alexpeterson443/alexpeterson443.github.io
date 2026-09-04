@@ -73,7 +73,11 @@ export async function bowlingSchedule(env) {
     inProgress: o.start <= now && o.end > now,
   });
 
-  const todays = matches.filter((o) => dateIn(o.start, tz) === today).map(describe);
+  const rank = (t) => (t.inProgress ? 0 : !t.ended ? 1 : 2);
+  const todays = matches
+    .filter((o) => dateIn(o.start, tz) === today)
+    .map(describe)
+    .sort((a, b) => rank(a) - rank(b) || a.start - b.start);
   const next = matches.filter((o) => o.start > now && dateIn(o.start, tz) !== today).map(describe)[0] || null;
 
   return {

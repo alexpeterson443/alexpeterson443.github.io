@@ -38,3 +38,9 @@ test("dayList is newest first with counts", () => {
   assert.deepEqual(l[0], { date: "2026-09-04", games: 2, scores: [159, 158] });
   assert.equal(l[1].games, 1);
 });
+
+test("ICS unescape handles escaped semicolons and commas", async () => {
+  const { parseEvents } = await import("../functions/_lib/ics.js");
+  const e = parseEvents("BEGIN:VEVENT\nUID:x\nDTSTART:20260904T190000Z\nSUMMARY:Bowl\\; then food\\, maybe\nEND:VEVENT\n")[0];
+  assert.equal(e.summary, "Bowl; then food, maybe");
+});

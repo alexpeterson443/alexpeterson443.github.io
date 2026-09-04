@@ -64,7 +64,8 @@ function render() {
     verify.textContent = "✓ Bowled today";
     verify.classList.add("done");
     verify.disabled = true;
-    undo.hidden = false;
+    // A logged game already proves today; undo only applies to a bare tap.
+    undo.hidden = s.gamesToday > 0;
   } else {
     verify.textContent = "I bowled today";
     verify.classList.remove("done");
@@ -197,9 +198,23 @@ function render() {
 }
 
 async function load() {
-  state = await api("/api/state");
-  render();
+  try {
+    state = await api("/api/state");
+    render();
+  } catch (e) {
+    if (e.message === "unauthorized") return;
+    const sub = $("subtitle");
+    sub.textContent = state ? "Can't reach the server. Showing what was loaded before." : "Can't reach the server. Tap here to retry.";
+    sub.classList.add("retry");
+  }
 }
+$("subtitle").addEventListener("click", () => {
+  if ($("subtitle").classList.contains("retry")) {
+    $("subtitle").classList.remove("retry");
+    $("subtitle").textContent = "Loading…";
+    load();
+  }
+});
 
 $("verify").addEventListener("click", async () => {
   $("verify").disabled = true;
@@ -234,7 +249,7 @@ $("verify-yesterday").addEventListener("click", async () => {
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") load().catch(() => {});
+  if (document.visibilityState === "visible") load();
 });
 
-load().catch((e) => ($("subtitle").textContent = e.message));
+load();

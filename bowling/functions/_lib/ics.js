@@ -106,7 +106,7 @@ export function parseEvents(text, defaultTz = "UTC") {
 }
 
 function unescape(v) {
-  return v.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\;/g, ";").replace(/\\\\/g, "\\");
+  return v.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\");
 }
 
 function durationOf(e) {
