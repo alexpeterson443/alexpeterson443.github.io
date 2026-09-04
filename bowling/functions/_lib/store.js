@@ -1,6 +1,8 @@
 import { todayIn, msUntilMidnight, computeStats, dateRange, addDays } from "./streak.js";
+import { scoreStats } from "./scores.js";
 
 const KEY = "checkins";
+const SCORES_KEY = "scores";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -23,12 +25,24 @@ export async function saveDays(env, days) {
   return clean;
 }
 
-export function buildState(env, days) {
+export async function loadScores(env) {
+  const raw = await env.STREAK_KV.get(SCORES_KEY, "json");
+  return raw && typeof raw === "object" ? raw : {};
+}
+
+export async function saveScores(env, scores) {
+  for (const d of Object.keys(scores)) if (!scores[d].length) delete scores[d];
+  await env.STREAK_KV.put(SCORES_KEY, JSON.stringify(scores));
+  return scores;
+}
+
+export function buildState(env, days, scores = {}) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   const stats = computeStats(days, today, env.START_DATE);
   return {
     ...stats,
+    scores: scoreStats(scores),
     timezone: tz,
     yesterday: addDays(today, -1),
     msUntilMidnight: msUntilMidnight(tz),

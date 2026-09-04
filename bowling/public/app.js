@@ -45,7 +45,7 @@ function render() {
   $("streak").textContent = s.current;
   $("total").textContent = s.total;
   $("longest").textContent = s.longest;
-  $("dayof").textContent = s.dayOfChallenge;
+  $("high").textContent = s.scores.high ?? "–";
   $("subtitle").textContent = `Started ${prettyDate(s.start)} · ${prettyDate(s.today)}`;
 
   const status = $("status");
@@ -74,6 +74,34 @@ function render() {
       status.className = "status";
       status.textContent = "Tap once you've bowled.";
     }
+  }
+
+  // Games list and score summary.
+  const sc = s.scores;
+  $("score-summary").textContent = sc.games
+    ? `${sc.games} game${sc.games === 1 ? "" : "s"} · average ${sc.average} · best ${sc.high} on ${prettyDate(sc.highDate)}`
+    : "No games logged yet.";
+  const games = $("games");
+  games.innerHTML = "";
+  for (const g of sc.list) {
+    const li = document.createElement("li");
+    const score = document.createElement("span");
+    score.className = "score" + (g.score === sc.high ? " best" : "");
+    score.textContent = g.score;
+    const date = document.createElement("span");
+    date.className = "date";
+    date.textContent = prettyDate(g.date);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "link";
+    del.textContent = "remove";
+    del.addEventListener("click", async () => {
+      if (!confirm(`Remove the ${g.score} game?`)) return;
+      state = await api("/api/score", { method: "DELETE", body: JSON.stringify({ date: g.date, index: g.index }) });
+      render();
+    });
+    li.append(score, date, del);
+    games.appendChild(li);
   }
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
@@ -137,6 +165,18 @@ $("verify").addEventListener("click", async () => {
 $("undo").addEventListener("click", async () => {
   if (!confirm("Remove today's check in?")) return;
   state = await api("/api/checkin", { method: "DELETE", body: JSON.stringify({ date: state.today }) });
+  render();
+});
+
+$("score-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("score");
+  const score = Number(input.value);
+  if (!Number.isInteger(score) || score < 0 || score > 300) return;
+  state = await api("/api/score", { method: "POST", body: JSON.stringify({ score }) });
+  input.value = "";
+  $("ball").classList.add("spin");
+  setTimeout(() => $("ball").classList.remove("spin"), 900);
   render();
 });
 

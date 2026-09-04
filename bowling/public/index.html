@@ -30,8 +30,18 @@
 
     <section class="stats">
       <div><span id="total">–</span><small>days bowled</small></div>
-      <div><span id="longest">–</span><small>longest</small></div>
-      <div><span id="dayof">–</span><small>day of challenge</small></div>
+      <div><span id="longest">–</span><small>longest streak</small></div>
+      <div><span id="high">–</span><small>high score</small></div>
+    </section>
+
+    <section class="scores">
+      <h2>Games</h2>
+      <form id="score-form" class="score-form">
+        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" required />
+        <button type="submit">Log game</button>
+      </form>
+      <p class="muted small" id="score-summary"></p>
+      <ul class="games" id="games"></ul>
     </section>
 
     <section class="calendar">

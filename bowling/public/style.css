@@ -144,3 +144,18 @@ button.link {
 
 #yesterday-hint { margin-top: 14px; }
 footer { margin-top: 22px; }
+
+.scores { margin-bottom: 26px; }
+.score-form { display: flex; gap: 8px; }
+.score-form input { margin: 0; flex: 1; text-align: center; }
+.score-form button { width: auto; padding: 14px 18px; white-space: nowrap; }
+#score-summary { margin-top: 10px; }
+.games { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+.games li {
+  display: flex; justify-content: space-between; align-items: center;
+  background: rgba(255, 255, 255, 0.04); border-radius: 10px; padding: 10px 12px;
+}
+.games .score { font-weight: 700; font-size: 1.1rem; }
+.games .best { color: var(--today); }
+.games .date { color: var(--muted); font-size: 0.85rem; flex: 1; text-align: left; margin-left: 12px; }
+.games button.link { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
