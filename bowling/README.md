@@ -5,7 +5,7 @@ password: the site opens only through the private link (`/?key=<ACCESS_KEY>`).
 The key stays in the address so bookmarks and home screen icons keep working, and
 the page also sets a one year cookie and remembers the key on the device.
 Everyone else sees a 404.
-The streak started on **Friday, August 28, 2026** (the day after move in) and the
+The streak started on **Friday, August 28, 2026** and the
 first week is pre seeded as verified. Days roll over at midnight Central time.
 
 Runs on Cloudflare Pages with Pages Functions for the API and a KV namespace for

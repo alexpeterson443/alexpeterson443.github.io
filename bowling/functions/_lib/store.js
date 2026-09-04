@@ -3,9 +3,9 @@ import { todayIn, msUntilMidnight, computeStats, dateRange, addDays } from "./st
 const KEY = "checkins";
 
 /**
- * Days verified before this site existed. Alex started bowling on the day
- * after move in (Fri 2026-08-28) and has bowled every day since, so the first
- * week is seeded as verified. Only applied when KV is completely empty.
+ * Days verified before this site existed. The streak began Fri 2026-08-28
+ * and every day through SEED_THROUGH was bowled, so that first week is seeded
+ * as verified. Only applied when KV is completely empty.
  */
 const SEED_THROUGH = "2026-09-03";
 
