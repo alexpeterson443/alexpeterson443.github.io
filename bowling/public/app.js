@@ -7,10 +7,6 @@ async function api(path, opts = {}) {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });
-  if (res.status === 401) {
-    location.href = "/login";
-    throw new Error("unauthorized");
-  }
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }
@@ -131,11 +127,6 @@ $("undo").addEventListener("click", async () => {
 $("verify-yesterday").addEventListener("click", async () => {
   state = await api("/api/checkin", { method: "POST", body: JSON.stringify({ date: state.yesterday }) });
   render();
-});
-
-$("logout").addEventListener("click", async () => {
-  await api("/api/logout", { method: "POST" });
-  location.href = "/login";
 });
 
 document.addEventListener("visibilitychange", () => {

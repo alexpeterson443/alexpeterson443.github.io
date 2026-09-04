@@ -15,7 +15,3 @@ id = "5a22857ff2534e83a8ea89871c179cd2"
 START_DATE = "2026-08-28"
 # All day boundaries are computed in this timezone (Milwaukee / Chicago).
 TIMEZONE = "America/Chicago"
-
-# Secrets (never commit these). Set them with:
-#   npx wrangler pages secret put PASSWORD
-#   npx wrangler pages secret put SESSION_SECRET
