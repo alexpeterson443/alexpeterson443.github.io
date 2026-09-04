@@ -60,3 +60,10 @@ test("msUntilMidnight counts down to Central midnight", () => {
   const ms = msUntilMidnight("America/Chicago", now);
   assert.equal(ms, 90 * 60 * 1000);
 });
+
+test("msUntilMidnight is DST aware", () => {
+  // Fall back: Nov 1 2026 00:30 CDT, the day is 25 hours long.
+  assert.equal(msUntilMidnight("America/Chicago", new Date("2026-11-01T05:30:00Z")), 24.5 * 3600_000);
+  // Spring forward: Mar 14 2027 00:30 CST, the day is 23 hours long.
+  assert.equal(msUntilMidnight("America/Chicago", new Date("2027-03-14T06:30:00Z")), 22.5 * 3600_000);
+});

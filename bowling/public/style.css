@@ -71,7 +71,6 @@ h1 { margin: 8px 0 4px; font-size: 1.5rem; letter-spacing: 0.02em; }
 h2 { margin: 0 0 12px; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; }
 .muted { color: var(--muted); margin: 0; }
 .small { font-size: 0.85rem; }
-.error { color: var(--miss); margin: 10px 0 0; }
 .retry { color: var(--today); text-decoration: underline; cursor: pointer; }
 
 .ball { font-size: 2.6rem; line-height: 1; transition: transform 0.4s; }
@@ -130,6 +129,7 @@ button.link {
 .status.risk { color: var(--today); }
 .status.ok { color: var(--hit); }
 .status.broken { color: var(--miss); }
+.calendar[hidden] { display: none; }
 .calendar {
   margin: 10px auto 0; display: inline-block;
   background: rgba(255, 255, 255, 0.05); border-radius: 999px; padding: 6px 14px;
@@ -173,6 +173,7 @@ button.link {
 .cell.miss { background: rgba(255, 92, 122, 0.25); color: var(--miss); }
 .cell.today { outline: 2px solid var(--today); outline-offset: -2px; color: var(--today); font-weight: 700; }
 .cell.today.hit { color: #06281b; }
+.cell.blank { background: none; }
 .cell.weekday { background: none; font-size: 0.65rem; text-transform: uppercase; aspect-ratio: auto; padding-bottom: 2px; }
 
 .legend { display: flex; gap: 16px; justify-content: center; margin-top: 12px; font-size: 0.75rem; color: var(--muted); }
@@ -182,7 +183,6 @@ button.link {
 .dot.today { outline: 2px solid var(--today); outline-offset: -2px; }
 
 #yesterday-hint { margin-top: 14px; }
-footer { margin-top: 22px; }
 
 .scores { margin-bottom: 26px; }
 .score-form { display: flex; gap: 8px; }

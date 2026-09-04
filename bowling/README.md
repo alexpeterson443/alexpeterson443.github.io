@@ -1,12 +1,12 @@
 # Bowling Streak
 
 A private daily streak tracker. Tap **I bowled today** once a day, or log a game,
-which also counts as bowling that day. Games can be logged for any past day, with
-or without a score. The page shows your high score, average, and games per day. There is no
+which also counts as bowling that day. Games can be logged for any day since the start date, with or without a score,
+which is also how a forgotten day gets verified after the fact. The page shows your high score, average, and games per day. There is no
 password: the site opens only through the private link (`/?key=<ACCESS_KEY>`).
 The key stays in the address so bookmarks and home screen icons keep working, and
 the page also sets a one year cookie and remembers the key on the device.
-Everyone else sees a 404.
+Everyone else sees a 404 (the API answers 401).
 The streak started on **Friday, August 28, 2026** and the
 first week is pre seeded as verified. Days roll over at midnight Central time.
 
@@ -26,6 +26,7 @@ functions/
   manifest.webmanifest.js  web app manifest; start_url carries the key when fetched through the private link
   api/score.js     POST {score?, date?} log a game (verifies that day; null score = not noted), DELETE {date, index}
   _lib/scores.js   score stats (unit tested)
+  ping.js          public reachability check
   _lib/ics.js      iCalendar parser with recurrence (unit tested)
   _lib/calendar.js fetches the feed, caches it, finds bowling sessions
   _lib/streak.js   pure date + streak math (unit tested)
@@ -84,8 +85,8 @@ npm run deploy -- --branch main
 ## Local development
 
 ```bash
-echo 'ACCESS_KEY=dev' > .dev.vars
-npm run dev                       # http://localhost:8788/?key=dev
+printf 'ACCESS_KEY=devkey\n' > .dev.vars     # add CALENDAR_ICS_URL=... to test the calendar
+npm run dev                                 # http://localhost:8788/?key=devkey
 npm test
 ```
 

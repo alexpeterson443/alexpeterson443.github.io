@@ -35,13 +35,9 @@ export async function keyMatches(env, supplied) {
 
 export async function makeSessionCookie(env, request) {
   const exp = Date.now() + SESSION_DAYS * 86_400_000;
-  const sig = await hmac(env.ACCESS_KEY, String(exp));
+  const sig = await hmac(env.ACCESS_KEY, "session:" + exp);
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
   return `${COOKIE}=${exp}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86_400}${secure}`;
-}
-
-export function clearSessionCookie() {
-  return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
 export async function hasValidSession(env, request) {
@@ -50,6 +46,6 @@ export async function hasValidSession(env, request) {
   if (!match) return false;
   const [exp, sig] = match[1].split(".");
   if (!exp || !sig || Number(exp) < Date.now()) return false;
-  const expected = await hmac(env.ACCESS_KEY, exp);
+  const expected = await hmac(env.ACCESS_KEY, "session:" + exp);
   return timingSafeEqual(sig, expected);
 }

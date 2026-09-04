@@ -1,5 +1,5 @@
 import { loadDays, saveDays, loadScores, buildState } from "../_lib/store.js";
-import { todayIn, addDays } from "../_lib/streak.js";
+import { todayIn, addDays, isValidIsoDate } from "../_lib/streak.js";
 
 // POST /api/checkin            -> verify today
 // POST /api/checkin {date}     -> verify today or yesterday (grace for late entry)
@@ -21,7 +21,7 @@ export async function onRequestPost({ request, env }) {
 
 export async function onRequestDelete({ request, env }) {
   const body = await request.json().catch(() => ({}));
-  if (!body.date) return Response.json({ error: "date required" }, { status: 400 });
+  if (!isValidIsoDate(body.date)) return Response.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
   const days = await saveDays(env, (await loadDays(env)).filter((d) => d !== body.date));
   return Response.json(await buildState(env, days, await loadScores(env)));
 }

@@ -18,11 +18,12 @@ function storedKey() {
 }
 
 async function api(path, opts = {}) {
+  // The cookie normally carries the session; the key header is the fallback
+  // for browsers with a separate or blocked cookie jar. Never put it in the URL.
   const k = storedKey();
-  const url = k ? `${path}${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(k)}` : path;
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch(path, {
     ...opts,
+    headers: { "Content-Type": "application/json", ...(k ? { "X-Access-Key": k } : {}) },
   });
   if (res.status === 401) {
     $("subtitle").textContent = "This device is not linked. Open your private link again.";
@@ -107,11 +108,10 @@ function render() {
       chip.className = "chip" + (score === null ? " unknown" : score === sc.high ? " best" : "");
       chip.textContent = score === null ? "?" : score;
       chip.title = "Tap to remove";
-      chip.addEventListener("click", async () => {
+      chip.addEventListener("click", () => {
         const label = score === null ? "an unscored game" : `the ${score} game`;
         if (!confirm(`Remove ${label} on ${prettyDate(d.date)}?`)) return;
-        state = await api("/api/score", { method: "DELETE", body: JSON.stringify({ date: d.date, index }) });
-        render();
+        act(chip, () => api("/api/score", { method: "DELETE", body: JSON.stringify({ date: d.date, index }) }));
       });
       chips.appendChild(chip);
     });
@@ -166,7 +166,7 @@ function render() {
   }
   const hits = new Set(s.days);
   const startDow = (new Date(s.start + "T00:00:00Z").getUTCDay() + 6) % 7; // Monday = 0
-  for (let i = 0; i < startDow; i++) grid.appendChild(Object.assign(document.createElement("div"), { className: "cell", style: "background:none" }));
+  for (let i = 0; i < startDow; i++) grid.appendChild(Object.assign(document.createElement("div"), { className: "cell blank" }));
 
   let cursor = s.start;
   while (cursor <= s.today) {
@@ -188,7 +188,7 @@ function render() {
   const deadline = Date.now() + s.msUntilMidnight;
   const tick = () => {
     const left = deadline - Date.now();
-    if (left <= 0) return load();
+    if (left <= 0) { clearInterval(timer); return load(); }
     $("countdown").textContent = s.verifiedToday
       ? `Next day starts in ${fmtCountdown(left)}`
       : `${fmtCountdown(left)} left to verify today`;
@@ -216,36 +216,55 @@ $("subtitle").addEventListener("click", () => {
   }
 });
 
-$("verify").addEventListener("click", async () => {
-  $("verify").disabled = true;
+// Run one action at a time; on failure keep the last good state on screen.
+let busy = false;
+async function act(button, fn) {
+  if (busy) return;
+  busy = true;
+  if (button) button.disabled = true;
+  try {
+    state = await fn();
+    render();
+  } catch (e) {
+    if (e.message !== "unauthorized") {
+      $("subtitle").textContent = "That didn't save. Check your connection and try again.";
+      if (button) button.disabled = false;
+    }
+  } finally {
+    busy = false;
+  }
+}
+
+$("verify").addEventListener("click", () => {
   $("ball").classList.add("spin");
   setTimeout(() => $("ball").classList.remove("spin"), 900);
-  state = await api("/api/checkin", { method: "POST", body: "{}" });
-  render();
+  act($("verify"), () => api("/api/checkin", { method: "POST", body: "{}" }));
 });
 
-$("undo").addEventListener("click", async () => {
+$("undo").addEventListener("click", () => {
   if (!confirm("Remove today's check in?")) return;
-  state = await api("/api/checkin", { method: "DELETE", body: JSON.stringify({ date: state.today }) });
-  render();
+  act($("undo"), () => api("/api/checkin", { method: "DELETE", body: JSON.stringify({ date: state.today }) }));
 });
 
-$("score-form").addEventListener("submit", async (e) => {
+$("score-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("score");
   const score = input.value === "" ? null : Number(input.value);
   if (score !== null && (!Number.isInteger(score) || score < 0 || score > 300)) return;
   const date = $("score-date").value || state.today;
-  state = await api("/api/score", { method: "POST", body: JSON.stringify({ score, date }) });
-  input.value = "";
-  $("ball").classList.add("spin");
-  setTimeout(() => $("ball").classList.remove("spin"), 900);
-  render();
+  const button = e.submitter || $("score-form").querySelector("button");
+  act(button, async () => {
+    const next = await api("/api/score", { method: "POST", body: JSON.stringify({ score, date }) });
+    input.value = "";
+    $("ball").classList.add("spin");
+    setTimeout(() => $("ball").classList.remove("spin"), 900);
+    button.disabled = false;
+    return next;
+  });
 });
 
-$("verify-yesterday").addEventListener("click", async () => {
-  state = await api("/api/checkin", { method: "POST", body: JSON.stringify({ date: state.yesterday }) });
-  render();
+$("verify-yesterday").addEventListener("click", () => {
+  act($("verify-yesterday"), () => api("/api/checkin", { method: "POST", body: JSON.stringify({ date: state.yesterday }) }));
 });
 
 document.addEventListener("visibilitychange", () => {

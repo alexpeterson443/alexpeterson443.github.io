@@ -28,7 +28,11 @@ export async function saveDays(env, days) {
 
 export async function loadScores(env) {
   const raw = await env.STREAK_KV.get(SCORES_KEY, "json");
-  return raw && typeof raw === "object" ? raw : {};
+  const scores = {};
+  if (raw && typeof raw === "object") {
+    for (const [d, list] of Object.entries(raw)) if (Array.isArray(list)) scores[d] = list;
+  }
+  return scores;
 }
 
 export async function saveScores(env, scores) {

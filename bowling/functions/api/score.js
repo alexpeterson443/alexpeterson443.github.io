@@ -1,5 +1,5 @@
 import { loadDays, saveDays, loadScores, saveScores, buildState } from "../_lib/store.js";
-import { todayIn } from "../_lib/streak.js";
+import { todayIn, isValidIsoDate } from "../_lib/streak.js";
 import { isValidScore } from "../_lib/scores.js";
 
 // POST /api/score {score?, date?}     -> log a game (also verifies that day);
@@ -9,9 +9,15 @@ export async function onRequestPost({ request, env }) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   const body = await request.json().catch(() => ({}));
-  const score = body.score === null || body.score === undefined || body.score === "" ? null : Number(body.score);
-  const date = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : today;
+  const score = body.score === null || body.score === undefined || body.score === "" ? null : body.score;
+  const date = body.date === undefined ? today : body.date;
 
+  if (!isValidIsoDate(date)) {
+    return Response.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
+  }
+  if (score !== null && typeof score !== "number") {
+    return Response.json({ error: "score must be a number" }, { status: 400 });
+  }
   if (!isValidScore(score)) {
     return Response.json({ error: "score must be a whole number from 0 to 300" }, { status: 400 });
   }
@@ -31,7 +37,7 @@ export async function onRequestPost({ request, env }) {
 export async function onRequestDelete({ request, env }) {
   const body = await request.json().catch(() => ({}));
   const scores = await loadScores(env);
-  const list = scores[body.date];
+  const list = isValidIsoDate(body.date) && Object.hasOwn(scores, body.date) ? scores[body.date] : null;
   if (!list || !Number.isInteger(body.index) || body.index < 0 || body.index >= list.length) {
     return Response.json({ error: "no such game" }, { status: 400 });
   }

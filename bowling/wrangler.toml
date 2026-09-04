@@ -2,10 +2,9 @@ name = "bowling-streak"
 pages_build_output_dir = "public"
 compatibility_date = "2026-08-01"
 
-# Persistent storage for check ins. Create the namespace once:
-#   npx wrangler kv namespace create STREAK_KV
-# then paste the returned id below (and in the Pages dashboard under
-# Settings > Bindings if you deploy through the dashboard instead of the CLI).
+# Persistent storage for check ins, scores, and the calendar cache.
+# The namespace is called BOWLING_STREAK in the Cloudflare dashboard; the
+# binding name the code uses is STREAK_KV.
 [[kv_namespaces]]
 binding = "STREAK_KV"
 id = "5a22857ff2534e83a8ea89871c179cd2"

@@ -1,8 +1,10 @@
 import { parseEvents, expandOccurrences } from "./ics.js";
 import { todayIn, dayNumber, addDays } from "./streak.js";
 
-const CACHE_KEY = "ics_cache";
+const CACHE_KEY = "cal_cache";
 const CACHE_TTL_MS = 10 * 60_000;
+const FETCH_TIMEOUT_MS = 8_000;
+const MAX_FEED_BYTES = 2_000_000;
 
 function feedUrl(env) {
   const u = (env.CALENDAR_ICS_URL || "").trim();
@@ -10,19 +12,45 @@ function feedUrl(env) {
   return u.replace(/^webcal:\/\//i, "https://");
 }
 
-async function fetchFeed(env) {
-  const url = feedUrl(env);
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function downloadFeed(url) {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "bowling-streak/1.0" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`calendar feed returned ${res.status}`);
+  const declared = Number(res.headers.get("content-length") || 0);
+  if (declared > MAX_FEED_BYTES) throw new Error("calendar feed too large");
+  const text = await res.text();
+  if (text.length > MAX_FEED_BYTES) throw new Error("calendar feed too large");
+  if (!text.includes("BEGIN:VCALENDAR")) throw new Error("calendar link did not return a calendar");
+  return text;
+}
+
+/**
+ * Matching occurrences for the window, cached in KV for 10 minutes. Only the
+ * matched sessions are stored, never the raw feed or the feed URL.
+ */
+async function cachedOccurrences(env, url, keyword, fromMs, toMs, tz) {
+  const urlHash = (await sha256(url)).slice(0, 16);
   const cached = await env.STREAK_KV.get(CACHE_KEY, "json");
-  if (cached && cached.url === url && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached;
+  const usable = cached && cached.urlHash === urlHash && cached.keyword === keyword && cached.fromMs === fromMs;
+  if (usable && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": "bowling-streak/1.0" } });
-    if (!res.ok) throw new Error(`calendar feed returned ${res.status}`);
-    const text = await res.text();
-    const fresh = { url, fetchedAt: Date.now(), text };
+    const text = await downloadFeed(url);
+    const events = parseEvents(text, tz);
+    const occurrences = expandOccurrences(events, fromMs, toMs)
+      .filter((o) => `${o.summary}\n${o.location}`.toLowerCase().includes(keyword))
+      .map((o) => ({ summary: o.summary, location: o.location, start: o.start, end: o.end, allDay: o.allDay }));
+    const fresh = { urlHash, keyword, fromMs, fetchedAt: Date.now(), occurrences };
     await env.STREAK_KV.put(CACHE_KEY, JSON.stringify(fresh), { expirationTtl: 86_400 });
     return fresh;
   } catch (err) {
-    if (cached && cached.url === url) return { ...cached, stale: true, error: err.message };
+    if (usable) return { ...cached, stale: true, error: err.message };
     throw err;
   }
 }
@@ -43,23 +71,20 @@ export async function bowlingSchedule(env) {
   const tz = env.TIMEZONE || "America/Chicago";
   if (!feedUrl(env)) return { configured: false, today: [], next: null };
 
+  // Title or location only: notes on other events often mention bowling.
   const keyword = (env.CALENDAR_KEYWORD || "bowl").toLowerCase();
   const today = todayIn(tz);
   const now = Date.now();
+  const fromMs = dayNumber(addDays(today, -1)) * 86_400_000;
+  const toMs = dayNumber(addDays(today, 21)) * 86_400_000;
+
   let feed;
   try {
-    feed = await fetchFeed(env);
+    feed = await cachedOccurrences(env, feedUrl(env), keyword, fromMs, toMs, tz);
   } catch (err) {
     return { configured: true, today: [], next: null, error: err.message };
   }
-
-  const fromMs = dayNumber(addDays(today, -1)) * 86_400_000;
-  const toMs = dayNumber(addDays(today, 21)) * 86_400_000;
-  const events = parseEvents(feed.text, tz);
-  // Title or location only: notes on other events often mention bowling.
-  const matches = expandOccurrences(events, fromMs, toMs).filter((o) =>
-    `${o.summary}\n${o.location}`.toLowerCase().includes(keyword),
-  );
+  const matches = feed.occurrences;
 
   const describe = (o) => ({
     summary: o.summary,

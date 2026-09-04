@@ -1,5 +1,7 @@
 // Pure date and streak helpers. No I/O so they can be unit tested with node.
 
+import { zonedToUtc } from "./ics.js";
+
 const DAY_MS = 86_400_000;
 
 /** "YYYY-MM-DD" for `now` in the given IANA timezone. */
@@ -14,19 +16,15 @@ export function todayIn(timeZone, now = new Date()) {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-/** Milliseconds until the next local midnight in `timeZone`. */
+/** Milliseconds until the next local midnight in `timeZone` (DST aware). */
 export function msUntilMidnight(timeZone, now = new Date()) {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  });
-  const p = fmt.formatToParts(now);
-  const get = (t) => Number(p.find((x) => x.type === t).value);
-  const elapsed = (get("hour") * 3600 + get("minute") * 60 + get("second")) * 1000;
-  return DAY_MS - elapsed;
+  const [y, mo, d] = addDays(todayIn(timeZone, now), 1).split("-").map(Number);
+  return zonedToUtc({ y, mo, d }, timeZone) - now.getTime();
+}
+
+/** True for a real calendar date written exactly as "YYYY-MM-DD". */
+export function isValidIsoDate(v) {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && isoFromDayNumber(dayNumber(v)) === v;
 }
 
 /** Parse "YYYY-MM-DD" to a UTC day number (days since epoch). */
