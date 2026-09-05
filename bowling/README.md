@@ -1,8 +1,8 @@
 # Bowling Streak
 
-A private daily streak tracker. Tap **I bowled today** once a day, or log a game,
-which also counts as bowling that day. Games can be logged for any day since the start date, with or without a score,
-which is also how a forgotten day gets verified after the fact. The page shows your high score, average, and games per day. There is no
+A private daily streak tracker. A day counts as bowled only when a game score is
+logged for it. Scores can be entered for any day since the start date, which is
+also how a forgotten day gets verified after the fact. The page shows your high score, average, and games per day. There is no
 password: the site opens only through the private link (`/?key=<ACCESS_KEY>`).
 The key stays in the address so bookmarks and home screen icons keep working, and
 the page also sets a one year cookie and remembers the key on the device.
@@ -22,10 +22,9 @@ public/            static site (index.html, app.js, style.css)
 functions/
   _middleware.js   private link gate for every route
   api/state.js     GET  -> streak stats
-  api/checkin.js   POST {date?} verify today (or yesterday), DELETE {date} undo
   manifest.webmanifest.js  web app manifest; start_url carries the key when fetched through the private link
   api/excuse.js    POST {date?} mark today or yesterday closed, DELETE {date} undo
-  api/score.js     POST {score?, date?} log a game (verifies that day; null score = not noted), DELETE {date, index}
+  api/score.js     POST {score, date?} log a scored game (verifies that day), DELETE {date, index}
   _lib/scores.js   score stats (unit tested)
   ping.js          public reachability check
   _lib/ics.js      iCalendar parser with recurrence (unit tested)

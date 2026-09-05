@@ -57,14 +57,17 @@ export async function buildState(env, days, scores = {}, excused = null) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   if (excused === null) excused = await loadExcused(env);
-  // A day counts as bowled if it was checked in or has a logged game.
-  const bowled = [...days, ...Object.keys(scores).filter((d) => scores[d].length)];
+  // A day counts as bowled only when it has a scored game. Check ins in
+  // `days` are legacy records from before scores were required.
+  const scored = Object.keys(scores).filter((d) => scores[d].some((n) => typeof n === "number"));
+  const bowled = [...days, ...scored];
   const stats = computeStats(bowled, today, env.START_DATE, excused);
   const calendar = await bowlingSchedule(env).catch((e) => ({ configured: true, today: [], next: null, error: e.message }));
   return {
     ...stats,
     scores: scoreStats(scores),
     gamesToday: (scores[today] || []).length,
+    scoresToday: (scores[today] || []).filter((n) => typeof n === "number"),
     calendar,
     timezone: tz,
     yesterday: addDays(today, -1),

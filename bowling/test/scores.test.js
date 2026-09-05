@@ -11,7 +11,7 @@ test("score stats: high, average, games, newest first", () => {
   assert.deepEqual(s.days.map((d) => d.date), ["2026-09-04", "2026-09-02"]);
 });
 
-test("unknown scores count as games but not in high or average", () => {
+test("legacy unscored games still count as games but not in high or average", () => {
   const s = scoreStats({ "2026-09-04": [159, 158, 112], "2026-08-28": [null, null, null] });
   assert.equal(s.games, 6);
   assert.equal(s.scored, 3);
@@ -30,7 +30,7 @@ test("score validation", () => {
   assert.equal(isValidScore(301), false);
   assert.equal(isValidScore(150.5), false);
   assert.equal(isValidScore(NaN), false);
-  assert.equal(isValidScore(null), true);
+  assert.equal(isValidScore(null), false);
 });
 
 test("dayList is newest first with counts", () => {

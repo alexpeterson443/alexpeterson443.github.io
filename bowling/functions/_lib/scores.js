@@ -1,8 +1,9 @@
-// Pure helpers for game scores. Stored as { "YYYY-MM-DD": [n | null, ...] }.
-// A null entry is a game that was bowled but whose score was not recorded.
+// Pure helpers for game scores. Stored as { "YYYY-MM-DD": [n, ...] }.
+// Every game needs a real score: that is what verifies a day was bowled.
+// (Older records may still hold null for a game logged without a score.)
 
 export function isValidScore(n) {
-  return n === null || (Number.isInteger(n) && n >= 0 && n <= 300);
+  return Number.isInteger(n) && n >= 0 && n <= 300;
 }
 
 /** Per day summary, newest first. */

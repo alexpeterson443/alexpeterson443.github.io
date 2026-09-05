@@ -32,8 +32,12 @@
     </section>
 
     <section class="action">
-      <button id="verify" class="primary" disabled>I bowled today</button>
-      <button id="undo" class="ghost" hidden>Undo today</button>
+      <form id="score-form" class="score-form">
+        <input id="score-date" type="date" required />
+        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" required />
+        <button type="submit" id="verify" class="primary">I bowled</button>
+      </form>
+      <p class="muted small" id="form-hint">Enter a game score to verify today.</p>
       <p class="muted small" id="countdown"></p>
       <p class="small" id="closure-hint" hidden></p>
       <p class="muted small">
@@ -50,12 +54,6 @@
 
     <section class="scores">
       <h2>Games</h2>
-      <form id="score-form" class="score-form">
-        <input id="score-date" type="date" required />
-        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" />
-        <button type="submit">Log</button>
-      </form>
-      <p class="muted small">Leave the score blank if you did not note it.</p>
       <p class="muted small" id="score-summary"></p>
       <ul class="games" id="games"></ul>
     </section>
@@ -70,7 +68,7 @@
         <span><i class="dot today"></i>today</span>
       </div>
       <p class="muted small" id="yesterday-hint" hidden>
-        Forgot to tap yesterday? <button id="verify-yesterday" class="link">Mark yesterday as bowled</button>
+        Bowled yesterday but didn't log it? <button id="verify-yesterday" class="link">Enter yesterday's score</button>
         or <button id="excuse-yesterday" class="link">the alley was closed</button>
       </p>
     </section>

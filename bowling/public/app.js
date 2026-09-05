@@ -56,27 +56,26 @@ function render() {
 
   const status = $("status");
   const verify = $("verify");
-  const undo = $("undo");
+  const hint = $("form-hint");
   verify.disabled = false;
+  verify.classList.remove("done");
 
   if (s.verifiedToday) {
     status.className = "status ok";
     status.textContent = "Today is locked in. Nice.";
-    verify.textContent = "✓ Bowled today";
+    verify.textContent = "Add game";
     verify.classList.add("done");
-    verify.disabled = true;
-    // A logged game already proves today; undo only applies to a bare tap.
-    undo.hidden = s.gamesToday > 0;
+    hint.textContent = s.scoresToday && s.scoresToday.length
+      ? `Today: ${s.scoresToday.join(", ")}. Log another game if you bowl more.`
+      : "Log another game if you bowl more.";
   } else if (s.excusedToday) {
-    verify.textContent = "I bowled today after all";
-    verify.classList.remove("done");
-    undo.hidden = true;
     status.className = "status paused";
     status.textContent = `Alley closed today. Streak paused at ${s.current}.`;
+    verify.textContent = "I bowled";
+    hint.textContent = "Bowled after all? Enter the score and today counts.";
   } else {
-    verify.textContent = "I bowled today";
-    verify.classList.remove("done");
-    undo.hidden = true;
+    verify.textContent = "I bowled";
+    hint.textContent = "Enter a game score to verify today.";
     if (s.atRisk) {
       status.className = "status risk";
       status.textContent = "Not verified yet. Streak ends at midnight.";
@@ -85,7 +84,7 @@ function render() {
       status.textContent = "Streak broken. Start a new one today.";
     } else {
       status.className = "status";
-      status.textContent = "Tap once you've bowled.";
+      status.textContent = "Log your first game to start.";
     }
   }
 
@@ -99,6 +98,7 @@ function render() {
     ? `${sc.games} game${sc.games === 1 ? "" : "s"}` +
       (sc.scored ? ` · average ${sc.average} · best ${sc.high} on ${prettyDate(sc.highDate)}` : "")
     : "No games logged yet.";
+  $("high").textContent = sc.high ?? "–";
   const games = $("games");
   games.innerHTML = "";
   for (const d of sc.days) {
@@ -146,7 +146,7 @@ function render() {
       } else if (t.ended) {
         calEl.classList.add("today");
         calEl.textContent = `📅 Today's session ended · ${t.time}${where}${more}`;
-        if (!s.verifiedToday && !s.excusedToday) status.textContent = "Your session is over. Did you bowl? Tap to verify.";
+        if (!s.verifiedToday && !s.excusedToday) status.textContent = "Your session is over. Enter your score to verify.";
       } else {
         calEl.classList.add("today");
         calEl.textContent = `📅 Bowling today · ${t.time}${where}${more}`;
@@ -160,10 +160,11 @@ function render() {
 
   // Closed alley: offered only while today is unresolved.
   $("excuse").hidden = s.verifiedToday || s.excusedToday;
+  if (!$("score").matches(":focus")) $("score-date").value = s.today;
   $("unexcuse").hidden = !s.excusedToday;
-  const hint = $("closure-hint");
-  hint.hidden = !(cal.configured && cal.closureToday && !s.verifiedToday && !s.excusedToday);
-  if (!hint.hidden) hint.textContent = `📌 ${cal.closureToday} on your calendar. If the lanes are shut, mark the day closed below.`;
+  const closure = $("closure-hint");
+  closure.hidden = !(cal.configured && cal.closureToday && !s.verifiedToday && !s.excusedToday);
+  if (!closure.hidden) closure.textContent = `📌 ${cal.closureToday} on your calendar. If the lanes are shut, mark the day closed below.`;
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
@@ -250,32 +251,29 @@ async function act(button, fn) {
   }
 }
 
-$("verify").addEventListener("click", () => {
-  $("ball").classList.add("spin");
-  setTimeout(() => $("ball").classList.remove("spin"), 900);
-  act($("verify"), () => api("/api/checkin", { method: "POST", body: "{}" }));
-});
-
-$("undo").addEventListener("click", () => {
-  if (!confirm("Remove today's check in?")) return;
-  act($("undo"), () => api("/api/checkin", { method: "DELETE", body: JSON.stringify({ date: state.today }) }));
-});
-
 $("score-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("score");
-  const score = input.value === "" ? null : Number(input.value);
-  if (score !== null && (!Number.isInteger(score) || score < 0 || score > 300)) return;
+  if (input.value === "") { input.focus(); return; }
+  const score = Number(input.value);
+  if (!Number.isInteger(score) || score < 0 || score > 300) return;
   const date = $("score-date").value || state.today;
-  const button = e.submitter || $("score-form").querySelector("button");
+  const button = $("verify");
   act(button, async () => {
     const next = await api("/api/score", { method: "POST", body: JSON.stringify({ score, date }) });
     input.value = "";
+    $("score-date").value = next.today;
     $("ball").classList.add("spin");
     setTimeout(() => $("ball").classList.remove("spin"), 900);
     button.disabled = false;
     return next;
   });
+});
+
+$("verify-yesterday").addEventListener("click", () => {
+  $("score-date").value = state.yesterday;
+  $("score").focus();
+  $("score").scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
 $("excuse").addEventListener("click", () => {
@@ -289,10 +287,6 @@ $("unexcuse").addEventListener("click", () => {
 
 $("excuse-yesterday").addEventListener("click", () => {
   act($("excuse-yesterday"), () => api("/api/excuse", { method: "POST", body: JSON.stringify({ date: state.yesterday }) }));
-});
-
-$("verify-yesterday").addEventListener("click", () => {
-  act($("verify-yesterday"), () => api("/api/checkin", { method: "POST", body: JSON.stringify({ date: state.yesterday }) }));
 });
 
 document.addEventListener("visibilitychange", () => {
