@@ -8,6 +8,7 @@
   --hit: #34d399;
   --miss: #ff5c7a;
   --today: #ffd166;
+  --excused: #5ea8ff;
   --radius: 20px;
   color-scheme: dark;
 }
@@ -129,6 +130,8 @@ button.link {
 .status.risk { color: var(--today); }
 .status.ok { color: var(--hit); }
 .status.broken { color: var(--miss); }
+.status.paused { color: var(--excused); }
+#closure-hint { color: var(--today); margin-top: 8px; }
 .calendar[hidden] { display: none; }
 .calendar {
   margin: 10px auto 0; display: inline-block;
@@ -171,6 +174,7 @@ button.link {
 }
 .cell.hit { background: var(--hit); color: #06281b; font-weight: 700; }
 .cell.miss { background: rgba(255, 92, 122, 0.25); color: var(--miss); }
+.cell.excused { background: rgba(94, 168, 255, 0.22); color: var(--excused); }
 .cell.today { outline: 2px solid var(--today); outline-offset: -2px; color: var(--today); font-weight: 700; }
 .cell.today.hit { color: #06281b; }
 .cell.blank { background: none; }
@@ -180,6 +184,7 @@ button.link {
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .dot.hit { background: var(--hit); }
 .dot.miss { background: rgba(255, 92, 122, 0.4); }
+.dot.excused { background: rgba(94, 168, 255, 0.45); }
 .dot.today { outline: 2px solid var(--today); outline-offset: -2px; }
 
 #yesterday-hint { margin-top: 14px; }

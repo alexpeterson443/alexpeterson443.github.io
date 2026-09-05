@@ -35,6 +35,11 @@
       <button id="verify" class="primary" disabled>I bowled today</button>
       <button id="undo" class="ghost" hidden>Undo today</button>
       <p class="muted small" id="countdown"></p>
+      <p class="small" id="closure-hint" hidden></p>
+      <p class="muted small">
+        <button id="excuse" class="link" hidden>Alley closed today, can't bowl</button>
+        <button id="unexcuse" class="link" hidden>Undo closed day</button>
+      </p>
     </section>
 
     <section class="stats">
@@ -61,10 +66,12 @@
       <div class="legend">
         <span><i class="dot hit"></i>bowled</span>
         <span><i class="dot miss"></i>missed</span>
+        <span><i class="dot excused"></i>closed</span>
         <span><i class="dot today"></i>today</span>
       </div>
       <p class="muted small" id="yesterday-hint" hidden>
         Forgot to tap yesterday? <button id="verify-yesterday" class="link">Mark yesterday as bowled</button>
+        or <button id="excuse-yesterday" class="link">the alley was closed</button>
       </p>
     </section>
 

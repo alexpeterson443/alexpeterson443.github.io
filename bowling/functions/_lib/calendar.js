@@ -1,7 +1,8 @@
 import { parseEvents, expandOccurrences } from "./ics.js";
 import { todayIn, dayNumber, addDays } from "./streak.js";
 
-const CACHE_KEY = "cal_cache";
+const CACHE_KEY = "cal_cache_v2";
+const CLOSURE_RE = /closed|recess|holiday|no classes|break/i;
 const CACHE_TTL_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 8_000;
 const MAX_FEED_BYTES = 2_000_000;
@@ -43,10 +44,14 @@ async function cachedOccurrences(env, url, keyword, fromMs, toMs, tz) {
   try {
     const text = await downloadFeed(url);
     const events = parseEvents(text, tz);
-    const occurrences = expandOccurrences(events, fromMs, toMs)
+    const all = expandOccurrences(events, fromMs, toMs);
+    const slim = (o) => ({ summary: o.summary, location: o.location, start: o.start, end: o.end, allDay: o.allDay });
+    const occurrences = all
       .filter((o) => `${o.summary}\n${o.location}`.toLowerCase().includes(keyword))
-      .map((o) => ({ summary: o.summary, location: o.location, start: o.start, end: o.end, allDay: o.allDay }));
-    const fresh = { urlHash, keyword, fromMs, fetchedAt: Date.now(), occurrences };
+      .map(slim);
+    // Campus closures and breaks, used only as a hint for excusing a day.
+    const closures = all.filter((o) => o.allDay && CLOSURE_RE.test(o.summary)).map(slim);
+    const fresh = { urlHash, keyword, fromMs, fetchedAt: Date.now(), occurrences, closures };
     await env.STREAK_KV.put(CACHE_KEY, JSON.stringify(fresh), { expirationTtl: 86_400 });
     return fresh;
   } catch (err) {
@@ -99,6 +104,8 @@ export async function bowlingSchedule(env) {
   });
 
   const rank = (t) => (t.inProgress ? 0 : !t.ended ? 1 : 2);
+  const closureToday = (feed.closures || []).find((c) => dateIn(c.start, tz) <= today && dateIn(c.end - 1, tz) >= today);
+
   const todays = matches
     .filter((o) => dateIn(o.start, tz) === today)
     .map(describe)
@@ -109,6 +116,7 @@ export async function bowlingSchedule(env) {
     configured: true,
     today: todays,
     next,
+    closureToday: closureToday ? closureToday.summary : null,
     matched: matches.length,
     fetchedAt: feed.fetchedAt,
     stale: !!feed.stale,

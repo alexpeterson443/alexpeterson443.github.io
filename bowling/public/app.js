@@ -67,6 +67,12 @@ function render() {
     verify.disabled = true;
     // A logged game already proves today; undo only applies to a bare tap.
     undo.hidden = s.gamesToday > 0;
+  } else if (s.excusedToday) {
+    verify.textContent = "I bowled today after all";
+    verify.classList.remove("done");
+    undo.hidden = true;
+    status.className = "status paused";
+    status.textContent = `Alley closed today. Streak paused at ${s.current}.`;
   } else {
     verify.textContent = "I bowled today";
     verify.classList.remove("done");
@@ -140,7 +146,7 @@ function render() {
       } else if (t.ended) {
         calEl.classList.add("today");
         calEl.textContent = `📅 Today's session ended · ${t.time}${where}${more}`;
-        if (!s.verifiedToday) status.textContent = "Your session is over. Did you bowl? Tap to verify.";
+        if (!s.verifiedToday && !s.excusedToday) status.textContent = "Your session is over. Did you bowl? Tap to verify.";
       } else {
         calEl.classList.add("today");
         calEl.textContent = `📅 Bowling today · ${t.time}${where}${more}`;
@@ -151,6 +157,13 @@ function render() {
       calEl.textContent = "📅 No bowling on your calendar in the next 3 weeks";
     }
   }
+
+  // Closed alley: offered only while today is unresolved.
+  $("excuse").hidden = s.verifiedToday || s.excusedToday;
+  $("unexcuse").hidden = !s.excusedToday;
+  const hint = $("closure-hint");
+  hint.hidden = !(cal.configured && cal.closureToday && !s.verifiedToday && !s.excusedToday);
+  if (!hint.hidden) hint.textContent = `📌 ${cal.closureToday} on your calendar. If the lanes are shut, mark the day closed below.`;
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
@@ -165,6 +178,7 @@ function render() {
     grid.appendChild(c);
   }
   const hits = new Set(s.days);
+  const excusedDays = new Set(s.excused || []);
   const startDow = (new Date(s.start + "T00:00:00Z").getUTCDay() + 6) % 7; // Monday = 0
   for (let i = 0; i < startDow; i++) grid.appendChild(Object.assign(document.createElement("div"), { className: "cell blank" }));
 
@@ -175,6 +189,7 @@ function render() {
     c.textContent = Number(cursor.slice(8));
     c.title = prettyDate(cursor);
     if (hits.has(cursor)) c.classList.add("hit");
+    else if (excusedDays.has(cursor)) c.classList.add("excused");
     else if (cursor < s.today) c.classList.add("miss");
     if (cursor === s.today) c.classList.add("today");
     grid.appendChild(c);
@@ -189,7 +204,7 @@ function render() {
   const tick = () => {
     const left = deadline - Date.now();
     if (left <= 0) { clearInterval(timer); return load(); }
-    $("countdown").textContent = s.verifiedToday
+    $("countdown").textContent = s.verifiedToday || s.excusedToday
       ? `Next day starts in ${fmtCountdown(left)}`
       : `${fmtCountdown(left)} left to verify today`;
   };
@@ -261,6 +276,19 @@ $("score-form").addEventListener("submit", (e) => {
     button.disabled = false;
     return next;
   });
+});
+
+$("excuse").addEventListener("click", () => {
+  if (!confirm("Mark today as closed? It won't break the streak, and it won't count either.")) return;
+  act($("excuse"), () => api("/api/excuse", { method: "POST", body: "{}" }));
+});
+
+$("unexcuse").addEventListener("click", () => {
+  act($("unexcuse"), () => api("/api/excuse", { method: "DELETE", body: JSON.stringify({ date: state.today }) }));
+});
+
+$("excuse-yesterday").addEventListener("click", () => {
+  act($("excuse-yesterday"), () => api("/api/excuse", { method: "POST", body: JSON.stringify({ date: state.yesterday }) }));
 });
 
 $("verify-yesterday").addEventListener("click", () => {

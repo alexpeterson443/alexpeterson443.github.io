@@ -4,6 +4,7 @@ import { bowlingSchedule } from "./calendar.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
+const EXCUSED_KEY = "excused";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -26,6 +27,17 @@ export async function saveDays(env, days) {
   return clean;
 }
 
+export async function loadExcused(env) {
+  const raw = await env.STREAK_KV.get(EXCUSED_KEY, "json");
+  return Array.isArray(raw) ? raw.filter((d) => typeof d === "string") : [];
+}
+
+export async function saveExcused(env, days) {
+  const clean = [...new Set(days)].sort();
+  await env.STREAK_KV.put(EXCUSED_KEY, JSON.stringify(clean));
+  return clean;
+}
+
 export async function loadScores(env) {
   const raw = await env.STREAK_KV.get(SCORES_KEY, "json");
   const scores = {};
@@ -41,12 +53,13 @@ export async function saveScores(env, scores) {
   return scores;
 }
 
-export async function buildState(env, days, scores = {}) {
+export async function buildState(env, days, scores = {}, excused = null) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
+  if (excused === null) excused = await loadExcused(env);
   // A day counts as bowled if it was checked in or has a logged game.
   const bowled = [...days, ...Object.keys(scores).filter((d) => scores[d].length)];
-  const stats = computeStats(bowled, today, env.START_DATE);
+  const stats = computeStats(bowled, today, env.START_DATE, excused);
   const calendar = await bowlingSchedule(env).catch((e) => ({ configured: true, today: [], next: null, error: e.message }));
   return {
     ...stats,

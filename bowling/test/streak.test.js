@@ -67,3 +67,28 @@ test("msUntilMidnight is DST aware", () => {
   // Spring forward: Mar 14 2027 00:30 CST, the day is 23 hours long.
   assert.equal(msUntilMidnight("America/Chicago", new Date("2027-03-14T06:30:00Z")), 22.5 * 3600_000);
 });
+
+test("excused days pause the streak without counting", () => {
+  // Bowled Aug 28..Sep 3, alley closed Sep 4, bowled Sep 5.
+  const s = computeStats([...seed, "2026-09-05"], "2026-09-05", START, ["2026-09-04"]);
+  assert.equal(s.current, 8);
+  assert.equal(s.longest, 8);
+  assert.equal(s.total, 8);
+  assert.deepEqual(s.missed, []);
+  assert.deepEqual(s.excused, ["2026-09-04"]);
+});
+
+test("today excused keeps the streak alive and not at risk", () => {
+  const s = computeStats(seed, "2026-09-04", START, ["2026-09-04"]);
+  assert.equal(s.current, 7);
+  assert.equal(s.excusedToday, true);
+  assert.equal(s.atRisk, false);
+  assert.equal(s.verifiedToday, false);
+});
+
+test("a bowled day is never excused, and a real miss still breaks the streak", () => {
+  const s = computeStats(seed, "2026-09-06", START, ["2026-09-03", "2026-09-05"]);
+  assert.deepEqual(s.excused, ["2026-09-05"]);       // Sep 3 was bowled, so the excuse is ignored
+  assert.deepEqual(s.missed, ["2026-09-04"]);        // Sep 4 was a real miss
+  assert.equal(s.current, 0);
+});

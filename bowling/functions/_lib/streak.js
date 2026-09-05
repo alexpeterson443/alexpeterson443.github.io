@@ -51,49 +51,70 @@ export function dateRange(start, end) {
 
 /**
  * Compute streak stats.
- * @param {string[]} days   verified dates ("YYYY-MM-DD"), any order, may contain dupes
- * @param {string}   today  today's date in the user's timezone
- * @param {string}   start  first day of the challenge
+ * @param {string[]} days     verified dates ("YYYY-MM-DD"), any order, may contain dupes
+ * @param {string}   today    today's date in the user's timezone
+ * @param {string}   start    first day of the challenge
+ * @param {string[]} excused  days the alley was closed: they neither break nor
+ *                            extend the streak (a bowled day always wins)
  */
-export function computeStats(days, today, start) {
+export function computeStats(days, today, start, excused = []) {
   const set = new Set(days.filter((d) => d >= start && d <= today));
   const sorted = [...set].sort();
+  const paused = new Set(excused.filter((d) => d >= start && d <= today && !set.has(d)));
 
   const verifiedToday = set.has(today);
+  const excusedToday = paused.has(today);
 
-  // Current streak: consecutive verified days ending today, or ending
-  // yesterday if today has not been verified yet (today is still open).
+  // Current streak: walk back from today (or yesterday if today is still
+  // open), counting bowled days and stepping over excused ones.
   let current = 0;
   let cursor = verifiedToday ? today : addDays(today, -1);
-  while (set.has(cursor)) {
-    current++;
+  while (set.has(cursor) || paused.has(cursor)) {
+    if (set.has(cursor)) current++;
     cursor = addDays(cursor, -1);
   }
+  // Today excused with nothing bowled yet: the streak stays as it was.
+  if (excusedToday) {
+    current = 0;
+    cursor = addDays(today, -1);
+    while (set.has(cursor) || paused.has(cursor)) {
+      if (set.has(cursor)) current++;
+      cursor = addDays(cursor, -1);
+    }
+  }
 
-  // Longest run anywhere in history.
+  // Longest run anywhere in history, with excused days bridging runs.
   let longest = 0;
   let run = 0;
   let prev = null;
   for (const d of sorted) {
-    run = prev && dayNumber(d) === dayNumber(prev) + 1 ? run + 1 : 1;
+    let bridged = prev !== null;
+    if (prev !== null) {
+      for (let n = dayNumber(prev) + 1; n < dayNumber(d); n++) {
+        if (!paused.has(isoFromDayNumber(n))) { bridged = false; break; }
+      }
+    }
+    run = bridged ? run + 1 : 1;
     if (run > longest) longest = run;
     prev = d;
   }
 
   const dayOfChallenge = dayNumber(today) - dayNumber(start) + 1;
-  const missed = dateRange(start, addDays(today, -1)).filter((d) => !set.has(d));
+  const missed = dateRange(start, addDays(today, -1)).filter((d) => !set.has(d) && !paused.has(d));
 
   return {
     today,
     start,
     verifiedToday,
+    excusedToday,
     current,
     longest,
     total: sorted.length,
     dayOfChallenge,
     missed,
-    // Streak is at risk when yesterday was verified but today is not yet.
-    atRisk: !verifiedToday && current > 0,
+    // Streak is at risk when it is alive but today is neither bowled nor excused.
+    atRisk: !verifiedToday && !excusedToday && current > 0,
     days: sorted,
+    excused: [...paused].sort(),
   };
 }
