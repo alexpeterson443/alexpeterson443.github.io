@@ -1,0 +1,24 @@
+name = "bowling-streak"
+pages_build_output_dir = "public"
+compatibility_date = "2026-08-01"
+
+# Persistent storage for check ins, scores, and the calendar cache.
+# The namespace is called BOWLING_STREAK in the Cloudflare dashboard; the
+# binding name the code uses is STREAK_KV.
+[[kv_namespaces]]
+binding = "STREAK_KV"
+id = "5a22857ff2534e83a8ea89871c179cd2"
+
+[vars]
+# First day of the streak.
+START_DATE = "2026-08-28"
+# All day boundaries are computed in this timezone (Milwaukee / Chicago).
+TIMEZONE = "America/Chicago"
+# Case insensitive word that marks a calendar event as a bowling session.
+CALENDAR_KEYWORD = "bowl"
+
+# Secret (never commit). The private link is https://<site>/?key=<ACCESS_KEY>
+#   npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak
+# Optional calendar link (secret, it grants read access to your calendar):
+#   npx wrangler pages secret put CALENDAR_ICS_URL --project-name bowling-streak
+# Events whose title or location contain CALENDAR_KEYWORD count as bowling.

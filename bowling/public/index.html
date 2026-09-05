@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#0b0d14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bowling" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <link rel="icon" href="/icon-180.png" />
+  <link rel="manifest" id="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
+  <title>Bowling Streak</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card app">
+    <header>
+      <div class="ball" id="ball">🎳</div>
+      <h1>Bowling Streak</h1>
+      <p class="muted" id="subtitle">Loading…</p>
+    </header>
+
+    <section class="streak">
+      <div class="big" id="streak">–</div>
+      <div class="label">day streak</div>
+      <p class="status" id="status"></p>
+      <p class="calendar small" id="calendar" hidden></p>
+    </section>
+
+    <section class="action">
+      <form id="score-form" class="score-form">
+        <input id="score-date" type="date" required />
+        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" required />
+        <button type="submit" id="verify" class="primary">I bowled</button>
+      </form>
+      <p class="muted small" id="form-hint">Enter a game score to verify today.</p>
+      <p class="muted small" id="countdown"></p>
+      <p class="small" id="closure-hint" hidden></p>
+      <p class="muted small">
+        <button id="excuse" class="link" hidden>Alley closed today, can't bowl</button>
+        <button id="unexcuse" class="link" hidden>Undo closed day</button>
+      </p>
+    </section>
+
+    <section class="stats">
+      <div><span id="total">–</span><small>days bowled</small></div>
+      <div><span id="longest">–</span><small>longest streak</small></div>
+      <div><span id="high">–</span><small>high score</small></div>
+    </section>
+
+    <section class="scores">
+      <h2>Games</h2>
+      <p class="muted small" id="score-summary"></p>
+      <ul class="games" id="games"></ul>
+    </section>
+
+    <section class="history">
+      <h2>History</h2>
+      <div class="grid" id="grid"></div>
+      <div class="legend">
+        <span><i class="dot hit"></i>bowled</span>
+        <span><i class="dot miss"></i>missed</span>
+        <span><i class="dot excused"></i>closed</span>
+        <span><i class="dot today"></i>today</span>
+      </div>
+      <p class="muted small" id="yesterday-hint" hidden>
+        Bowled yesterday but didn't log it? <button id="verify-yesterday" class="link">Enter yesterday's score</button>
+        or <button id="excuse-yesterday" class="link">the alley was closed</button>
+      </p>
+    </section>
+
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
