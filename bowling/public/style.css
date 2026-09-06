@@ -9,6 +9,8 @@
   --miss: #ff5c7a;
   --today: #ffd166;
   --excused: #5ea8ff;
+  --sick: #c9a3ff;
+  --injured: #ff9f5a;
   --radius: 20px;
   color-scheme: dark;
 }
@@ -131,6 +133,8 @@ button.link {
 .status.ok { color: var(--hit); }
 .status.broken { color: var(--miss); }
 .status.paused { color: var(--excused); }
+.status.paused.sick { color: var(--sick); }
+.status.paused.injured { color: var(--injured); }
 #closure-hint { color: var(--today); margin-top: 8px; }
 .calendar[hidden] { display: none; }
 .calendar {
@@ -175,16 +179,20 @@ button.link {
 .cell.hit { background: var(--hit); color: #06281b; font-weight: 700; }
 .cell.miss { background: rgba(255, 92, 122, 0.25); color: var(--miss); }
 .cell.excused { background: rgba(94, 168, 255, 0.22); color: var(--excused); }
+.cell.excused.sick { background: rgba(201, 163, 255, 0.22); color: var(--sick); }
+.cell.excused.injured { background: rgba(255, 159, 90, 0.22); color: var(--injured); }
 .cell.today { outline: 2px solid var(--today); outline-offset: -2px; color: var(--today); font-weight: 700; }
 .cell.today.hit { color: #06281b; }
 .cell.blank { background: none; }
 .cell.weekday { background: none; font-size: 0.65rem; text-transform: uppercase; aspect-ratio: auto; padding-bottom: 2px; }
 
-.legend { display: flex; gap: 16px; justify-content: center; margin-top: 12px; font-size: 0.75rem; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; margin-top: 12px; font-size: 0.75rem; color: var(--muted); }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .dot.hit { background: var(--hit); }
 .dot.miss { background: rgba(255, 92, 122, 0.4); }
 .dot.excused { background: rgba(94, 168, 255, 0.45); }
+.dot.excused.sick { background: rgba(201, 163, 255, 0.45); }
+.dot.excused.injured { background: rgba(255, 159, 90, 0.45); }
 .dot.today { outline: 2px solid var(--today); outline-offset: -2px; }
 
 #yesterday-hint { margin-top: 14px; }

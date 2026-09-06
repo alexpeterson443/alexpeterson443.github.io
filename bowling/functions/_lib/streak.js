@@ -49,18 +49,41 @@ export function dateRange(start, end) {
   return out;
 }
 
+/** Why a day was excused. */
+export const EXCUSE_REASONS = ["closed", "sick", "injured"];
+
+/**
+ * Normalise excused input to a {date: reason} map. Accepts the legacy list of
+ * dates (all treated as "closed") or a map; unknown reasons become "closed".
+ */
+export function excuseMap(excused) {
+  const map = {};
+  if (Array.isArray(excused)) {
+    for (const d of excused) if (typeof d === "string") map[d] = "closed";
+  } else if (excused && typeof excused === "object") {
+    for (const [d, r] of Object.entries(excused)) map[d] = EXCUSE_REASONS.includes(r) ? r : "closed";
+  }
+  return map;
+}
+
 /**
  * Compute streak stats.
  * @param {string[]} days     verified dates ("YYYY-MM-DD"), any order, may contain dupes
  * @param {string}   today    today's date in the user's timezone
  * @param {string}   start    first day of the challenge
- * @param {string[]} excused  days the alley was closed: they neither break nor
- *                            extend the streak (a bowled day always wins)
+ * @param {string[]|Object<string,string>} excused
+ *   days you genuinely could not bowl (alley closed, sick, injured), either a
+ *   list of dates or a {date: reason} map. They neither break nor extend the
+ *   streak; a bowled day always wins.
  */
 export function computeStats(days, today, start, excused = []) {
   const set = new Set(days.filter((d) => d >= start && d <= today));
   const sorted = [...set].sort();
-  const paused = new Set(excused.filter((d) => d >= start && d <= today && !set.has(d)));
+  const reasons = {};
+  for (const [d, r] of Object.entries(excuseMap(excused))) {
+    if (d >= start && d <= today && !set.has(d)) reasons[d] = r;
+  }
+  const paused = new Set(Object.keys(reasons));
 
   const verifiedToday = set.has(today);
   const excusedToday = paused.has(today);
@@ -107,6 +130,7 @@ export function computeStats(days, today, start, excused = []) {
     start,
     verifiedToday,
     excusedToday,
+    excuseToday: excusedToday ? reasons[today] : null,
     current,
     longest,
     total: sorted.length,
@@ -116,5 +140,6 @@ export function computeStats(days, today, start, excused = []) {
     atRisk: !verifiedToday && !excusedToday && current > 0,
     days: sorted,
     excused: [...paused].sort(),
+    excuseReasons: Object.fromEntries([...paused].sort().map((d) => [d, reasons[d]])),
   };
 }

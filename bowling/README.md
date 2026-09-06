@@ -23,7 +23,7 @@ functions/
   _middleware.js   private link gate for every route
   api/state.js     GET  -> streak stats
   manifest.webmanifest.js  web app manifest; start_url carries the key when fetched through the private link
-  api/excuse.js    POST {date?} mark today or yesterday closed, DELETE {date} undo
+  api/excuse.js    POST {date?, reason?} excuse today or yesterday (closed, sick, injured), DELETE {date} undo
   api/score.js     POST {score, date?} log a scored game (verifies that day), DELETE {date, index}
   _lib/scores.js   score stats (unit tested)
   ping.js          public reachability check
@@ -67,14 +67,15 @@ To require your email login before the page loads, go to Zero Trust > Access >
 Applications, add a self hosted app for the `pages.dev` domain, and allow only your
 email. Free for up to 50 users.
 
-## Closed days
+## Days you can't bowl
 
-If the alley is genuinely closed, tap **Alley closed today**. The day is excused:
-it neither breaks nor extends the streak, and shows in blue in the history grid.
-Like check ins it can be applied to today or yesterday only. A bowled day always
-wins over an excuse. When the calendar has an all day event mentioning closed,
-recess, holiday, break, or no classes, the page shows a hint but never excuses a
-day on its own.
+If you genuinely can't bowl, tap **Alley closed**, **Sick**, or **Injured** under
+the score form. The day is excused: it neither breaks nor extends the streak, and
+shows in the history grid in blue (closed), purple (sick), or orange (injured).
+Like scores it can be applied to today or yesterday only, and **Undo** removes it.
+A bowled day always wins over an excuse. When the calendar has an all day event
+mentioning closed, recess, holiday, break, or no classes, the page shows a hint
+but never excuses a day on its own.
 
 ## Calendar
 

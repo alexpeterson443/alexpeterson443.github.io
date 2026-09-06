@@ -86,6 +86,25 @@ test("today excused keeps the streak alive and not at risk", () => {
   assert.equal(s.verifiedToday, false);
 });
 
+test("excuse reasons are kept per day and default to closed", () => {
+  const s = computeStats(seed, "2026-09-06", START, { "2026-09-04": "sick", "2026-09-05": "injured", "2026-09-06": "nonsense" });
+  assert.equal(s.current, 7);
+  assert.equal(s.excusedToday, true);
+  assert.equal(s.excuseToday, "closed");            // unknown reason falls back to closed
+  assert.deepEqual(s.excuseReasons, { "2026-09-04": "sick", "2026-09-05": "injured", "2026-09-06": "closed" });
+  assert.deepEqual(s.excused, ["2026-09-04", "2026-09-05", "2026-09-06"]);
+  assert.deepEqual(s.missed, []);
+});
+
+test("legacy excused list still works and reads as closed", () => {
+  const s = computeStats(seed, "2026-09-04", START, ["2026-09-04"]);
+  assert.equal(s.excuseToday, "closed");
+  assert.deepEqual(s.excuseReasons, { "2026-09-04": "closed" });
+  const none = computeStats(seed, "2026-09-04", START);
+  assert.equal(none.excuseToday, null);
+  assert.deepEqual(none.excuseReasons, {});
+});
+
 test("a bowled day is never excused, and a real miss still breaks the streak", () => {
   const s = computeStats(seed, "2026-09-06", START, ["2026-09-03", "2026-09-05"]);
   assert.deepEqual(s.excused, ["2026-09-05"]);       // Sep 3 was bowled, so the excuse is ignored

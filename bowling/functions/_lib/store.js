@@ -1,4 +1,4 @@
-import { todayIn, msUntilMidnight, computeStats, dateRange, addDays } from "./streak.js";
+import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap } from "./streak.js";
 import { scoreStats } from "./scores.js";
 import { bowlingSchedule } from "./calendar.js";
 
@@ -27,13 +27,17 @@ export async function saveDays(env, days) {
   return clean;
 }
 
+/**
+ * Excused days as a {date: reason} map. Older records were a plain list of
+ * dates, which loads as "closed" for every day.
+ */
 export async function loadExcused(env) {
-  const raw = await env.STREAK_KV.get(EXCUSED_KEY, "json");
-  return Array.isArray(raw) ? raw.filter((d) => typeof d === "string") : [];
+  return excuseMap(await env.STREAK_KV.get(EXCUSED_KEY, "json"));
 }
 
-export async function saveExcused(env, days) {
-  const clean = [...new Set(days)].sort();
+export async function saveExcused(env, excused) {
+  const map = excuseMap(excused);
+  const clean = Object.fromEntries(Object.keys(map).sort().map((d) => [d, map[d]]));
   await env.STREAK_KV.put(EXCUSED_KEY, JSON.stringify(clean));
   return clean;
 }

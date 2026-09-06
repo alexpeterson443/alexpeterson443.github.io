@@ -39,6 +39,14 @@ function fmtCountdown(ms) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Copy for each excuse reason: status line, confirm prompt, undo label, grid title.
+const EXCUSES = {
+  closed: { status: (n) => `Alley closed today. Streak paused at ${n}.`, confirm: "Mark today as closed?", undo: "Undo closed day", title: "alley closed" },
+  sick: { status: (n) => `Sick day. Rest up, streak paused at ${n}.`, confirm: "Mark today as a sick day?", undo: "Undo sick day", title: "sick" },
+  injured: { status: (n) => `Injured. Heal up, streak paused at ${n}.`, confirm: "Mark today as an injured day?", undo: "Undo injured day", title: "injured" },
+};
+const excuseCopy = (reason) => EXCUSES[reason] || EXCUSES.closed;
+
 function prettyDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
@@ -69,8 +77,8 @@ function render() {
       ? `Today: ${s.scoresToday.join(", ")}. Log another game if you bowl more.`
       : "Log another game if you bowl more.";
   } else if (s.excusedToday) {
-    status.className = "status paused";
-    status.textContent = `Alley closed today. Streak paused at ${s.current}.`;
+    status.className = `status paused ${s.excuseToday || "closed"}`;
+    status.textContent = excuseCopy(s.excuseToday).status(s.current);
     verify.textContent = "I bowled";
     hint.textContent = "Bowled after all? Enter the score and today counts.";
   } else {
@@ -158,13 +166,14 @@ function render() {
     }
   }
 
-  // Closed alley: offered only while today is unresolved.
-  $("excuse").hidden = s.verifiedToday || s.excusedToday;
+  // Excuses (closed, sick, injured): offered only while today is unresolved.
+  $("excuses").hidden = s.verifiedToday || s.excusedToday;
   if (!$("score").matches(":focus")) $("score-date").value = s.today;
   $("unexcuse").hidden = !s.excusedToday;
+  $("unexcuse").textContent = excuseCopy(s.excuseToday).undo;
   const closure = $("closure-hint");
   closure.hidden = !(cal.configured && cal.closureToday && !s.verifiedToday && !s.excusedToday);
-  if (!closure.hidden) closure.textContent = `📌 ${cal.closureToday} on your calendar. If the lanes are shut, mark the day closed below.`;
+  if (!closure.hidden) closure.textContent = `📌 ${cal.closureToday} on your calendar. If the lanes are shut, tap Alley closed below.`;
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
@@ -179,7 +188,7 @@ function render() {
     grid.appendChild(c);
   }
   const hits = new Set(s.days);
-  const excusedDays = new Set(s.excused || []);
+  const excusedDays = s.excuseReasons || Object.fromEntries((s.excused || []).map((d) => [d, "closed"]));
   const startDow = (new Date(s.start + "T00:00:00Z").getUTCDay() + 6) % 7; // Monday = 0
   for (let i = 0; i < startDow; i++) grid.appendChild(Object.assign(document.createElement("div"), { className: "cell blank" }));
 
@@ -190,8 +199,10 @@ function render() {
     c.textContent = Number(cursor.slice(8));
     c.title = prettyDate(cursor);
     if (hits.has(cursor)) c.classList.add("hit");
-    else if (excusedDays.has(cursor)) c.classList.add("excused");
-    else if (cursor < s.today) c.classList.add("miss");
+    else if (Object.hasOwn(excusedDays, cursor)) {
+      c.classList.add("excused", excusedDays[cursor]);
+      c.title += ` · ${excuseCopy(excusedDays[cursor]).title}`;
+    } else if (cursor < s.today) c.classList.add("miss");
     if (cursor === s.today) c.classList.add("today");
     grid.appendChild(c);
     const d = new Date(cursor + "T00:00:00Z");
@@ -276,18 +287,24 @@ $("verify-yesterday").addEventListener("click", () => {
   $("score").scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
-$("excuse").addEventListener("click", () => {
-  if (!confirm("Mark today as closed? It won't break the streak, and it won't count either.")) return;
-  act($("excuse"), () => api("/api/excuse", { method: "POST", body: "{}" }));
-});
+for (const button of document.querySelectorAll(".excuse")) {
+  const reason = button.dataset.reason;
+  button.addEventListener("click", () => {
+    if (!confirm(`${excuseCopy(reason).confirm} It won't break the streak, and it won't count either.`)) return;
+    act(button, () => api("/api/excuse", { method: "POST", body: JSON.stringify({ reason }) }));
+  });
+}
 
 $("unexcuse").addEventListener("click", () => {
   act($("unexcuse"), () => api("/api/excuse", { method: "DELETE", body: JSON.stringify({ date: state.today }) }));
 });
 
-$("excuse-yesterday").addEventListener("click", () => {
-  act($("excuse-yesterday"), () => api("/api/excuse", { method: "POST", body: JSON.stringify({ date: state.yesterday }) }));
-});
+for (const button of document.querySelectorAll(".excuse-yesterday")) {
+  const reason = button.dataset.reason;
+  button.addEventListener("click", () => {
+    act(button, () => api("/api/excuse", { method: "POST", body: JSON.stringify({ date: state.yesterday, reason }) }));
+  });
+}
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") load();

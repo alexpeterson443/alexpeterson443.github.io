@@ -40,9 +40,14 @@
       <p class="muted small" id="form-hint">Enter a game score to verify today.</p>
       <p class="muted small" id="countdown"></p>
       <p class="small" id="closure-hint" hidden></p>
+      <p class="muted small excuses" id="excuses" hidden>
+        Can't bowl today?
+        <button class="link excuse" data-reason="closed">Alley closed</button> ·
+        <button class="link excuse" data-reason="sick">Sick</button> ·
+        <button class="link excuse" data-reason="injured">Injured</button>
+      </p>
       <p class="muted small">
-        <button id="excuse" class="link" hidden>Alley closed today, can't bowl</button>
-        <button id="unexcuse" class="link" hidden>Undo closed day</button>
+        <button id="unexcuse" class="link" hidden>Undo</button>
       </p>
     </section>
 
@@ -64,12 +69,16 @@
       <div class="legend">
         <span><i class="dot hit"></i>bowled</span>
         <span><i class="dot miss"></i>missed</span>
-        <span><i class="dot excused"></i>closed</span>
+        <span><i class="dot excused closed"></i>closed</span>
+        <span><i class="dot excused sick"></i>sick</span>
+        <span><i class="dot excused injured"></i>injured</span>
         <span><i class="dot today"></i>today</span>
       </div>
       <p class="muted small" id="yesterday-hint" hidden>
         Bowled yesterday but didn't log it? <button id="verify-yesterday" class="link">Enter yesterday's score</button>
-        or <button id="excuse-yesterday" class="link">the alley was closed</button>
+        or mark it: <button class="link excuse-yesterday" data-reason="closed">alley closed</button> ·
+        <button class="link excuse-yesterday" data-reason="sick">sick</button> ·
+        <button class="link excuse-yesterday" data-reason="injured">injured</button>
       </p>
     </section>
 
