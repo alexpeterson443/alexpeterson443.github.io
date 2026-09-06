@@ -103,9 +103,9 @@ function render() {
   dateInput.max = s.today;
   if (!dateInput.value || dateInput.value > s.today || dateInput.value < s.start) dateInput.value = s.today;
   $("score-summary").textContent = sc.games
-    ? `${sc.games} game${sc.games === 1 ? "" : "s"}` +
-      (sc.scored ? ` · average ${sc.average} · best ${sc.high} on ${prettyDate(sc.highDate)}` : "")
-    : "No games logged yet.";
+    ? `${sc.games} game${sc.games === 1 ? "" : "s"}` + (sc.scored ? ` · best on ${prettyDate(sc.highDate)}` : "")
+    : "Nothing logged yet";
+  $("avg").textContent = sc.average ?? "–";
   $("high").textContent = sc.high ?? "–";
   const games = $("games");
   games.innerHTML = "";

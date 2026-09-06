@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="referrer" content="no-referrer" />
-  <meta name="theme-color" content="#0b0d14" />
+  <meta name="theme-color" content="#0a0b12" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -18,53 +18,65 @@
 </head>
 <body>
   <main class="card app">
-    <header>
-      <div class="ball" id="ball">🎳</div>
-      <h1>Bowling Streak</h1>
-      <p class="muted" id="subtitle">Loading…</p>
+
+    <header class="topbar">
+      <h1><span class="ball" id="ball">🎳</span>Bowling Streak</h1>
+      <p class="dates" id="subtitle">Loading…</p>
     </header>
 
-    <section class="streak">
+    <section class="hero">
       <div class="big" id="streak">–</div>
       <div class="label">day streak</div>
       <p class="status" id="status"></p>
-      <p class="calendar small" id="calendar" hidden></p>
+      <p class="calendar" id="calendar" hidden></p>
     </section>
 
-    <section class="action">
+    <section class="action panel">
       <form id="score-form" class="score-form">
-        <input id="score-date" type="date" required />
-        <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="Score" required />
+        <label class="field">
+          <span>Day</span>
+          <input id="score-date" type="date" required />
+        </label>
+        <label class="field">
+          <span>Score</span>
+          <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="—" required />
+        </label>
         <button type="submit" id="verify" class="primary">I bowled</button>
       </form>
-      <p class="muted small" id="form-hint">Enter a game score to verify today.</p>
-      <p class="muted small" id="countdown"></p>
-      <p class="small" id="closure-hint" hidden></p>
-      <p class="muted small excuses" id="excuses" hidden>
-        Can't bowl today?
-        <button class="link excuse" data-reason="closed">Alley closed</button> ·
-        <button class="link excuse" data-reason="sick">Sick</button> ·
-        <button class="link excuse" data-reason="injured">Injured</button>
-      </p>
-      <p class="muted small">
-        <button id="unexcuse" class="link" hidden>Undo</button>
-      </p>
+      <p class="hint" id="form-hint">Enter a game score to verify today.</p>
+      <p class="hint countdown" id="countdown"></p>
+      <p class="hint warn" id="closure-hint" hidden></p>
+
+      <div class="excuses" id="excuses" hidden>
+        <p class="hint">Can't bowl today?</p>
+        <div class="pills">
+          <button class="pill excuse" data-reason="closed"><i class="dot excused closed"></i>Alley closed</button>
+          <button class="pill excuse" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+          <button class="pill excuse" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+        </div>
+      </div>
+      <div class="undo-row"><button id="unexcuse" class="pill" hidden>Undo</button></div>
     </section>
 
     <section class="stats">
-      <div><span id="total">–</span><small>days bowled</small></div>
-      <div><span id="longest">–</span><small>longest streak</small></div>
-      <div><span id="high">–</span><small>high score</small></div>
+      <div><span id="total">–</span><small>days</small></div>
+      <div><span id="longest">–</span><small>longest</small></div>
+      <div><span id="avg">–</span><small>average</small></div>
+      <div><span id="high">–</span><small>high</small></div>
     </section>
 
-    <section class="scores">
-      <h2>Games</h2>
-      <p class="muted small" id="score-summary"></p>
+    <section class="scores panel">
+      <div class="panel-head">
+        <h2>Games</h2>
+        <span class="meta" id="score-summary"></span>
+      </div>
       <ul class="games" id="games"></ul>
     </section>
 
-    <section class="history">
-      <h2>History</h2>
+    <section class="history panel">
+      <div class="panel-head">
+        <h2>History</h2>
+      </div>
       <div class="grid" id="grid"></div>
       <div class="legend">
         <span><i class="dot hit"></i>bowled</span>
@@ -74,12 +86,15 @@
         <span><i class="dot excused injured"></i>injured</span>
         <span><i class="dot today"></i>today</span>
       </div>
-      <p class="muted small" id="yesterday-hint" hidden>
-        Bowled yesterday but didn't log it? <button id="verify-yesterday" class="link">Enter yesterday's score</button>
-        or mark it: <button class="link excuse-yesterday" data-reason="closed">alley closed</button> ·
-        <button class="link excuse-yesterday" data-reason="sick">sick</button> ·
-        <button class="link excuse-yesterday" data-reason="injured">injured</button>
-      </p>
+      <div class="yesterday" id="yesterday-hint" hidden>
+        <p class="hint">Bowled yesterday but didn't log it?</p>
+        <div class="pills">
+          <button id="verify-yesterday" class="pill">Enter the score</button>
+          <button class="pill excuse-yesterday" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
+          <button class="pill excuse-yesterday" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+          <button class="pill excuse-yesterday" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+        </div>
+      </div>
     </section>
 
   </main>
