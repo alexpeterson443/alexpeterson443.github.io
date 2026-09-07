@@ -78,6 +78,18 @@ A bowled day always wins over an excuse. When the calendar has an all day event
 mentioning closed, recess, holiday, break, or no classes, the page shows a hint
 but never excuses a day on its own.
 
+## Screen sizes
+
+One column edge to edge on a phone. From 521px it becomes a centred 600px card,
+which covers iPad Split View and an iPad 12.9" in portrait. From 1100px it
+splits into two columns, streak and score entry on the left, games, hours, and
+history on the right, so an iPad 12.9" in landscape (1366 points) fills the
+screen without scrolling. The card centres vertically when it is shorter than
+the viewport, and starts at the top and scrolls when it is taller.
+
+Older iPadOS is handled too: no `Object.hasOwn` or `:has()` on the critical
+path, and the history grid keeps a usable size without `aspect-ratio`.
+
 ## Keeping the numbers current
 
 Average, high, days bowled, and the streak are recomputed on the server for

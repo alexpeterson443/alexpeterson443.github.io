@@ -172,6 +172,7 @@ function render() {
   $("excuses").hidden = s.verifiedToday || s.excusedToday;
   if (!$("score").matches(":focus")) $("score-date").value = s.today;
   $("unexcuse").hidden = !s.excusedToday;
+  $("unexcuse").closest(".undo-row").hidden = !s.excusedToday;
   $("unexcuse").textContent = excuseCopy(s.excuseToday).undo;
   const closure = $("closure-hint");
   closure.hidden = !(cal.configured && cal.closureToday && !s.verifiedToday && !s.excusedToday);
@@ -252,7 +253,7 @@ function render() {
     c.textContent = Number(cursor.slice(8));
     c.title = prettyDate(cursor);
     if (hits.has(cursor)) c.classList.add("hit");
-    else if (Object.hasOwn(excusedDays, cursor)) {
+    else if (Object.prototype.hasOwnProperty.call(excusedDays, cursor)) {
       c.classList.add("excused", excusedDays[cursor]);
       c.title += ` · ${excuseCopy(excusedDays[cursor]).title}`;
     } else if (cursor < s.today) c.classList.add("miss");

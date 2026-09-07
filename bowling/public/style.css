@@ -20,7 +20,7 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-html { background: var(--bg); }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -63,6 +63,49 @@ body {
 @keyframes rise {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
+}
+
+.col { display: contents; }
+
+/* Tablets and laptops: a roomier single column, centred in the viewport so a
+   short card does not leave a void beneath it. */
+@media (min-width: 521px) {
+  /* Rows are auto sized, so a card taller than the screen still starts at the
+     top and scrolls normally rather than being clipped. */
+  body { place-items: center; padding: 32px; }
+  .app { max-width: 600px; }
+  /* Keep the history squares a sensible size instead of stretching with the card. */
+  .grid { max-width: 392px; margin-left: auto; margin-right: auto; }
+}
+
+/* Wide enough for two columns side by side. An iPad 12.9" is 1024 points in
+   portrait, which stays one column, and 1366 in landscape, which splits. */
+@media (min-width: 1100px) {
+  body { padding: 40px 32px; }
+  .app {
+    max-width: 1040px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 22px 26px;
+    padding: 34px 32px 38px;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+  }
+  .hero { padding-top: 20px; }
+  .hero::before { width: 320px; height: 320px; }
+  .big { font-size: 5.6rem; }
+  .games .date { width: 7em; }
+}
+
+/* Pointer devices (iPad with a trackpad, or a laptop) get hover feedback. */
+@media (hover: hover) and (pointer: fine) {
+  .pill:hover, .games .chip:hover { background: var(--panel-2); }
+  button.primary:hover { filter: brightness(1.06); }
 }
 
 /* Phone sized screens: fill the screen edge to edge like a native app. */
@@ -318,7 +361,7 @@ button.primary.done {
   gap: 7px;
 }
 .pill:active { background: var(--panel-2); }
-.undo-row:has(> [hidden]) { display: none; }
+.undo-row[hidden] { display: none; }
 .undo-row { margin-top: 12px; }
 
 /* ---------- stats ---------- */
@@ -438,6 +481,11 @@ button.primary.done {
   text-transform: uppercase;
   color: rgba(144, 150, 180, 0.65);
   padding-bottom: 3px;
+}
+
+@supports not (aspect-ratio: 1 / 1) {
+  .cell { min-height: 40px; }
+  .cell.weekday { min-height: 0; }
 }
 
 .legend {
