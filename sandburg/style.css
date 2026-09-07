@@ -3,6 +3,8 @@
 :root {
   color-scheme: light dark;
 
+  --scale: 1;
+
   --bg: #faf7f1;
   --bg-tint: #f2ece1;
   --surface: #ffffff;
@@ -55,14 +57,19 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  font-size: calc(17px * var(--scale));
+}
+html[data-size="large"] { --scale: 1.13; }
+html[data-size="xlarge"] { --scale: 1.28; }
 
 body {
   margin: 0;
   padding-bottom: calc(3rem + env(safe-area-inset-bottom));
   background: var(--bg);
   color: var(--ink);
-  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
+  font: 1rem/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
 }
@@ -114,8 +121,33 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .brand { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 .mark { border-radius: 10px; flex: none; }
 .brand-text { display: flex; flex-direction: column; min-width: 0; }
-.brand-name { font-size: 1.02rem; font-weight: 650; letter-spacing: -0.015em; }
-.brand-sub { font-size: 0.74rem; color: var(--ink-3); letter-spacing: 0.02em; }
+.brand-name {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brand-sub { font-size: 12.5px; color: var(--ink-3); letter-spacing: 0.02em; }
+
+.bar-tools { display: flex; align-items: center; gap: 0.5rem; flex: none; }
+
+.textsize {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.08rem;
+  padding: 0.3rem 0.7rem;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  line-height: 1;
+}
+.textsize .a-small { font-size: 13px; font-weight: 600; }
+.textsize .a-big { font-size: 16.5px; font-weight: 700; }
+html[data-size="large"] .textsize,
+html[data-size="xlarge"] .textsize { color: var(--gold); background: var(--gold-wash); border-color: color-mix(in srgb, var(--gold) 40%, transparent); }
 
 .hours {
   display: inline-flex;
@@ -123,13 +155,15 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
   gap: 0.45rem;
   flex: none;
   padding: 0.3rem 0.7rem;
-  font-size: 0.8rem;
+  font-size: 13.5px;
   font-weight: 550;
   color: var(--ink-2);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 999px;
 }
+
+.narrow-only { display: none; }
 
 .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--ink-3); flex: none; }
 .dot.open { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
@@ -138,8 +172,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 /* Shell ----------------------------------------------------------------- */
 
 .shell {
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 0 var(--pad);
   padding-left: calc(var(--pad) + env(safe-area-inset-left));
   padding-right: calc(var(--pad) + env(safe-area-inset-right));
@@ -161,7 +195,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 
 .daytitle {
   margin: 0;
-  font-size: 1.42rem;
+  font-size: 1.55rem;
   font-weight: 680;
   letter-spacing: -0.028em;
 }
@@ -217,13 +251,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .day:hover { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
 .day .dow {
   display: block;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 620;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
-.day .dnum { display: block; font-size: 1.12rem; font-weight: 640; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.day .dnum { display: block; font-size: 1.2rem; font-weight: 640; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .day.today .dow { color: var(--gold); }
 .day[aria-selected="true"] {
   background: var(--ink);
@@ -236,23 +270,23 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 /* Meal segmented control ------------------------------------------------ */
 
 .segmented {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 0.2rem;
   margin: 1rem 0 0.85rem;
   padding: 0.25rem;
   background: var(--bg-tint);
   border: 1px solid var(--line-soft);
   border-radius: 999px;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.segmented::-webkit-scrollbar { display: none; }
 
 .seg {
-  flex: 1 1 0;
-  min-width: max-content;
-  padding: 0.44rem 0.55rem;
-  font-size: 0.88rem;
+  min-width: 0;
+  padding: 0.5rem 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.95rem;
   font-weight: 560;
   color: var(--ink-2);
   background: none;
@@ -290,7 +324,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 }
 .searchwrap input {
   width: 100%;
-  padding: 0.6rem 2.2rem 0.6rem 2.2rem;
+  padding: 0.68rem 2.3rem 0.68rem 2.3rem;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -321,7 +355,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
   align-items: center;
   gap: 0.4rem;
   padding: 0 0.85rem;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 560;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -359,8 +393,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .rail-block + .rail-block { margin-top: 1rem; }
 
 .rail-title {
-  margin: 0 0 0.5rem;
-  font-size: 0.7rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.76rem;
   font-weight: 680;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -373,8 +407,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.92rem;
   color: var(--ink-2);
   background: var(--surface-2);
   border: 1px solid transparent;
@@ -413,8 +447,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.88rem;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.95rem;
   text-align: left;
   color: var(--ink-2);
   background: none;
@@ -422,7 +456,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
   border-radius: var(--r-sm);
 }
 .station-link:hover { background: var(--surface-2); color: var(--ink); }
-.station-link .n { font-size: 0.76rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.station-link .n { font-size: 0.82rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .station-link.is-active { color: var(--ink); font-weight: 620; background: var(--gold-wash); }
 
 /* Station bar (compact widths) ------------------------------------------ */
@@ -448,8 +482,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .stationbar .station-link {
   flex: none;
   width: auto;
-  padding: 0.25rem 0.7rem;
-  font-size: 0.83rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.9rem;
   white-space: nowrap;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -464,16 +498,16 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 /* Summary + callouts ---------------------------------------------------- */
 
 .summary {
-  margin: 0.9rem 0 0;
-  font-size: 0.83rem;
+  margin: 0.95rem 0 0;
+  font-size: 0.9rem;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 
 .callout {
   margin: 0.7rem 0 0;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.87rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.94rem;
   color: var(--ink-2);
   background: var(--surface-2);
   border: 1px solid var(--line-soft);
@@ -499,16 +533,16 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 }
 .station-head h2 {
   margin: 0;
-  font-size: 0.96rem;
+  font-size: 1.08rem;
   font-weight: 660;
   letter-spacing: -0.01em;
 }
 .station-head .rule { flex: 1 1 auto; height: 1px; background: var(--line); }
-.station-head .n { font-size: 0.78rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.station-head .n { font-size: 0.85rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 .dishes {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.6rem;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
   align-items: start;
 }
@@ -549,7 +583,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .dish-name {
   margin: 0;
   flex: 1 1 auto;
-  font-size: 0.97rem;
+  font-size: 1.06rem;
   font-weight: 620;
   letter-spacing: -0.012em;
   line-height: 1.32;
@@ -557,17 +591,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 
 .kcal {
   flex: none;
-  font-size: 0.86rem;
+  font-size: 0.95rem;
   font-weight: 640;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
-.kcal small { font-size: 0.68rem; font-weight: 500; color: var(--ink-3); margin-left: 0.12rem; }
+.kcal small { font-size: 0.74rem; font-weight: 500; color: var(--ink-3); margin-left: 0.12rem; }
 
 .dish-desc {
-  margin: 0.28rem 0 0;
-  font-size: 0.83rem;
-  line-height: 1.45;
+  margin: 0.3rem 0 0;
+  font-size: 0.93rem;
+  line-height: 1.5;
   color: var(--ink-3);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -580,8 +614,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .dish-tags { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-top: 0.5rem; }
 
 .pill {
-  padding: 0.1rem 0.45rem;
-  font-size: 0.71rem;
+  padding: 0.14rem 0.5rem;
+  font-size: 0.79rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   border-radius: 999px;
@@ -609,11 +643,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 .fav[aria-pressed="true"] svg { fill: var(--gold); }
 
 .dish-detail {
-  padding: 0 0.85rem 0.85rem;
-  font-size: 0.85rem;
+  padding: 0 0.9rem 0.9rem;
+  font-size: 0.93rem;
   color: var(--ink-2);
 }
-.dish-detail .serving { margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--ink-3); }
+.dish-detail .serving { margin: 0 0 0.6rem; font-size: 0.88rem; color: var(--ink-3); }
 
 .macrobar {
   display: flex;
@@ -642,13 +676,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 }
 .nutrition span {
   display: block;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
-.nutrition strong { font-size: 0.92rem; font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
+.nutrition strong { font-size: 1.02rem; font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* Empty + loading ------------------------------------------------------- */
 
@@ -660,7 +694,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 }
 .empty strong { display: block; margin-bottom: 0.3rem; color: var(--ink); font-weight: 620; }
 
-.skeleton { display: grid; gap: 0.55rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+.skeleton { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
 .skeleton div {
   height: 5.2rem;
   background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%);
@@ -674,10 +708,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 /* Footer ---------------------------------------------------------------- */
 
 .foot {
-  max-width: 1400px;
-  margin: 2.5rem auto 0;
+  max-width: none;
+  margin: 2.5rem 0 0;
   padding: 1.2rem var(--pad);
-  font-size: 0.76rem;
+  font-size: 0.85rem;
   line-height: 1.6;
   color: var(--ink-3);
   border-top: 1px solid var(--line-soft);
@@ -690,11 +724,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 
 @media (min-width: 1000px) {
   :root { --pad: 1.6rem; }
+  html { font-size: calc(18px * var(--scale)); }
 
   .shell {
     display: grid;
-    grid-template-columns: 15.5rem minmax(0, 1fr);
-    gap: 2.2rem;
+    grid-template-columns: clamp(230px, 16rem, 310px) minmax(0, 1fr);
+    gap: 2rem;
     align-items: start;
   }
 
@@ -712,19 +747,51 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
   .rail-inner { margin-top: 1.15rem; }
 
   .filter-btn, .stationbar { display: none; }
-  .segmented { max-width: 34rem; }
+  .segmented { max-width: min(34rem, 100%); }
   .seg { padding: 0.44rem 1rem; font-size: 0.92rem; }
   .station-section { scroll-margin-top: calc(var(--appbar) + 1.2rem); }
-  .daytitle { font-size: 1.75rem; }
+  .daytitle { font-size: 1.95rem; }
   .segmented { align-self: start; }
   .toolbar { max-width: 30rem; }
-}
-
-@media (min-width: 1500px) {
-  body { font-size: 17px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+/* Narrow screens: keep the bar on one line and give the meal switcher
+   two roomy rows instead of four cramped columns. ----------------------- */
+
+@media (max-width: 560px) {
+  .brand-sub { display: none; }
+  .brand-name { font-size: 16px; }
+  .hours { padding: 0.3rem 0.6rem; font-size: 12.5px; }
+  .textsize { padding: 0.3rem 0.55rem; }
+  .appbar { gap: 0.5rem; }
+}
+
+@media (max-width: 480px) {
+  .wide-only { display: none; }
+  .narrow-only { display: inline; }
+
+  .segmented {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-columns: auto;
+    padding: 0.3rem;
+    border-radius: 1.3rem;
+  }
+  .seg { padding: 0.55rem 0.5rem; }
+}
+
+/* Largest text on a tablet leaves the four meal tabs too tight in one row. */
+@media (max-width: 1200px) {
+  html[data-size="xlarge"] .segmented {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-columns: auto;
+    padding: 0.3rem;
+    border-radius: 1.3rem;
+  }
 }

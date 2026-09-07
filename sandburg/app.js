@@ -14,7 +14,7 @@
   ["days", "meals", "menu", "search", "clearSearch", "dietChips", "allergenChips", "stationList",
    "stationBar", "rail", "filterToggle", "filterCount", "resetFilters", "prevDay", "nextDay",
    "todayJump", "dayTitle", "notice", "favNote", "summary", "updated", "status", "statusDot",
-   "statusText"].forEach(function (id) { el[id] = document.getElementById(id); });
+   "statusText", "textSize"].forEach(function (id) { el[id] = document.getElementById(id); });
 
   var state = {
     index: null,
@@ -27,6 +27,7 @@
     favs: new Set(load("favs", [])),
     favOnly: false,
     open: new Set(),
+    textSize: "standard",
     sections: [],
     spy: null
   };
@@ -46,6 +47,24 @@
     } catch (err) {
       /* private mode or a full quota — preferences just don't persist */
     }
+  }
+
+  /* ---- text size ---- */
+
+  var SIZES = ["standard", "large", "xlarge"];
+  var SIZE_LABELS = { standard: "standard", large: "large", xlarge: "largest" };
+
+  function applyTextSize(size) {
+    if (size === "standard") document.documentElement.removeAttribute("data-size");
+    else document.documentElement.setAttribute("data-size", size);
+    if (el.textSize) el.textSize.setAttribute("aria-label", "Text size: " + SIZE_LABELS[size] + " (tap to change)");
+  }
+
+  function cycleTextSize() {
+    var next = SIZES[(SIZES.indexOf(state.textSize) + 1) % SIZES.length];
+    state.textSize = next;
+    save("textsize", next);
+    applyTextSize(next);
   }
 
   /* ---- the café's clock, not the visitor's ---- */
@@ -519,9 +538,17 @@
     var bits = today.split("-");
     var open = now.minutes >= toMinutes(bits[0]) && now.minutes < toMinutes(bits[1]);
     el.statusDot.className = "dot " + (open ? "open" : "closed");
-    el.statusText.textContent = open
-      ? "Open until " + to12h(bits[1])
-      : "Closed · " + to12h(bits[0]) + "–" + to12h(bits[1]);
+    // The long form is the nice one; narrow screens get the short one instead.
+    setStatusText(open ? "Open" : "Closed",
+      open ? " until " + to12h(bits[1]) : " · " + to12h(bits[0]) + "–" + to12h(bits[1]),
+      open ? " · " + to12h(bits[1]) : "");
+  }
+
+  function setStatusText(lead, wide, narrow) {
+    el.statusText.textContent = "";
+    el.statusText.appendChild(document.createTextNode(lead));
+    if (wide) el.statusText.appendChild(make("span", "wide-only", wide));
+    if (narrow) el.statusText.appendChild(make("span", "narrow-only", narrow));
   }
 
   function toMinutes(hhmm) {
@@ -605,6 +632,7 @@
       el.filterToggle.setAttribute("aria-expanded", String(open));
     });
 
+    el.textSize.addEventListener("click", cycleTextSize);
     el.resetFilters.addEventListener("click", resetFilters);
     el.prevDay.addEventListener("click", function () { step(-1); });
     el.nextDay.addEventListener("click", function () { step(1); });
@@ -628,6 +656,8 @@
   function boot() {
     state.diets = new Set(load("diets", []));
     state.hidden = new Set(load("hidden", []));
+    state.textSize = SIZES.indexOf(load("textsize", "standard")) === -1 ? "standard" : load("textsize", "standard");
+    applyTextSize(state.textSize);
     showSkeleton();
 
     fetchJSON("index.json").then(function (index) {

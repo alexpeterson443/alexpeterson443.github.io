@@ -35,6 +35,12 @@ directly. Instead:
 - Filters and favorites persist in `localStorage`, and each viewed day is cached
   there so the page still works offline.
 - Open/closed status from the café's posted hours; light and dark themes.
+- Full-bleed layout: the menu uses the whole window at any size, from a 320px
+  phone to a 12.9" iPad to a desktop, with cards flowing into as many columns
+  as fit.
+- An "AA" control in the app bar cycles the menu text through three sizes
+  (about 17px, 19px and 22px on a phone) and remembers the choice. The app bar
+  itself stays a fixed size so the header never crowds out the menu.
 - Keyboard: `/` focuses search, arrow keys move between days.
 
 ## Installing it as an app
