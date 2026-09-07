@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  var DATA_URL = new URL("../data/", location.href);
+  var DATA_URL = new URL("data/", location.href);
   var TZ = "America/Chicago";
   var MEAL_LABELS = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snacks: "Snacks" };
   var DIETS = ["Vegetarian", "Vegan"];
