@@ -1,2 +1,3 @@
-# Netlify CLI writes the linked site id here on deploy; it is local state.
+# Local tooling state, never source.
 .netlify/
+.DS_Store
