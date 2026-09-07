@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Today's menu at the Sandburg Café, UW-Milwaukee — meals, stations, calories, allergens and dietary filters." />
+  <meta name="theme-color" content="#12100c" />
+  <title>Sandburg Café Menu · UWM</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-main">
+      <h1>Sandburg Café</h1>
+      <p class="sub">UW–Milwaukee · daily menu</p>
+    </div>
+    <div class="status" id="status" hidden>
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText"></span>
+    </div>
+  </header>
+
+  <nav class="datebar" aria-label="Pick a day">
+    <button class="nav-arrow" id="prevDay" type="button" aria-label="Previous day">‹</button>
+    <div class="days" id="days" role="tablist" aria-label="Days"></div>
+    <button class="nav-arrow" id="nextDay" type="button" aria-label="Next day">›</button>
+  </nav>
+
+  <nav class="meals" id="meals" role="tablist" aria-label="Meals"></nav>
+
+  <section class="controls">
+    <input id="search" class="search" type="search" placeholder="Search the menu…" aria-label="Search menu items" autocomplete="off" />
+    <div class="chips" id="dietChips" aria-label="Dietary filters"></div>
+    <details class="allergen-box">
+      <summary>Hide items containing… <span class="badge" id="allergenCount" hidden></span></summary>
+      <div class="chips" id="allergenChips" aria-label="Allergens to hide"></div>
+    </details>
+  </section>
+
+  <p class="favnote" id="favNote" hidden></p>
+  <p class="notice" id="notice" hidden></p>
+
+  <main id="menu" class="menu" aria-live="polite">
+    <p class="loading">Loading menu…</p>
+  </main>
+
+  <footer class="foot">
+    <p>Menu data from <a href="https://uwm.nutrislice.com/menu/sandburg-cafe" rel="noopener">UWM Dining on Nutrislice</a>, refreshed daily. Not affiliated with UWM.</p>
+    <p id="updated"></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

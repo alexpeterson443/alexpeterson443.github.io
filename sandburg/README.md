@@ -1,0 +1,38 @@
+# Sandburg Café menu
+
+A small static site that shows the daily food menu for the Sandburg Café at
+UW–Milwaukee: <https://alexpeterson443.github.io/sandburg/>
+
+## How it works
+
+UWM Dining publishes its menus through Nutrislice. That API sends no CORS
+headers and returns roughly 5 MB per week per meal, so the browser can't call it
+directly. Instead:
+
+1. `scripts/fetch_menus.py` pulls two weeks of breakfast, lunch, dinner and
+   snacks from `https://uwm.api.nutrislice.com`, keeps only what the page shows
+   (name, station, description, serving size, calories/macros, dietary tags and
+   allergens), and writes `data/index.json` plus one `data/menus/<date>.json`
+   per day — about 100 KB a day instead of 5 MB.
+2. `.github/workflows/refresh-menu.yml` runs that script every morning at
+   4:10 am Central and commits the result.
+3. The page loads `data/index.json` once, then one day file at a time.
+
+## Features
+
+- Opens on today's date and the meal being served right now (Central time).
+- Day strip covering the two published weeks, meal tabs, station grouping.
+- Search, Vegetarian/Vegan filters, and "hide items containing" for the ten
+  allergens Nutrislice tags.
+- Tap an item for its description, serving size and full nutrition panel.
+- Star items as favorites; a banner calls them out when they're on the menu.
+- Filters and favorites persist in `localStorage`, and each viewed day is cached
+  there so the page still works offline.
+- Open/closed status from the café's posted hours.
+
+## Running it locally
+
+```sh
+python3 scripts/fetch_menus.py --weeks 2 --out data   # refresh the data
+python3 -m http.server 8000                           # then open /sandburg/
+```

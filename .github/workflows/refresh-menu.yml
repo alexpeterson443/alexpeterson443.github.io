@@ -1,0 +1,39 @@
+name: Refresh Sandburg Café menu
+
+on:
+  schedule:
+    # 09:10 UTC ≈ 4:10 am Central — before breakfast service.
+    - cron: "10 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-menu
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch menus from Nutrislice
+        run: python3 scripts/fetch_menus.py --weeks 2 --out data
+
+      - name: Commit refreshed menus
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data
+          if git diff --quiet --cached; then
+            echo "menus unchanged"
+            exit 0
+          fi
+          git commit -m "Refresh Sandburg Café menu data"
+          git push
