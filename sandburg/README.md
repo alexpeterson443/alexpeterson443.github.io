@@ -21,14 +21,21 @@ directly. Instead:
 ## Features
 
 - Opens on today's date and the meal being served right now (Central time).
-- Day strip covering the two published weeks, meal tabs, station grouping.
-- Search, Vegetarian/Vegan filters, and "hide items containing" for the ten
-  allergens Nutrislice tags.
-- Tap an item for its description, serving size and full nutrition panel.
+- Day rail across the two published weeks, a segmented meal switcher, and items
+  grouped by station.
+- Station navigation that follows your scroll — a sticky chip rail on phones, a
+  pinned sidebar list on tablets and desktops.
+- Search, Vegetarian/Vegan and Favorites filters, and "hide items containing"
+  for the ten allergens Nutrislice tags. On narrow screens they live in a
+  collapsible panel with a count badge; on wide screens they sit in the sidebar.
+- A summary line ("157 items · 22 stations · 71 vegan") that tracks the filters.
+- Tap an item for its serving size, a protein/carb/fat split bar and the full
+  nutrition panel.
 - Star items as favorites; a banner calls them out when they're on the menu.
 - Filters and favorites persist in `localStorage`, and each viewed day is cached
   there so the page still works offline.
-- Open/closed status from the café's posted hours.
+- Open/closed status from the café's posted hours; light and dark themes.
+- Keyboard: `/` focuses search, arrow keys move between days.
 
 ## Installing it as an app
 
