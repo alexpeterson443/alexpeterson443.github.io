@@ -138,6 +138,8 @@ function render() {
     games.appendChild(li);
   }
 
+  renderProgress(s.progress);
+
   // Calendar: what the schedule says about bowling.
   const cal = s.calendar || { configured: false };
   const calEl = $("calendar");
@@ -375,6 +377,173 @@ for (const button of document.querySelectorAll(".excuse-yesterday")) {
   button.addEventListener("click", () => {
     act(button, () => api("/api/excuse", { method: "POST", body: JSON.stringify({ date: state.yesterday, reason }) }));
   });
+}
+
+// ---------- progress ----------
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function svg(tag, attrs, text) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+/**
+ * The progress panel. Everything here is either a plain count or a claim the
+ * server already checked against the scatter in the log, so nothing on screen
+ * asserts a trend the data cannot support.
+ *
+ * Drawn as SVG geometry rather than positioned elements: the CSP has no
+ * style-src, so it falls back to default-src and any inline style is blocked.
+ */
+function renderProgress(p) {
+  const panel = $("progress");
+  if (!p || !p.games) { panel.hidden = true; return; }
+  panel.hidden = false;
+
+  $("progress-window").textContent = `${p.games} game${p.games === 1 ? "" : "s"} on record`;
+  $("form-avg").textContent = p.recentAverage ?? "–";
+  panel.querySelector(".form-now small").textContent =
+    p.window < 10 ? `last ${p.window} games` : "last 10 games";
+
+  // Recent form against the lifetime average: the number that actually moves.
+  const delta = $("form-delta");
+  if (p.delta === null || p.games < 3) {
+    delta.hidden = true;
+  } else {
+    delta.hidden = false;
+    delta.className = "delta" + (p.delta > 0 ? " up" : p.delta < 0 ? " down" : "");
+    delta.textContent = p.delta === 0
+      ? `level with your ${p.average} average`
+      : `${p.delta > 0 ? "+" : ""}${p.delta} vs your ${p.average} average`;
+  }
+
+  const verdict = $("verdict");
+  verdict.textContent = p.verdict.text;
+  verdict.className = "verdict " + p.verdict.state;
+
+  drawChart(p);
+  drawWarmup(p);
+
+  $("fact-spread").textContent = p.spread === null ? "–" : `±${p.spread}`;
+  $("fact-best").textContent = p.best ? p.best.total : "–";
+  panel.querySelector("#fact-best + small").textContent = p.best
+    ? `best ${p.best.games} game${p.best.games === 1 ? "" : "s"}`
+    : "best series";
+}
+
+function drawChart(p) {
+  const el = $("chart");
+  el.innerHTML = "";
+
+  const W = 320, H = 132;
+  const L = 26, R = 6, T = 8, B = 16;
+  const plotW = W - L - R;
+  const plotH = H - T - B;
+
+  const values = p.series.map((g) => g.score);
+  const lo = Math.max(0, Math.floor((Math.min(...values) - 10) / 20) * 20);
+  const hi = Math.min(300, Math.ceil((Math.max(...values) + 10) / 20) * 20);
+  const span = hi - lo || 1;
+
+  const x = (n) => L + (p.games === 1 ? plotW / 2 : ((n - 1) / (p.games - 1)) * plotW);
+  const y = (v) => T + plotH - ((v - lo) / span) * plotH;
+
+  // Recessive grid: three references, nothing more.
+  for (const v of [lo, lo + span / 2, hi]) {
+    el.appendChild(svg("line", { class: "grid-line", x1: L, x2: W - R, y1: y(v), y2: y(v) }));
+    el.appendChild(svg("text", { class: "axis-label", x: L - 5, y: y(v) + 3, "text-anchor": "end" },
+      String(Math.round(v))));
+  }
+
+  // Lifetime average, so recent games read against it at a glance.
+  if (p.average !== null) {
+    el.appendChild(svg("line", { class: "mean-line", x1: L, x2: W - R, y1: y(p.average), y2: y(p.average) }));
+  }
+
+  // The rolling average is the signal; the dots behind it are the noise it smooths.
+  if (p.games > 1) {
+    const d = p.rolling.map((v, i) => `${i ? "L" : "M"}${x(i + 1).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+    el.appendChild(svg("path", { class: "roll-line", d }));
+  }
+
+  const best = Math.max(...values);
+  const tip = svg("g", { class: "tip", hidden: "hidden" });
+  const tipBg = svg("rect", { class: "tip-bg", rx: 5, height: 15, x: 0, y: 0, width: 0 });
+  const tipText = svg("text", { class: "tip-text", x: 0, y: 0, "text-anchor": "middle" });
+  tip.append(tipBg, tipText);
+
+  p.series.forEach((g) => {
+    const isBest = g.score === best;
+    el.appendChild(svg("circle", {
+      class: "game-dot" + (isBest ? " best" : ""), cx: x(g.n), cy: y(g.score), r: isBest ? 3.4 : 2.6,
+    }));
+    // Hit target deliberately larger than the mark.
+    const hit = svg("rect", { class: "game-hit", x: x(g.n) - 7, y: T, width: 14, height: plotH });
+    const show = () => {
+      const label = `${prettyDate(g.date)} · game ${g.game} · ${g.score}`;
+      const w = label.length * 4.3 + 12;
+      // Keep the bubble inside the frame at both ends of the series.
+      const cx = Math.min(W - R - w / 2, Math.max(L + w / 2, x(g.n)));
+      const top = Math.max(0, y(g.score) - 21);
+      tipText.setAttribute("x", cx);
+      tipText.setAttribute("y", top + 10.5);
+      tipText.textContent = label;
+      tipBg.setAttribute("x", cx - w / 2);
+      tipBg.setAttribute("y", top);
+      tipBg.setAttribute("width", w);
+      tip.removeAttribute("hidden");
+    };
+    hit.addEventListener("pointerenter", show);
+    hit.addEventListener("pointerdown", show);
+    hit.addEventListener("pointerleave", () => tip.setAttribute("hidden", "hidden"));
+    el.appendChild(hit);
+  });
+  el.appendChild(tip);
+
+  $("chart-caption").textContent = `Every game since ${prettyDate(p.series[0].date)}. `
+    + `The violet line is your rolling average, the dashed line your ${p.average} lifetime. Scale ${lo} to ${hi}.`;
+}
+
+function drawWarmup(p) {
+  const box = $("warmup");
+  const rows = p.session.rows;
+  if (rows.length < 2) { box.hidden = true; return; }
+  box.hidden = false;
+
+  const el = $("warmup-chart");
+  el.innerHTML = "";
+  const W = 320, rowH = 20, gap = 6, labelW = 46, valW = 26;
+  const H = rows.length * rowH + (rows.length - 1) * gap;
+  el.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  el.setAttribute("height", H);
+
+  // Bars carry magnitude, so the scale runs from zero.
+  const top = Math.max(...rows.map((r) => r.average));
+  const trackW = W - labelW - valW;
+  const best = rows.filter((r) => r.average === top);
+
+  rows.forEach((r, i) => {
+    const yTop = i * (rowH + gap);
+    const mid = yTop + rowH / 2;
+    el.appendChild(svg("text", { class: "bar-label", x: 0, y: mid + 3.5 }, `Game ${r.game}`));
+    el.appendChild(svg("rect", {
+      class: "bar-track", x: labelW, y: yTop + 4, width: trackW, height: rowH - 8, rx: 5,
+    }));
+    el.appendChild(svg("rect", {
+      class: "bar-fill" + (best.includes(r) ? " top" : ""),
+      x: labelW, y: yTop + 4, width: Math.max(4, (r.average / top) * trackW), height: rowH - 8, rx: 5,
+    }));
+    el.appendChild(svg("text", { class: "bar-value", x: W, y: mid + 3.5, "text-anchor": "end" },
+      String(r.average)));
+  });
+
+  $("warmup-gap").textContent = p.session.gap > 0 ? `+${p.session.gap} by the last game` : "";
+  $("warmup-note").textContent = p.session.gap > 8
+    ? `You warm up ${p.session.gap} pins into the night. Practice balls before game one turn that into scoring games.`
+    : "Your first game holds up against your last. No warm up tax.";
 }
 
 // Keep the stats current without a manual reload. The page can sit open on the

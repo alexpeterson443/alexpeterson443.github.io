@@ -69,6 +69,35 @@
    </div>
 
    <div class="col side">
+    <section class="progress panel" id="progress" hidden>
+      <div class="panel-head">
+        <h2>Progress</h2>
+        <span class="meta" id="progress-window"></span>
+      </div>
+
+      <div class="form">
+        <div class="form-now"><span id="form-avg">–</span><small>last 10 games</small></div>
+        <span class="delta" id="form-delta" hidden></span>
+      </div>
+      <p class="verdict" id="verdict"></p>
+
+      <figure class="chart" id="chart-figure">
+        <figcaption id="chart-caption">Every game, with the rolling average through it.</figcaption>
+        <svg id="chart" viewBox="0 0 320 132" role="img" aria-labelledby="chart-caption"></svg>
+      </figure>
+
+      <div class="warmup" id="warmup" hidden>
+        <div class="panel-head"><h3>By game of the night</h3><span class="meta" id="warmup-gap"></span></div>
+        <svg id="warmup-chart" viewBox="0 0 320 80" role="img" aria-labelledby="warmup-note"></svg>
+        <p class="hint" id="warmup-note"></p>
+      </div>
+
+      <div class="facts">
+        <div><span id="fact-spread">–</span><small>pin spread</small></div>
+        <div><span id="fact-best">–</span><small>best series</small></div>
+      </div>
+    </section>
+
     <section class="scores panel">
       <div class="panel-head">
         <h2>Games</h2>

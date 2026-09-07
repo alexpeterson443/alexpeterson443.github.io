@@ -1,5 +1,6 @@
 import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap } from "./streak.js";
 import { scoreStats } from "./scores.js";
+import { progressReport } from "./progress.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 
@@ -71,6 +72,7 @@ export async function buildState(env, days, scores = {}, excused = null) {
   return {
     ...stats,
     scores: scoreStats(scores),
+    progress: progressReport(scores),
     gamesToday: (scores[today] || []).length,
     scoresToday: (scores[today] || []).filter((n) => typeof n === "number"),
     calendar,
