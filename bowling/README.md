@@ -81,16 +81,24 @@ but never excuses a day on its own.
 ## Alley hours
 
 The alley opens Mon to Fri 10:00 AM to 10:00 PM, Sat 12:00 PM to 10:00 PM, and
-Sun 12:00 PM to 8:00 PM. The page shows the week, highlights today, and says
-whether the alley is open, when it opens, or when it next opens once it has
-shut. While the day is unsettled the countdown points at closing time rather
-than at midnight, since that is the real deadline for getting a game in.
+Sun 12:00 PM to 8:00 PM. The alley stops putting games on 15 minutes before the
+posted close, so the real deadline is 9:45 PM on weekdays and Saturday, 7:45 PM
+on Sunday.
+
+The page shows the week, highlights today, and says whether the alley is open,
+when it opens, when the last game goes on, or when it next opens once it has
+shut. Once the cut off passes it says so plainly, since the alley is still open
+but will not start you a game. While the day is unsettled the countdown points
+at last call rather than at midnight. Logging a score stays possible until
+midnight, so a game you bowled earlier can still be entered afterwards.
 
 The defaults live in `functions/_lib/hours.js`. Override them with the `HOURS`
 var in wrangler.toml: JSON mapping `sun` through `sat` to `["HH:MM", "HH:MM"]`,
 or `null` for a day the alley never opens. Days you leave out keep their
 default, and anything that does not parse falls back rather than breaking the
-page. Times are wall clock in `TIMEZONE`, so DST is handled.
+page. `LAST_CALL_MINUTES` sets the cut off (default 15, 0 to 240); it never
+lands before opening on a very short day. Times are wall clock in `TIMEZONE`,
+so DST is handled.
 
 ## Calendar
 
@@ -127,6 +135,7 @@ npm test
 | `CALENDAR_ICS_URL` | secret       | Private iCal feed (optional)             |
 | `CALENDAR_KEYWORD` | wrangler.toml | Word that marks a bowling event         |
 | `HOURS`          | wrangler.toml  | Alley opening hours (optional override)  |
+| `LAST_CALL_MINUTES` | wrangler.toml | Minutes before close that games stop  |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.

@@ -20,6 +20,9 @@ CALENDAR_KEYWORD = "bowl"
 #   Mon to Fri 10:00 to 22:00, Sat 12:00 to 22:00, Sun 12:00 to 20:00.
 # Uncomment to override; use null for a day the alley never opens.
 # HOURS = '{"sun":["12:00","20:00"],"mon":["10:00","22:00"],"tue":["10:00","22:00"],"wed":["10:00","22:00"],"thu":["10:00","22:00"],"fri":["10:00","22:00"],"sat":["12:00","22:00"]}'
+# The alley stops putting games on this many minutes before the posted close,
+# so this is the real deadline for getting a game in. Default 15.
+LAST_CALL_MINUTES = "15"
 
 # Secret (never commit). The private link is https://<site>/?key=<ACCESS_KEY>
 #   npx wrangler pages secret put ACCESS_KEY --project-name bowling-streak

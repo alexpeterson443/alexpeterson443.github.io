@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseHours, hoursStatus, weekRows, clockLabel, dayOfWeek, DEFAULT_HOURS } from "../functions/_lib/hours.js";
+import { parseHours, hoursStatus, weekRows, clockLabel, dayOfWeek, lastCallFromEnv, DEFAULT_HOURS, DEFAULT_LAST_CALL } from "../functions/_lib/hours.js";
 
 const TZ = "America/Chicago";
 const HOURS = parseHours(DEFAULT_HOURS);
@@ -34,26 +34,71 @@ test("open, before open, and after close on a weekday", () => {
   assert.equal(before.open, false);
   assert.equal(before.msUntilOpen, 60 * 60 * 1000);
   assert.equal(before.opensAt, "10:00 AM");
-  // Closing is still the day's real deadline, even before the doors open.
-  assert.equal(before.msUntilClose, 13 * 60 * 60 * 1000);
+  // Last call is still the day's real deadline, even before the doors open.
+  assert.equal(before.msUntilLastCall, 12.75 * 60 * 60 * 1000);
 
   const during = hoursStatus(HOURS, TZ, "2026-09-07", new Date("2026-09-08T02:00:00Z")); // 9:00 PM
   assert.equal(during.open, true);
-  assert.equal(during.msUntilClose, 60 * 60 * 1000);
   assert.equal(during.closesAt, "10:00 PM");
+  assert.equal(during.lastCallAt, "9:45 PM");
+  assert.equal(during.lastCallPassed, false);
+  assert.equal(during.msUntilLastCall, 45 * 60 * 1000);
 
   const after = hoursStatus(HOURS, TZ, "2026-09-07", new Date("2026-09-08T04:00:00Z")); // 11:00 PM
   assert.equal(after.open, false);
   assert.equal(after.beforeOpen, false);
-  assert.equal(after.msUntilClose, null);
+  assert.equal(after.msUntilLastCall, null);
   assert.deepEqual(after.next, { day: "Tue", tomorrow: true, opens: "10:00 AM" });
+});
+
+test("the last 15 minutes are too late to start a game", () => {
+  // 9:50 PM Mon: the alley is open but has stopped putting games on.
+  const s = hoursStatus(HOURS, TZ, "2026-09-07", new Date("2026-09-08T02:50:00Z"));
+  assert.equal(s.open, true);
+  assert.equal(s.lastCallPassed, true);
+  assert.equal(s.msUntilLastCall, null);
+  assert.equal(s.lastCallAt, "9:45 PM");
+  assert.equal(s.closesAt, "10:00 PM");
+  assert.equal(s.todayLabel, "10:00 AM – 10:00 PM");   // posted hours are unchanged
+
+  // A minute before the cut off it is still on.
+  const just = hoursStatus(HOURS, TZ, "2026-09-07", new Date("2026-09-08T02:44:00Z"));
+  assert.equal(just.lastCallPassed, false);
+  assert.equal(just.msUntilLastCall, 60 * 1000);
+});
+
+test("the cut off is configurable and clamped, and never precedes opening", () => {
+  assert.equal(lastCallFromEnv({}), DEFAULT_LAST_CALL);
+  assert.equal(lastCallFromEnv({ LAST_CALL_MINUTES: "30" }), 30);
+  assert.equal(lastCallFromEnv({ LAST_CALL_MINUTES: "0" }), 0);
+  assert.equal(lastCallFromEnv({ LAST_CALL_MINUTES: "banana" }), DEFAULT_LAST_CALL);
+  assert.equal(lastCallFromEnv({ LAST_CALL_MINUTES: "-5" }), DEFAULT_LAST_CALL);
+  assert.equal(lastCallFromEnv({ LAST_CALL_MINUTES: "999" }), DEFAULT_LAST_CALL);
+
+  const s = hoursStatus(HOURS, TZ, "2026-09-07", new Date("2026-09-08T02:00:00Z"), 30);
+  assert.equal(s.lastCallAt, "9:30 PM");
+  assert.equal(s.msUntilLastCall, 30 * 60 * 1000);
+
+  // A cut off longer than the day's window falls back to opening time.
+  const tiny = parseHours({ ...DEFAULT_HOURS, mon: ["10:00", "10:10"] });
+  const t = hoursStatus(tiny, TZ, "2026-09-07", new Date("2026-09-07T15:05:00Z")); // 10:05 AM
+  assert.equal(t.lastCallAt, "10:00 AM");
+  assert.equal(t.lastCallPassed, true);
+  assert.equal(t.msUntilLastCall, null);
+
+  // Inside a longer window the cut off lands normally, before opening is reached.
+  const short = parseHours({ ...DEFAULT_HOURS, mon: ["10:00", "10:20"] });
+  const u = hoursStatus(short, TZ, "2026-09-07", new Date("2026-09-07T15:00:00Z")); // 10:00 AM
+  assert.equal(u.lastCallAt, "10:05 AM");
+  assert.equal(u.msUntilLastCall, 5 * 60 * 1000);
 });
 
 test("Sunday closes at 8pm", () => {
   const s = hoursStatus(HOURS, TZ, "2026-09-06", new Date("2026-09-07T00:30:00Z")); // 7:30 PM Sun
   assert.equal(s.open, true);
   assert.equal(s.closesAt, "8:00 PM");
-  assert.equal(s.msUntilClose, 30 * 60 * 1000);
+  assert.equal(s.lastCallAt, "7:45 PM");
+  assert.equal(s.msUntilLastCall, 15 * 60 * 1000);
   assert.equal(s.todayLabel, "12:00 PM – 8:00 PM");
 
   const shut = hoursStatus(HOURS, TZ, "2026-09-06", new Date("2026-09-07T01:30:00Z")); // 8:30 PM Sun
@@ -66,7 +111,7 @@ test("hours are resolved through the timezone, so DST does not shift them", () =
   const s = hoursStatus(HOURS, TZ, "2026-11-01", new Date("2026-11-01T18:30:00Z")); // 12:30 PM CST
   assert.equal(s.open, true);
   assert.equal(s.closesAt, "8:00 PM");
-  assert.equal(s.msUntilClose, 7.5 * 60 * 60 * 1000);
+  assert.equal(s.msUntilLastCall, 7.25 * 60 * 60 * 1000);
 });
 
 test("a day can be marked closed, and junk falls back to the default", () => {

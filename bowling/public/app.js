@@ -181,24 +181,31 @@ function render() {
   hoursNow.hidden = !hours;
   if (hours) {
     hoursNow.className = "hint hours-now";
+    const unsettled = !s.verifiedToday && !s.excusedToday;
     if (hours.closedToday) {
       hoursNow.textContent = "The alley is closed all day today.";
       hoursNow.classList.add("warn");
     } else if (hours.beforeOpen) {
-      hoursNow.textContent = `Alley opens at ${hours.opensAt}, closes ${hours.closesAt}.`;
+      hoursNow.textContent = `Alley opens at ${hours.opensAt}. Last game goes on by ${hours.lastCallAt}.`;
+    } else if (hours.open && hours.lastCallPassed) {
+      // Still open, but too late to start a game.
+      hoursNow.textContent = `Too late to start a game. The alley stopped at ${hours.lastCallAt}.`;
+      if (unsettled) hoursNow.classList.add("warn");
     } else if (hours.open) {
       // The countdown right above already carries the time remaining.
-      hoursNow.textContent = `Alley open until ${hours.closesAt}.`;
-      const left = hours.msUntilClose ?? 0;
-      if (left < 2 * 3_600_000 && !s.verifiedToday && !s.excusedToday) hoursNow.classList.add("warn");
+      hoursNow.textContent = `Alley open until ${hours.closesAt}. Last game by ${hours.lastCallAt}.`;
+      if ((hours.msUntilLastCall ?? 0) < 2 * 3_600_000 && unsettled) hoursNow.classList.add("warn");
     } else {
       const next = hours.next;
       hoursNow.textContent = next
         ? `Alley closed for today. Opens ${next.tomorrow ? "tomorrow" : next.day} at ${next.opens}.`
         : "Alley closed for today.";
-      if (!s.verifiedToday && !s.excusedToday) hoursNow.classList.add("warn");
+      if (unsettled) hoursNow.classList.add("warn");
     }
 
+    $("hours-note").textContent = hours.lastCallMinutes
+      ? `Last game goes on ${hours.lastCallMinutes} minutes before close.`
+      : "";
     $("hours-today").textContent = hours.closedToday ? "Closed today" : `Today ${hours.todayLabel}`;
     const week = $("hours-week");
     week.innerHTML = "";
@@ -256,7 +263,7 @@ function render() {
   const deadline = Date.now() + s.msUntilMidnight;
   // While today is still open the real deadline is the alley closing, which
   // comes before midnight; the page still reloads at midnight.
-  const closeAt = hours && hours.msUntilClose !== null ? Date.now() + hours.msUntilClose : null;
+  const closeAt = hours && hours.msUntilLastCall !== null ? Date.now() + hours.msUntilLastCall : null;
   const tick = () => {
     const left = deadline - Date.now();
     if (left <= 0) { clearInterval(timer); return load(); }
@@ -265,7 +272,7 @@ function render() {
     $("countdown").textContent = settled
       ? `Next day starts in ${fmtCountdown(left)}`
       : toClose > 0
-        ? `${fmtCountdown(toClose)} before the alley closes`
+        ? `${fmtCountdown(toClose)} before last call`
         : `${fmtCountdown(left)} left to verify today`;
   };
   tick();

@@ -10,6 +10,12 @@ import { zonedToUtc } from "./ics.js";
 const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/**
+ * The alley stops putting games on this many minutes before the posted close,
+ * so this, not the close time, is the real deadline for getting a game in.
+ */
+export const DEFAULT_LAST_CALL = 15;
+
 /** Mon to Fri 10am to 10pm, Sat noon to 10pm, Sun noon to 8pm. */
 export const DEFAULT_HOURS = {
   sun: ["12:00", "20:00"],
@@ -69,6 +75,12 @@ export function hoursFromEnv(env) {
   return parseHours(env && env.HOURS);
 }
 
+/** Minutes before close when the alley stops starting games. */
+export function lastCallFromEnv(env) {
+  const n = Number(env && env.LAST_CALL_MINUTES);
+  return Number.isInteger(n) && n >= 0 && n <= 240 ? n : DEFAULT_LAST_CALL;
+}
+
 /**
  * The week as display rows, Monday first, with runs of identical days merged
  * so the table reads "Mon – Fri  10:00 AM – 10:00 PM".
@@ -94,7 +106,7 @@ export function weekRows(hours) {
  * Where `now` sits against the alley's hours on `today`.
  * Times are resolved through the timezone, so DST is handled.
  */
-export function hoursStatus(hours, tz, today, now = new Date()) {
+export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAULT_LAST_CALL) {
   const dow = dayOfWeek(today);
   const h = hours[dow];
   const [y, mo, d] = today.split("-").map(Number);
@@ -103,6 +115,8 @@ export function hoursStatus(hours, tz, today, now = new Date()) {
 
   const openMs = h ? at(h[0]) : null;
   const closeMs = h ? at(h[1]) : null;
+  // Never earlier than opening, in case a day's window is shorter than the cut off.
+  const lastCallMs = h ? Math.max(openMs, closeMs - lastCall * 60_000) : null;
   const open = h !== null && t >= openMs && t < closeMs;
   const beforeOpen = h !== null && t < openMs;
 
@@ -123,10 +137,13 @@ export function hoursStatus(hours, tz, today, now = new Date()) {
     beforeOpen,
     opensAt: h ? clockLabel(h[0]) : null,
     closesAt: h ? clockLabel(h[1]) : null,
+    lastCallAt: h ? clockLabel(h[1] - Math.min(lastCall, h[1] - h[0])) : null,
+    lastCallMinutes: lastCall,
+    lastCallPassed: h !== null && t >= lastCallMs,
     msUntilOpen: beforeOpen ? openMs - t : null,
-    // Time left to bowl today: set whenever closing is still ahead, so the
-    // countdown points at the alley shutting rather than at midnight.
-    msUntilClose: h !== null && t < closeMs ? closeMs - t : null,
+    // Time left to get a game on today. Last call, not the posted close, is the
+    // deadline, so the countdown points at that rather than at midnight.
+    msUntilLastCall: h !== null && t < lastCallMs ? lastCallMs - t : null,
     today: dow,
     next,
     week: weekRows(hours),
