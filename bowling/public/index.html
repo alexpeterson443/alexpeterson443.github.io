@@ -45,6 +45,7 @@
       </form>
       <p class="hint" id="form-hint">Enter a game score to verify today.</p>
       <p class="hint countdown" id="countdown"></p>
+      <p class="hint hours-now" id="hours-now" hidden></p>
       <p class="hint warn" id="closure-hint" hidden></p>
 
       <div class="excuses" id="excuses" hidden>
@@ -71,6 +72,14 @@
         <span class="meta" id="score-summary"></span>
       </div>
       <ul class="games" id="games"></ul>
+    </section>
+
+    <section class="hours panel">
+      <div class="panel-head">
+        <h2>Alley hours</h2>
+        <span class="meta" id="hours-today"></span>
+      </div>
+      <ul class="hours-week" id="hours-week"></ul>
     </section>
 
     <section class="history panel">

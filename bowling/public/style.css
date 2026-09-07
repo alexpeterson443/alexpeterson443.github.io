@@ -385,6 +385,28 @@ button.primary.done {
 }
 .games .count { color: var(--muted); font-size: 0.72rem; flex: none; }
 
+/* ---------- alley hours ---------- */
+
+.hours-week { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.hours-week li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+.hours-week .days { color: var(--muted); font-weight: 600; }
+.hours-week .time { font-variant-numeric: tabular-nums; }
+.hours-week li.now {
+  background: rgba(124, 92, 255, 0.14);
+  border-color: rgba(124, 92, 255, 0.32);
+}
+.hours-week li.now .days { color: var(--accent-2); }
+
 /* ---------- history ---------- */
 
 .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }

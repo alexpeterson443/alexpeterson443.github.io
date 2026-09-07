@@ -1,6 +1,7 @@
 import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap } from "./streak.js";
 import { scoreStats } from "./scores.js";
 import { bowlingSchedule } from "./calendar.js";
+import { hoursFromEnv, hoursStatus } from "./hours.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -73,6 +74,7 @@ export async function buildState(env, days, scores = {}, excused = null) {
     gamesToday: (scores[today] || []).length,
     scoresToday: (scores[today] || []).filter((n) => typeof n === "number"),
     calendar,
+    hours: hoursStatus(hoursFromEnv(env), tz, today),
     timezone: tz,
     yesterday: addDays(today, -1),
     msUntilMidnight: msUntilMidnight(tz),

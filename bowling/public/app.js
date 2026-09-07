@@ -175,6 +175,47 @@ function render() {
   closure.hidden = !(cal.configured && cal.closureToday && !s.verifiedToday && !s.excusedToday);
   if (!closure.hidden) closure.textContent = `📌 ${cal.closureToday} on your calendar. If the lanes are shut, tap Alley closed below.`;
 
+  // Alley hours: where today sits, and the week's table.
+  const hours = s.hours;
+  const hoursNow = $("hours-now");
+  hoursNow.hidden = !hours;
+  if (hours) {
+    hoursNow.className = "hint hours-now";
+    if (hours.closedToday) {
+      hoursNow.textContent = "The alley is closed all day today.";
+      hoursNow.classList.add("warn");
+    } else if (hours.beforeOpen) {
+      hoursNow.textContent = `Alley opens at ${hours.opensAt}, closes ${hours.closesAt}.`;
+    } else if (hours.open) {
+      // The countdown right above already carries the time remaining.
+      hoursNow.textContent = `Alley open until ${hours.closesAt}.`;
+      const left = hours.msUntilClose ?? 0;
+      if (left < 2 * 3_600_000 && !s.verifiedToday && !s.excusedToday) hoursNow.classList.add("warn");
+    } else {
+      const next = hours.next;
+      hoursNow.textContent = next
+        ? `Alley closed for today. Opens ${next.tomorrow ? "tomorrow" : next.day} at ${next.opens}.`
+        : "Alley closed for today.";
+      if (!s.verifiedToday && !s.excusedToday) hoursNow.classList.add("warn");
+    }
+
+    $("hours-today").textContent = hours.closedToday ? "Closed today" : `Today ${hours.todayLabel}`;
+    const week = $("hours-week");
+    week.innerHTML = "";
+    for (const row of hours.week) {
+      const li = document.createElement("li");
+      if (row.days.includes(hours.today)) li.className = "now";
+      const days = document.createElement("span");
+      days.className = "days";
+      days.textContent = row.label;
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = row.hours;
+      li.append(days, time);
+      week.appendChild(li);
+    }
+  }
+
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
 
@@ -213,12 +254,19 @@ function render() {
   // Countdown to midnight (Central) that keeps ticking without more requests.
   clearInterval(timer);
   const deadline = Date.now() + s.msUntilMidnight;
+  // While today is still open the real deadline is the alley closing, which
+  // comes before midnight; the page still reloads at midnight.
+  const closeAt = hours && hours.msUntilClose !== null ? Date.now() + hours.msUntilClose : null;
   const tick = () => {
     const left = deadline - Date.now();
     if (left <= 0) { clearInterval(timer); return load(); }
-    $("countdown").textContent = s.verifiedToday || s.excusedToday
+    const settled = s.verifiedToday || s.excusedToday;
+    const toClose = closeAt === null ? 0 : closeAt - Date.now();
+    $("countdown").textContent = settled
       ? `Next day starts in ${fmtCountdown(left)}`
-      : `${fmtCountdown(left)} left to verify today`;
+      : toClose > 0
+        ? `${fmtCountdown(toClose)} before the alley closes`
+        : `${fmtCountdown(left)} left to verify today`;
   };
   tick();
   timer = setInterval(tick, 30_000);

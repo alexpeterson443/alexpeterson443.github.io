@@ -29,6 +29,7 @@ functions/
   ping.js          public reachability check
   _lib/ics.js      iCalendar parser with recurrence (unit tested)
   _lib/calendar.js fetches the feed, caches it, finds bowling sessions
+  _lib/hours.js    alley opening hours (unit tested)
   _lib/streak.js   pure date + streak math (unit tested)
   _lib/store.js    KV read/write and first run seeding
 test/              node --test
@@ -77,6 +78,20 @@ A bowled day always wins over an excuse. When the calendar has an all day event
 mentioning closed, recess, holiday, break, or no classes, the page shows a hint
 but never excuses a day on its own.
 
+## Alley hours
+
+The alley opens Mon to Fri 10:00 AM to 10:00 PM, Sat 12:00 PM to 10:00 PM, and
+Sun 12:00 PM to 8:00 PM. The page shows the week, highlights today, and says
+whether the alley is open, when it opens, or when it next opens once it has
+shut. While the day is unsettled the countdown points at closing time rather
+than at midnight, since that is the real deadline for getting a game in.
+
+The defaults live in `functions/_lib/hours.js`. Override them with the `HOURS`
+var in wrangler.toml: JSON mapping `sun` through `sat` to `["HH:MM", "HH:MM"]`,
+or `null` for a day the alley never opens. Days you leave out keep their
+default, and anything that does not parse falls back rather than breaking the
+page. Times are wall clock in `TIMEZONE`, so DST is handled.
+
 ## Calendar
 
 Set the `CALENDAR_ICS_URL` secret to a private iCal feed and the page shows
@@ -111,6 +126,7 @@ npm test
 | `ACCESS_KEY`     | secret         | Key in the private link                  |
 | `CALENDAR_ICS_URL` | secret       | Private iCal feed (optional)             |
 | `CALENDAR_KEYWORD` | wrangler.toml | Word that marks a bowling event         |
+| `HOURS`          | wrangler.toml  | Alley opening hours (optional override)  |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.
