@@ -46,6 +46,12 @@ export function clockLabel(min) {
   return `${h}:${String(mi).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
 }
 
+/** "YYYY-MM-DD" shifted by whole days. */
+function addIsoDays(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** Weekday index (0 = Sunday) for a "YYYY-MM-DD" date. */
 export function dayOfWeek(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -120,14 +126,18 @@ export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAU
   const open = h !== null && t >= openMs && t < closeMs;
   const beforeOpen = h !== null && t < openMs;
 
-  // The next day the alley opens, for the line shown once it has shut.
+  // The next day the alley opens. Today is already spoken for by the time this
+  // matters, so the search starts tomorrow.
   let next = null;
   for (let step = 1; step <= 7; step++) {
     const i = (dow + step) % 7;
-    if (hours[i]) {
-      next = { day: NAMES[i], tomorrow: step === 1, opens: clockLabel(hours[i][0]) };
-      break;
-    }
+    const nh = hours[i];
+    if (!nh) continue;
+    const date = addIsoDays(today, step);
+    const [ny, nmo, nd] = date.split("-").map(Number);
+    const opensMs = zonedToUtc({ y: ny, mo: nmo, d: nd, h: Math.floor(nh[0] / 60), mi: nh[0] % 60 }, tz);
+    next = { day: NAMES[i], tomorrow: step === 1, opens: clockLabel(nh[0]), date, msUntil: opensMs - t };
+    break;
   }
 
   return {
@@ -146,6 +156,9 @@ export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAU
     msUntilLastCall: h !== null && t < lastCallMs ? lastCallMs - t : null,
     today: dow,
     next,
+    // Time until the lanes are open again for a fresh day, which is the wait
+    // that matters once today is settled.
+    msUntilNextOpen: next ? next.msUntil : null,
     week: weekRows(hours),
   };
 }

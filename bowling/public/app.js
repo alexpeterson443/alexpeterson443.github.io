@@ -34,8 +34,10 @@ async function api(path, opts = {}) {
 }
 
 function fmtCountdown(ms) {
+  const d = Math.floor(ms / 86_400_000);
   const h = Math.floor(ms / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
+  if (d > 0) return `${d}d ${h % 24}h`;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
@@ -188,8 +190,11 @@ function render() {
     } else if (hours.beforeOpen) {
       hoursNow.textContent = `Alley opens at ${hours.opensAt}. Last game goes on by ${hours.lastCallAt}.`;
     } else if (hours.open && hours.lastCallPassed) {
-      // Still open, but too late to start a game.
-      hoursNow.textContent = `Too late to start a game. The alley stopped at ${hours.lastCallAt}.`;
+      // Still open, but too late to start a game. Only a problem if the day
+      // still needs one.
+      hoursNow.textContent = unsettled
+        ? `Too late to start a game. The alley stopped at ${hours.lastCallAt}.`
+        : `Alley open until ${hours.closesAt}.`;
       if (unsettled) hoursNow.classList.add("warn");
     } else if (hours.open) {
       // The countdown right above already carries the time remaining.
@@ -264,13 +269,20 @@ function render() {
   // While today is still open the real deadline is the alley closing, which
   // comes before midnight; the page still reloads at midnight.
   const closeAt = hours && hours.msUntilLastCall !== null ? Date.now() + hours.msUntilLastCall : null;
+  const openAt = hours && hours.msUntilNextOpen !== null ? Date.now() + hours.msUntilNextOpen : null;
+  const nextDay = hours && hours.next ? (hours.next.tomorrow ? "tomorrow" : hours.next.day) : null;
   const tick = () => {
     const left = deadline - Date.now();
     if (left <= 0) { clearInterval(timer); return load(); }
     const settled = s.verifiedToday || s.excusedToday;
     const toClose = closeAt === null ? 0 : closeAt - Date.now();
+    const toOpen = openAt === null ? 0 : openAt - Date.now();
     $("countdown").textContent = settled
-      ? `Next day starts in ${fmtCountdown(left)}`
+      // Once today is settled the wait that matters is the lanes opening again,
+      // not the day rolling over at midnight.
+      ? toOpen > 0
+        ? `Lanes open ${nextDay} in ${fmtCountdown(toOpen)}`
+        : `Next day starts in ${fmtCountdown(left)}`
       : toClose > 0
         ? `${fmtCountdown(toClose)} before last call`
         : `${fmtCountdown(left)} left to verify today`;

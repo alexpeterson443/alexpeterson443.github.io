@@ -102,8 +102,11 @@ The page shows the week, highlights today, and says whether the alley is open,
 when it opens, when the last game goes on, or when it next opens once it has
 shut. Once the cut off passes it says so plainly, since the alley is still open
 but will not start you a game. While the day is unsettled the countdown points
-at last call rather than at midnight. Logging a score stays possible until
-midnight, so a game you bowled earlier can still be entered afterwards.
+at last call rather than at midnight. Once the day is settled it switches to
+the wait until the lanes open again, skipping any day the alley never opens,
+rather than counting down to the midnight rollover. Logging a score stays
+possible until midnight, so a game you bowled earlier can still be entered
+afterwards.
 
 The defaults live in `functions/_lib/hours.js`. Override them with the `HOURS`
 var in wrangler.toml: JSON mapping `sun` through `sat` to `["HH:MM", "HH:MM"]`,

@@ -48,7 +48,45 @@ test("open, before open, and after close on a weekday", () => {
   assert.equal(after.open, false);
   assert.equal(after.beforeOpen, false);
   assert.equal(after.msUntilLastCall, null);
-  assert.deepEqual(after.next, { day: "Tue", tomorrow: true, opens: "10:00 AM" });
+  assert.equal(after.next.day, "Tue");
+  assert.equal(after.next.opens, "10:00 AM");
+  assert.equal(after.next.date, "2026-09-08");
+  assert.equal(after.msUntilNextOpen, 11 * 60 * 60 * 1000);   // 11 PM Mon to 10 AM Tue
+});
+
+test("the next opening is the wait once today is settled", () => {
+  // Sun 7:54 PM, the alley shuts at 8 and reopens Mon at 10 AM: 14h 6m away.
+  const s = hoursStatus(HOURS, TZ, "2026-09-06", new Date("2026-09-07T00:54:00Z"));
+  assert.equal(s.next.day, "Mon");
+  assert.equal(s.next.tomorrow, true);
+  assert.equal(s.next.opens, "10:00 AM");
+  assert.equal(s.next.date, "2026-09-07");
+  assert.equal(s.msUntilNextOpen, (14 * 60 + 6) * 60 * 1000);
+
+  // Still open earlier in the day: the next opening is tomorrow's, not today's.
+  const midday = hoursStatus(HOURS, TZ, "2026-09-06", new Date("2026-09-06T18:00:00Z")); // 1 PM Sun
+  assert.equal(midday.open, true);
+  assert.equal(midday.next.date, "2026-09-07");
+  assert.equal(midday.msUntilNextOpen, 21 * 60 * 60 * 1000);  // 1 PM Sun to 10 AM Mon
+});
+
+test("the next opening skips days the alley never opens", () => {
+  const h = parseHours({ ...DEFAULT_HOURS, mon: null, tue: null });
+  // Sun 7:54 PM with Mon and Tue shut: the next opening is Wed at 10 AM.
+  const s = hoursStatus(h, TZ, "2026-09-06", new Date("2026-09-07T00:54:00Z"));
+  assert.equal(s.next.day, "Wed");
+  assert.equal(s.next.tomorrow, false);
+  assert.equal(s.next.date, "2026-09-09");
+  assert.equal(s.msUntilNextOpen, (2 * 24 * 60 + 14 * 60 + 6) * 60 * 1000);
+});
+
+test("the next opening crosses a DST change correctly", () => {
+  // Sat 2026-10-31 11 PM CDT to Sun 2026-11-01 12 PM CST reads as 13 hours on a
+  // wall clock, but the clocks go back overnight so it is 14 real hours.
+  const s = hoursStatus(HOURS, TZ, "2026-10-31", new Date("2026-11-01T04:00:00Z"));
+  assert.equal(s.next.date, "2026-11-01");
+  assert.equal(s.next.opens, "12:00 PM");
+  assert.equal(s.msUntilNextOpen, 14 * 60 * 60 * 1000);
 });
 
 test("the last 15 minutes are too late to start a game", () => {
@@ -103,7 +141,9 @@ test("Sunday closes at 8pm", () => {
 
   const shut = hoursStatus(HOURS, TZ, "2026-09-06", new Date("2026-09-07T01:30:00Z")); // 8:30 PM Sun
   assert.equal(shut.open, false);
-  assert.deepEqual(shut.next, { day: "Mon", tomorrow: true, opens: "10:00 AM" });
+  assert.equal(shut.next.day, "Mon");
+  assert.equal(shut.next.opens, "10:00 AM");
+  assert.equal(shut.msUntilNextOpen, 13.5 * 60 * 60 * 1000);
 });
 
 test("hours are resolved through the timezone, so DST does not shift them", () => {
@@ -122,7 +162,9 @@ test("a day can be marked closed, and junk falls back to the default", () => {
   const s = hoursStatus(h, TZ, "2026-09-07", new Date("2026-09-07T18:00:00Z"));
   assert.equal(s.closedToday, true);
   assert.equal(s.todayLabel, "Closed");
-  assert.deepEqual(s.next, { day: "Tue", tomorrow: true, opens: "10:00 AM" });
+  assert.equal(s.next.day, "Tue");
+  assert.equal(s.next.tomorrow, true);
+  assert.equal(s.next.opens, "10:00 AM");
 });
 
 test("hours parse from a JSON string, and bad JSON keeps the defaults", () => {
