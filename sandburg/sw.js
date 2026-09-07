@@ -1,5 +1,5 @@
 /* Offline shell for the Sandburg Café menu. Bump CACHE when the shell changes. */
-var CACHE = "sandburg-v2";
+var CACHE = "sandburg-v3";
 var SHELL = ["./", "./index.html", "./style.css", "./app.js", "./icon.svg", "./manifest.webmanifest"];
 
 self.addEventListener("install", function (event) {
