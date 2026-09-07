@@ -1,0 +1,2 @@
+# Netlify CLI writes the linked site id here on deploy; it is local state.
+.netlify/
