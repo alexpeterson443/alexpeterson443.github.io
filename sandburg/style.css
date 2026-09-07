@@ -719,6 +719,7 @@ html[data-size="xlarge"] .textsize { color: var(--gold); background: var(--gold-
 }
 .foot p { margin: 0.15rem 0; }
 .foot a { color: var(--gold); }
+.foot .credit { margin-top: 0.4rem; color: var(--ink-2); font-weight: 550; }
 
 /* Wide layout: persistent sidebar --------------------------------------- */
 
