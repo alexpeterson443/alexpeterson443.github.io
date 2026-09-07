@@ -1,0 +1,16 @@
+# Publishes the menu app as the site root, so it serves at the domain root
+# instead of under /sandburg/. No build step: the folder is already static,
+# and the daily workflow commits fresh menu JSON into sandburg/data.
+[build]
+  publish = "sandburg"
+  command = ""
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
