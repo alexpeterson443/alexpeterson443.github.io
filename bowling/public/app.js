@@ -428,10 +428,11 @@ function renderProgress(p) {
   drawWarmup(p);
 
   $("fact-spread").textContent = p.spread === null ? "–" : `±${p.spread}`;
+  // A series is a fixed three game block, so the totals are comparable.
   $("fact-best").textContent = p.best ? p.best.total : "–";
   panel.querySelector("#fact-best + small").textContent = p.best
-    ? `best ${p.best.games} game${p.best.games === 1 ? "" : "s"}`
-    : "best series";
+    ? `best 3 on ${prettyDate(p.best.date).replace(/^\w+, /, "")}`
+    : "best 3 games";
 }
 
 function drawChart(p) {

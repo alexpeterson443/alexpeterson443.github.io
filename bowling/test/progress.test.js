@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   gameSeries, spread, rollingAverage, trend, gamesPerWeek, bySessionPosition,
-  bestSession, verdict, progressReport, MIN_TREND_GAMES,
+  bestSession, verdict, progressReport, MIN_TREND_GAMES, SERIES_GAMES,
 } from "../functions/_lib/progress.js";
 
 /** Days of three games each, starting Fri 2026-09-04. */
@@ -84,9 +84,23 @@ test("session position exposes the warm up gap", () => {
   assert.equal(thin.gap, 10);
 });
 
-test("the best session is the highest total on one day", () => {
+test("the best series is a fixed three game block, never a whole day", () => {
+  assert.equal(SERIES_GAMES, 3);
   const best = bestSession(log([[100, 100, 100], [90, 90, 90], [120, 200]]));
-  assert.deepEqual(best, { date: "2026-09-06", total: 320, games: 2 });
+  assert.deepEqual(best, { date: "2026-09-04", total: 300, games: 3, from: 1 });
+
+  // A long night must not win on volume alone: six mediocre games total more
+  // than three good ones, but the best three of them do not.
+  const volume = bestSession(log([[130, 130, 130], [80, 80, 80, 80, 80, 80]]));
+  assert.equal(volume.date, "2026-09-04");
+  assert.equal(volume.total, 390);
+
+  // The block slides, so a strong finish inside a long session still counts.
+  const late = bestSession(log([[70, 70, 70, 150, 160, 170]]));
+  assert.deepEqual(late, { date: "2026-09-04", total: 480, games: 3, from: 4 });
+
+  // Sessions shorter than a series cannot post one.
+  assert.equal(bestSession(log([[200, 200]])), null);
   assert.equal(bestSession({}), null);
 });
 
@@ -136,6 +150,7 @@ test("the report separates recent form from the lifetime average", () => {
   assert.equal(r.rolling.length, 13);
   assert.ok(r.spread > 0);
   assert.equal(r.best.date, "2026-09-08");
+  assert.equal(r.best.total, 420);          // the three 140s, not the whole log
   assert.equal(r.verdict.state, "improving");
 });
 

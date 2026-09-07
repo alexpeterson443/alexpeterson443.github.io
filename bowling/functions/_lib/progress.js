@@ -137,14 +137,26 @@ export function bySessionPosition(series, minSessions = 2) {
   return { rows, gap: rows[rows.length - 1].average - rows[0].average };
 }
 
-/** Best three game series bowled on any single day. */
-export function bestSession(scores) {
+/** Length of a bowling series. Totals are only comparable across equal blocks. */
+export const SERIES_GAMES = 3;
+
+/**
+ * Best series: the highest total over consecutive games inside one session.
+ *
+ * Day totals will not do. A six game night beats a three game night on sheer
+ * volume, which says nothing about how well either was bowled, so the block is
+ * fixed at three and only sessions that reach it can post a series.
+ */
+export function bestSession(scores, size = SERIES_GAMES) {
   let best = null;
   for (const date of Object.keys(scores).sort()) {
     const list = (scores[date] || []).filter((n) => typeof n === "number");
-    if (!list.length) continue;
-    const total = list.reduce((a, b) => a + b, 0);
-    if (!best || total > best.total) best = { date, total, games: list.length };
+    if (list.length < size) continue;
+    for (let i = 0; i + size <= list.length; i++) {
+      const block = list.slice(i, i + size);
+      const total = block.reduce((a, b) => a + b, 0);
+      if (!best || total > best.total) best = { date, total, games: size, from: i + 1 };
+    }
   }
   return best;
 }
