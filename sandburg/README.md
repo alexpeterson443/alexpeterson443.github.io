@@ -12,11 +12,11 @@ directly. Instead:
 1. `scripts/fetch_menus.py` pulls two weeks of breakfast, lunch, dinner and
    snacks from `https://uwm.api.nutrislice.com`, keeps only what the page shows
    (name, station, description, serving size, calories/macros, dietary tags and
-   allergens), and writes `data/index.json` plus one `data/menus/<date>.json`
+   allergens), and writes `sandburg/data/index.json` plus one `sandburg/data/menus/<date>.json`
    per day — about 100 KB a day instead of 5 MB.
 2. `.github/workflows/refresh-menu.yml` runs that script every morning at
    4:10 am Central and commits the result.
-3. The page loads `data/index.json` once, then one day file at a time.
+3. The page loads `data/index.json` (beside the page) once, then one day file at a time.
 
 ## Features
 
@@ -55,6 +55,6 @@ without a connection.
 ## Running it locally
 
 ```sh
-python3 scripts/fetch_menus.py --weeks 2 --out data   # refresh the data
+python3 scripts/fetch_menus.py --weeks 2 --out sandburg/data   # refresh the data
 python3 -m http.server 8000                           # then open /sandburg/
 ```

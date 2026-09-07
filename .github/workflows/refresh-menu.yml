@@ -24,13 +24,13 @@ jobs:
           python-version: "3.12"
 
       - name: Fetch menus from Nutrislice
-        run: python3 scripts/fetch_menus.py --weeks 2 --out data
+        run: python3 scripts/fetch_menus.py --weeks 2 --out sandburg/data
 
       - name: Commit refreshed menus
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data
+          git add -A sandburg/data
           if git diff --quiet --cached; then
             echo "menus unchanged"
             exit 0
