@@ -1,0 +1,3 @@
+# Local tooling state, never source.
+.netlify/
+.DS_Store
