@@ -796,3 +796,102 @@ html[data-size="xlarge"] .textsize { color: var(--gold); background: var(--gold-
     border-radius: 1.3rem;
   }
 }
+
+/* ---- location picker (UWM Eats) ---- */
+
+.placebar {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "label select" "meta meta";
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0 0 14px;
+}
+
+.placelabel {
+  grid-area: label;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.placewrap { grid-area: select; position: relative; display: block; }
+
+.placeselect {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 10px 38px 10px 12px;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.placeselect:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.placechev {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.placemeta {
+  grid-area: meta;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-3);
+}
+
+.placemeta:empty { display: none; }
+
+/* ---- menu-board locations ---- */
+
+.boards { display: grid; gap: 16px; }
+
+.boards-note {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--ink-3);
+}
+
+.board {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.board img { display: block; width: 100%; height: auto; }
+
+.board figcaption {
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  color: var(--ink-3);
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 900px) {
+  .placebar {
+    grid-template-columns: auto minmax(260px, 420px) 1fr;
+    grid-template-areas: "label select meta";
+    gap: 12px;
+  }
+  .placemeta { justify-self: start; }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "sandburgmenu",
+  "compatibility_date": "2026-09-07",
+
+  // Fallback *.workers.dev URL, useful for verifying a deploy.
+  "workers_dev": true,
+
+  // Static-only Worker: no `main`, Cloudflare serves ./sandburg directly.
+  // Menu data under sandburg/data is refreshed by the GitHub Actions workflow
+  // in .github/workflows/refresh-menu.yml, which then redeploys this Worker.
+  // A Cron Trigger cannot do that job on the Workers Free plan: one 5 MB
+  // Nutrislice payload costs ~7.6 ms just to JSON.parse, and the free cron
+  // CPU limit is 10 ms for all 44 of them.
+  "assets": {
+    "directory": "./sandburg"
+  },
+
+  // Explicitly empty: clears the Cron Trigger this Worker used to carry.
+  // Dropping the key alone leaves the old schedule registered on Cloudflare.
+  "triggers": {
+    "crons": []
+  },
+
+  // Serves the apex domain. Wrangler manages the DNS record for this hostname.
+  "routes": [
+    { "pattern": "sandburgmenu.com", "custom_domain": true }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

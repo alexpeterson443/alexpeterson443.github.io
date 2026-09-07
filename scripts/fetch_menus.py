@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""Fetch Sandburg Cafe menus from UWM's Nutrislice API and write slim JSON.
+"""Fetch UWM dining menus from Nutrislice and write slim JSON.
 
 The Nutrislice API sends no CORS headers and returns ~5 MB per week per meal,
 so the browser app can't call it directly. This script runs in CI, trims each
-week down to the fields the app actually uses, and writes one file per day.
+week down to the fields the app actually uses, and writes one file per day per
+location.
 
-Usage: python3 scripts/fetch_menus.py [--weeks 2] [--out data]
+Locations come in two shapes:
+
+  * "menu"   - structured food items (Sandburg, Cambridge, the Grinds, ...).
+               One file per day under menus/<slug>/<date>.json.
+  * "images" - a fixed set of menu-board images, identical every day
+               (Palm Gardens, Burger King, Taco Bell). Mirrored into
+               images/ once and referenced from the index; no day files.
+
+Usage: python3 scripts/fetch_menus.py [--weeks 2] [--out sandburg/data]
 """
 
 import argparse
@@ -13,15 +22,35 @@ import datetime as dt
 import gzip
 import json
 import os
+import shutil
 import sys
 import urllib.error
 import urllib.request
 
 API = "https://uwm.api.nutrislice.com"
-SCHOOL = "sandburg-cafe"
-MEALS = ["breakfast", "lunch", "dinner", "snacks"]
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-UA = "sandburg-menu-app/1.0 (+https://github.com/alexpeterson443/alexpeterson443.github.io)"
+UA = "uwm-eats/1.0 (+https://sandburgmenu.com)"
+
+# Order the picker follows: the full-service halls first, then cafes, then the
+# fixed-menu counters. Anything Nutrislice adds later lands at the end.
+LOCATION_ORDER = [
+    "sandburg-cafe",
+    "cambridge-cafe",
+    "union-station",
+    "grind",
+    "grind-library",
+    "grind-lubar-entrepreneurship-center",
+    "grind-sandburg-hall",
+    "city-subs",
+    "flour-shop",
+    "gasthaus",
+    "pacific-wraps",
+    "pizza-presto",
+    "stir-fry",
+    "palm-gardens",
+    "burger-king",
+    "taco-bell",
+]
 
 
 def get_json(url, tries=4):
@@ -43,6 +72,23 @@ def get_json(url, tries=4):
 
                 time.sleep(2 ** attempt)
     raise SystemExit(f"failed to fetch {url}: {last}")
+
+
+def download(url, dest, tries=4):
+    last = None
+    for attempt in range(tries):
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as out:
+                shutil.copyfileobj(resp, out)
+            return
+        except (urllib.error.URLError, TimeoutError) as err:
+            last = err
+            if attempt < tries - 1:
+                import time
+
+                time.sleep(2 ** attempt)
+    raise SystemExit(f"failed to download {url}: {last}")
 
 
 def station_name(item):
@@ -126,6 +172,21 @@ def slim_day(day):
     return foods
 
 
+def day_images(day):
+    """Menu-board images for a day, for locations that publish pictures not foods."""
+    out = []
+    for item in day.get("menu_items") or []:
+        url = item.get("image")
+        if not url:
+            continue
+        out.append({
+            "url": url,
+            "alt": (item.get("image_alt") or "").strip(),
+            "description": (item.get("image_description") or "").strip(),
+        })
+    return out
+
+
 def monday_of(date):
     return date - dt.timedelta(days=date.weekday())
 
@@ -144,74 +205,163 @@ def hours_from_school(school):
     return hours
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--weeks", type=int, default=2, help="weeks to fetch, starting this week")
-    parser.add_argument("--out", default="data", help="output directory")
-    args = parser.parse_args()
+def menu_types(school):
+    out = []
+    for entry in school.get("active_menu_types") or []:
+        slug = entry.get("slug") if isinstance(entry, dict) else entry
+        if slug:
+            out.append(slug)
+    return out
 
-    schools = get_json(f"{API}/menu/api/schools/")
-    school = next((s for s in schools if s.get("slug") == SCHOOL), None)
-    if school is None:
-        raise SystemExit(f"school '{SCHOOL}' not found in Nutrislice response")
 
-    today = dt.date.today()
-    start = monday_of(today)
+def order_key(slug):
+    return (LOCATION_ORDER.index(slug), slug) if slug in LOCATION_ORDER else (len(LOCATION_ORDER), slug)
+
+
+def fetch_location(school, weeks, start):
+    """Return (by_date, images) for one location."""
+    slug = school["slug"]
     by_date = {}
-
-    for week in range(args.weeks):
+    images = []
+    for week in range(weeks):
         week_start = start + dt.timedelta(weeks=week)
-        for meal in MEALS:
+        for meal in menu_types(school):
             url = (
-                f"{API}/menu/api/weeks/school/{SCHOOL}/menu-type/{meal}/"
+                f"{API}/menu/api/weeks/school/{slug}/menu-type/{meal}/"
                 f"{week_start.year}/{week_start.month:02d}/{week_start.day:02d}/"
             )
-            print(f"fetching {meal} week of {week_start}", file=sys.stderr)
+            print(f"  {slug}: {meal} week of {week_start}", file=sys.stderr)
             payload = get_json(url)
             for day in payload.get("days") or []:
                 date = day.get("date")
                 if not date:
                     continue
                 foods = slim_day(day)
-                if not foods:
+                if foods:
+                    by_date.setdefault(date, {})[meal] = foods
                     continue
-                by_date.setdefault(date, {})[meal] = foods
+                # No structured foods: this may be an image-board menu. The
+                # boards repeat every day, so keep the first set we see.
+                if not images:
+                    images = day_images(day)
+    return by_date, images
 
-    if not by_date:
-        raise SystemExit("no menu data returned; refusing to overwrite existing files")
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--weeks", type=int, default=2, help="weeks to fetch, starting this week")
+    parser.add_argument("--out", default="sandburg/data", help="output directory")
+    parser.add_argument("--only", help="comma-separated slugs, for testing")
+    args = parser.parse_args()
+
+    schools = get_json(f"{API}/menu/api/schools/")
+    if args.only:
+        wanted = {s.strip() for s in args.only.split(",")}
+        schools = [s for s in schools if s.get("slug") in wanted]
+    schools.sort(key=lambda s: order_key(s.get("slug") or ""))
+
+    today = dt.date.today()
+    start = monday_of(today)
 
     menus_dir = os.path.join(args.out, "menus")
+    images_dir = os.path.join(args.out, "images")
     os.makedirs(menus_dir, exist_ok=True)
-    for stale in os.listdir(menus_dir):
-        if stale.endswith(".json"):
-            os.remove(os.path.join(menus_dir, stale))
+    os.makedirs(images_dir, exist_ok=True)
 
-    for date, meals in sorted(by_date.items()):
-        payload = {
-            "date": date,
-            "meals": {m: meals[m] for m in MEALS if m in meals},
-        }
-        with open(os.path.join(menus_dir, f"{date}.json"), "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, separators=(",", ":"), ensure_ascii=False)
+    locations = []
+    written_days = 0
+    written_items = 0
+    fresh_day_files = set()
+    fresh_images = set()
 
-    index = {
-        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
-        "source": f"https://uwm.nutrislice.com/menu/{SCHOOL}",
-        "location": {
+    for school in schools:
+        slug = school.get("slug")
+        if not slug:
+            continue
+        by_date, images = fetch_location(school, args.weeks, start)
+
+        entry = {
+            "slug": slug,
             "name": school.get("name"),
             "address": school.get("address"),
             "timezone": school.get("timezone") or "America/Chicago",
             "hours": hours_from_school(school),
-        },
-        "meals": MEALS,
-        "dates": sorted(by_date),
+            "meals": menu_types(school),
+        }
+
+        if by_date:
+            entry["kind"] = "menu"
+            entry["dates"] = sorted(by_date)
+            day_dir = os.path.join(menus_dir, slug)
+            os.makedirs(day_dir, exist_ok=True)
+            for date, meals in sorted(by_date.items()):
+                payload = {
+                    "date": date,
+                    "location": slug,
+                    "meals": {m: meals[m] for m in entry["meals"] if m in meals},
+                }
+                path = os.path.join(day_dir, f"{date}.json")
+                with open(path, "w", encoding="utf-8") as handle:
+                    json.dump(payload, handle, separators=(",", ":"), ensure_ascii=False)
+                fresh_day_files.add(os.path.relpath(path, menus_dir))
+                written_items += sum(len(v) for v in meals.values())
+            written_days += len(by_date)
+        elif images:
+            entry["kind"] = "images"
+            entry["dates"] = []
+            saved = []
+            for i, img in enumerate(images, 1):
+                ext = ".png" if "/png/" in img["url"] else ".jpg"
+                name = f"{slug}-{i}{ext}"
+                download(img["url"], os.path.join(images_dir, name))
+                fresh_images.add(name)
+                saved.append({
+                    "src": f"images/{name}",
+                    "alt": img["alt"] or f"{school.get('name')} menu board {i}",
+                    "description": img["description"],
+                })
+            entry["images"] = saved
+            print(f"  {slug}: {len(saved)} menu image(s)", file=sys.stderr)
+        else:
+            entry["kind"] = "none"
+            entry["dates"] = []
+            print(f"  {slug}: no menu published", file=sys.stderr)
+
+        locations.append(entry)
+
+    if not any(loc["kind"] != "none" for loc in locations):
+        raise SystemExit("no menu data returned; refusing to overwrite existing files")
+
+    # Drop day files and images that rolled out of the window.
+    for root, _dirs, files in os.walk(menus_dir):
+        for name in files:
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(root, name)
+            if os.path.relpath(path, menus_dir) not in fresh_day_files:
+                os.remove(path)
+    for name in os.listdir(images_dir):
+        if name not in fresh_images:
+            os.remove(os.path.join(images_dir, name))
+
+    index = {
+        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "source": "https://uwm.nutrislice.com/",
+        "locations": locations,
     }
     with open(os.path.join(args.out, "index.json"), "w", encoding="utf-8") as handle:
         json.dump(index, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
 
-    total = sum(len(m) for meals in by_date.values() for m in meals.values())
-    print(f"wrote {len(by_date)} days, {total} items", file=sys.stderr)
+    kinds = {}
+    for loc in locations:
+        kinds[loc["kind"]] = kinds.get(loc["kind"], 0) + 1
+    print(
+        f"wrote {len(locations)} locations "
+        f"({kinds.get('menu', 0)} menu, {kinds.get('images', 0)} image, {kinds.get('none', 0)} empty), "
+        f"{written_days} day files, {written_items} items",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

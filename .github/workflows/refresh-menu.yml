@@ -1,10 +1,18 @@
-name: Refresh Sandburg Café menu
+name: Refresh UWM Eats menus
 
 on:
   schedule:
-    # 09:10 UTC ≈ 4:10 am Central — before breakfast service.
+    # 09:10 UTC is 4:10 am Central in summer, 3:10 am in winter — before
+    # breakfast service either way.
     - cron: "10 9 * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "sandburg/**"
+      - "scripts/fetch_menus.py"
+      - "wrangler.jsonc"
+      - ".github/workflows/refresh-menu.yml"
 
 permissions:
   contents: write
@@ -16,6 +24,10 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    env:
+      # Surfaced as env so the deploy step can test for it; `secrets` is not a
+      # valid context inside a step-level `if`.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,17 +35,38 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Skipped on a plain push, which already carries the committed data.
       - name: Fetch menus from Nutrislice
+        if: github.event_name != 'push'
         run: python3 scripts/fetch_menus.py --weeks 2 --out sandburg/data
 
       - name: Commit refreshed menus
+        if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A sandburg/data
           if git diff --quiet --cached; then
             echo "menus unchanged"
-            exit 0
+          else
+            git commit -m "Refresh UWM Eats menu data"
+            git push
           fi
-          git commit -m "Refresh Sandburg Café menu data"
-          git push
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Publishes sandburg/ to the Worker that serves sandburgmenu.com.
+      # Needs a CLOUDFLARE_API_TOKEN secret with the "Edit Cloudflare Workers"
+      # template, scoped to this account.
+      # Skips cleanly until CLOUDFLARE_API_TOKEN exists, so the run stays green
+      # rather than failing red before the secret is added.
+      - name: Deploy to Cloudflare Workers
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx --yes wrangler@4 deploy
+
+      - name: Note missing Cloudflare token
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: |
+          echo "::warning::CLOUDFLARE_API_TOKEN is not set - menus were refreshed and committed, but the site was not redeployed."

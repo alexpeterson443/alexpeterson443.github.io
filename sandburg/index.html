@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="description" content="Today's menu at the Sandburg Café, UW-Milwaukee — meals, stations, calories, allergens and dietary filters." />
+  <meta name="description" content="Daily menus for every dining spot at UW–Milwaukee — meals, stations, calories, allergens and dietary filters." />
   <meta name="theme-color" content="#0f0d0a" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#faf7f1" media="(prefers-color-scheme: light)" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -11,9 +11,9 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Sandburg" />
+  <meta name="apple-mobile-web-app-title" content="UWM Eats" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Sandburg Café Menu · UWM</title>
+  <title>UWM Eats · UW–Milwaukee dining menus</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -23,7 +23,7 @@
     <div class="brand">
       <img class="mark" src="icon.svg" alt="" width="36" height="36" />
       <span class="brand-text">
-        <span class="brand-name">Sandburg<span class="wide-only"> Café</span></span>
+        <span class="brand-name">UWM Eats</span>
         <span class="brand-sub">UW–Milwaukee dining</span>
       </span>
     </div>
@@ -58,7 +58,16 @@
     </aside>
 
     <main class="content">
-      <section class="dayblock">
+      <section class="placebar">
+        <label class="placelabel" for="location">Where</label>
+        <div class="placewrap">
+          <select id="location" class="placeselect" aria-label="Dining location"></select>
+          <svg class="placechev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <p class="placemeta" id="placeMeta"></p>
+      </section>
+
+      <section class="dayblock" id="dayBlock">
         <div class="dayhead">
           <h1 class="daytitle" id="dayTitle">Loading…</h1>
           <button class="pill-btn" id="todayJump" type="button" hidden>Today</button>
@@ -76,7 +85,7 @@
 
       <div class="segmented" id="meals" role="tablist" aria-label="Meals"></div>
 
-      <div class="toolbar">
+      <div class="toolbar" id="toolbar">
         <div class="searchwrap">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
           <input id="search" type="search" placeholder="Search this menu…" aria-label="Search menu items" autocomplete="off" />
@@ -98,11 +107,12 @@
       <p class="callout" id="notice" hidden></p>
 
       <div id="menu" class="menu" aria-live="polite"></div>
+      <div id="boards" class="boards" hidden></div>
     </main>
   </div>
 
   <footer class="foot">
-    <p>Menu data from <a href="https://uwm.nutrislice.com/menu/sandburg-cafe" rel="noopener">UWM Dining on Nutrislice</a>, refreshed every morning.</p>
+    <p>Menu data from <a href="https://uwm.nutrislice.com/" rel="noopener">UWM Dining on Nutrislice</a>, refreshed every morning.</p>
     <p class="credit">Built for UW–Milwaukee by Alex Peterson · <a href="https://www.instagram.com/alexpeterson443" rel="noopener">Instagram</a> · <a href="https://snapchat.com/t/fDANoBtA" rel="noopener">Snapchat</a></p>
     <p id="updated"></p>
   </footer>

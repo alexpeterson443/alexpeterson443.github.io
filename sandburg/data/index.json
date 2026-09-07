@@ -1,40 +1,507 @@
 {
-  "generated_at": "2026-09-07T17:16:55+00:00",
-  "source": "https://uwm.nutrislice.com/menu/sandburg-cafe",
-  "location": {
-    "name": "Sandburg Café",
-    "address": "3400 North Maryland Avenue, Milwaukee, WI, USA",
-    "timezone": "America/Chicago",
-    "hours": {
-      "mon": "07:00-20:00",
-      "tue": "07:00-20:00",
-      "wed": "07:00-20:00",
-      "thu": "07:00-20:00",
-      "fri": "07:00-20:00",
-      "sat": "09:00-19:00",
-      "sun": "09:00-19:00"
+  "generated_at": "2026-09-07T20:47:35+00:00",
+  "source": "https://uwm.nutrislice.com/",
+  "locations": [
+    {
+      "slug": "sandburg-cafe",
+      "name": "Sandburg Café",
+      "address": "3400 North Maryland Avenue, Milwaukee, WI, USA",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "07:00-20:00",
+        "tue": "07:00-20:00",
+        "wed": "07:00-20:00",
+        "thu": "07:00-20:00",
+        "fri": "07:00-20:00",
+        "sat": "09:00-19:00",
+        "sun": "09:00-19:00"
+      },
+      "meals": [
+        "breakfast",
+        "lunch",
+        "snacks",
+        "dinner"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-06",
+        "2026-09-07",
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-12",
+        "2026-09-13",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+        "2026-09-19"
+      ]
+    },
+    {
+      "slug": "cambridge-cafe",
+      "name": "Cambridge Café",
+      "address": "UW-Milwaukee Cambridge Commons, 2323 N Cambridge Ave, Milwaukee, WI 53211, USA",
+      "timezone": "US/Central",
+      "hours": {
+        "mon": "07:00-22:00",
+        "tue": "07:00-22:00",
+        "wed": "07:00-22:00",
+        "thu": "07:00-22:00",
+        "fri": "07:00-22:00",
+        "sat": "09:00-19:00",
+        "sun": "09:00-19:00"
+      },
+      "meals": [
+        "breakfast",
+        "lunch",
+        "dinner",
+        "late-night"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-06",
+        "2026-09-07",
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-12",
+        "2026-09-13",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+        "2026-09-19"
+      ]
+    },
+    {
+      "slug": "union-station",
+      "name": "Union Station",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "07:30-18:00",
+        "tue": "07:30-18:00",
+        "wed": "07:30-18:00",
+        "thu": "07:30-18:00",
+        "fri": "07:30-16:00",
+        "sat": "10:00-16:00",
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-12",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+        "2026-09-19"
+      ]
+    },
+    {
+      "slug": "grind",
+      "name": "Grind UWM Student Union",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "07:30-18:00",
+        "tue": "07:30-18:00",
+        "wed": "07:30-18:00",
+        "thu": "07:30-18:00",
+        "fri": "07:30-16:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "grind-library",
+      "name": "Grind Library",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "07:30-16:00",
+        "tue": "07:30-16:00",
+        "wed": "07:30-16:00",
+        "thu": "07:30-16:00",
+        "fri": "07:30-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "grind-lubar-entrepreneurship-center",
+      "name": "Grind Lubar Entrepreneurship Center",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "08:00-14:00",
+        "tue": "08:00-14:00",
+        "wed": "08:00-14:00",
+        "thu": "08:00-14:00",
+        "fri": "08:00-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "grind-sandburg-hall",
+      "name": "Grind Sandburg Hall",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "07:30-13:00",
+        "tue": "07:30-13:00",
+        "wed": "07:30-13:00",
+        "thu": "07:30-13:00",
+        "fri": "07:30-13:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "city-subs",
+      "name": "City Subs",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "10:30-15:00",
+        "tue": "10:30-15:00",
+        "wed": "10:30-15:00",
+        "thu": "10:30-15:00",
+        "fri": "10:30-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "flour-shop",
+      "name": "Flour Shop",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "07:30-18:00",
+        "tue": "07:30-18:00",
+        "wed": "07:30-18:00",
+        "thu": "07:30-18:00",
+        "fri": "07:30-16:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "gasthaus",
+      "name": "Gasthaus",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "11:30-20:00",
+        "tue": "11:30-20:00",
+        "wed": "11:30-20:00",
+        "thu": "11:30-20:00",
+        "fri": "11:30-18:00",
+        "sat": "11:30-18:00",
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-12",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+        "2026-09-19"
+      ]
+    },
+    {
+      "slug": "pacific-wraps",
+      "name": "Pacific Wraps",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "10:30-15:00",
+        "tue": "10:30-15:00",
+        "wed": "10:30-15:00",
+        "thu": "10:30-15:00",
+        "fri": "10:30-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "pizza-presto",
+      "name": "Pizza Presto",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "10:30-15:00",
+        "tue": "10:30-15:00",
+        "wed": "10:30-15:00",
+        "thu": "10:30-15:00",
+        "fri": "10:30-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "stir-fry",
+      "name": "Stir Fry",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "10:30-15:00",
+        "tue": "10:30-15:00",
+        "wed": "10:30-15:00",
+        "thu": "10:30-15:00",
+        "fri": "10:30-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "menu",
+      "dates": [
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-10",
+        "2026-09-11",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18"
+      ]
+    },
+    {
+      "slug": "palm-gardens",
+      "name": "Palm Gardens",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "19:00-23:00",
+        "tue": "19:00-23:00",
+        "wed": "19:00-23:00",
+        "thu": "19:00-23:00",
+        "fri": null,
+        "sat": null,
+        "sun": "07:00-23:00"
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "images",
+      "dates": [],
+      "images": [
+        {
+          "src": "images/palm-gardens-1.png",
+          "alt": "Palm Gardens menu board 1",
+          "description": ""
+        },
+        {
+          "src": "images/palm-gardens-2.png",
+          "alt": "Palm Gardens menu board 2",
+          "description": ""
+        },
+        {
+          "src": "images/palm-gardens-3.png",
+          "alt": "Palm Gardens menu board 3",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "slug": "burger-king",
+      "name": "Burger King",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "10:30-17:00",
+        "tue": "10:30-17:00",
+        "wed": "10:30-17:00",
+        "thu": "10:30-17:00",
+        "fri": "10:30-16:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "images",
+      "dates": [],
+      "images": [
+        {
+          "src": "images/burger-king-1.jpg",
+          "alt": "Burger King menu board 1",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "slug": "taco-bell",
+      "name": "Taco Bell",
+      "address": "",
+      "timezone": "America/Chicago",
+      "hours": {
+        "mon": "10:30-16:00",
+        "tue": "10:30-16:00",
+        "wed": "10:30-16:00",
+        "thu": "10:30-16:00",
+        "fri": "10:30-14:00",
+        "sat": null,
+        "sun": null
+      },
+      "meals": [
+        "daily"
+      ],
+      "kind": "images",
+      "dates": [],
+      "images": [
+        {
+          "src": "images/taco-bell-1.jpg",
+          "alt": "Taco Bell menu board 1",
+          "description": ""
+        }
+      ]
     }
-  },
-  "meals": [
-    "breakfast",
-    "lunch",
-    "dinner",
-    "snacks"
-  ],
-  "dates": [
-    "2026-09-06",
-    "2026-09-07",
-    "2026-09-08",
-    "2026-09-09",
-    "2026-09-10",
-    "2026-09-11",
-    "2026-09-12",
-    "2026-09-13",
-    "2026-09-14",
-    "2026-09-15",
-    "2026-09-16",
-    "2026-09-17",
-    "2026-09-18",
-    "2026-09-19"
   ]
 }

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Today's menu at the Sandburg Café, UW-Milwaukee — meals, stations, calories, allergens and dietary filters." />
+  <meta name="theme-color" content="#0f0d0a" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#faf7f1" media="(prefers-color-scheme: light)" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Sandburg" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Sandburg Café Menu · UWM</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip" href="#menu">Skip to the menu</a>
+
+  <header class="appbar">
+    <div class="brand">
+      <img class="mark" src="icon.svg" alt="" width="36" height="36" />
+      <span class="brand-text">
+        <span class="brand-name">Sandburg<span class="wide-only"> Café</span></span>
+        <span class="brand-sub">UW–Milwaukee dining</span>
+      </span>
+    </div>
+    <div class="bar-tools">
+      <button class="textsize" id="textSize" type="button" title="Text size" aria-label="Text size: standard">
+        <span class="a-small">A</span><span class="a-big">A</span>
+      </button>
+      <div class="hours" id="status" hidden>
+      <span class="dot" id="statusDot"></span>
+        <span id="statusText"></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="rail" id="rail" aria-label="Filters and stations">
+      <div class="rail-inner">
+        <section class="rail-block">
+          <h2 class="rail-title">Diet</h2>
+          <div class="chips" id="dietChips"></div>
+        </section>
+        <section class="rail-block">
+          <h2 class="rail-title">Hide items containing</h2>
+          <div class="chips" id="allergenChips"></div>
+        </section>
+        <section class="rail-block rail-stations">
+          <h2 class="rail-title">Stations</h2>
+          <nav class="station-list" id="stationList" aria-label="Jump to a station"></nav>
+        </section>
+        <button class="ghost-wide" id="resetFilters" type="button">Clear all filters</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="dayblock">
+        <div class="dayhead">
+          <h1 class="daytitle" id="dayTitle">Loading…</h1>
+          <button class="pill-btn" id="todayJump" type="button" hidden>Today</button>
+        </div>
+        <div class="dayrail-wrap">
+          <button class="ghost-btn" id="prevDay" type="button" aria-label="Previous day">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="dayrail" id="days" role="tablist" aria-label="Days"></div>
+          <button class="ghost-btn" id="nextDay" type="button" aria-label="Next day">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <div class="segmented" id="meals" role="tablist" aria-label="Meals"></div>
+
+      <div class="toolbar">
+        <div class="searchwrap">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="search" type="search" placeholder="Search this menu…" aria-label="Search menu items" autocomplete="off" />
+          <button class="clear" id="clearSearch" type="button" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <button class="filter-btn" id="filterToggle" type="button" aria-expanded="false" aria-controls="rail">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          Filters
+          <span class="count" id="filterCount" hidden>0</span>
+        </button>
+      </div>
+
+      <nav class="stationbar" id="stationBar" aria-label="Jump to a station"></nav>
+
+      <p class="summary" id="summary"></p>
+      <p class="callout fav" id="favNote" hidden></p>
+      <p class="callout" id="notice" hidden></p>
+
+      <div id="menu" class="menu" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <footer class="foot">
+    <p>Menu data from <a href="https://uwm.nutrislice.com/menu/sandburg-cafe" rel="noopener">UWM Dining on Nutrislice</a>, refreshed every morning.</p>
+    <p class="credit">Built for UW–Milwaukee by Alex Peterson · <a href="https://www.instagram.com/alexpeterson443" rel="noopener">Instagram</a> · <a href="https://snapchat.com/t/fDANoBtA" rel="noopener">Snapchat</a></p>
+    <p id="updated"></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

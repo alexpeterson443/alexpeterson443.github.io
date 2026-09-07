@@ -1,0 +1,12 @@
+{
+  "name": "sandburgmenu",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "refresh": "python3 scripts/fetch_menus.py --weeks 2 --out sandburg/data"
+  },
+  "devDependencies": {
+    "wrangler": "^4.129.1"
+  }
+}

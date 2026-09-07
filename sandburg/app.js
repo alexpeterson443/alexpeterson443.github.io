@@ -1,10 +1,13 @@
-/* Sandburg Café menu — reads the JSON in /data that CI refreshes every morning. */
+/* UWM Eats — reads the JSON in /data that CI refreshes every morning. */
 (function () {
   "use strict";
 
   var DATA_URL = new URL("data/", location.href);
   var TZ = "America/Chicago";
-  var MEAL_LABELS = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snacks: "Snacks" };
+  var MEAL_LABELS = {
+    breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snacks: "Snacks",
+    "late-night": "Late night", daily: "Menu"
+  };
   var DIETS = ["Vegetarian", "Vegan"];
   var ALLERGENS = ["Milk", "Eggs", "Wheat", "Gluten", "Soy", "Peanuts", "Tree Nuts", "Fish", "Shellfish", "Sesame"];
   var FAV_LABEL = "Favorites";
@@ -14,10 +17,12 @@
   ["days", "meals", "menu", "search", "clearSearch", "dietChips", "allergenChips", "stationList",
    "stationBar", "rail", "filterToggle", "filterCount", "resetFilters", "prevDay", "nextDay",
    "todayJump", "dayTitle", "notice", "favNote", "summary", "updated", "status", "statusDot",
-   "statusText", "textSize"].forEach(function (id) { el[id] = document.getElementById(id); });
+   "statusText", "textSize", "location", "placeMeta", "boards", "dayBlock", "toolbar"]
+    .forEach(function (id) { el[id] = document.getElementById(id); });
 
   var state = {
     index: null,
+    loc: null,
     date: null,
     meal: null,
     day: null,
@@ -117,12 +122,13 @@
     });
   }
 
-  function loadDay(date) {
-    return fetchJSON("menus/" + date + ".json").then(function (day) {
-      save("day:" + date, day);
+  function loadDay(slug, date) {
+    var key = "day:" + slug + ":" + date;
+    return fetchJSON("menus/" + slug + "/" + date + ".json").then(function (day) {
+      save(key, day);
       return { day: day, cached: false };
     }).catch(function (err) {
-      var cached = load("day:" + date, null);
+      var cached = load(key, null);
       if (cached) return { day: cached, cached: true };
       throw err;
     });
@@ -230,7 +236,7 @@
 
   function renderDays() {
     var today = centralParts().date;
-    var dates = state.index.dates;
+    var dates = state.loc.dates;
     el.days.textContent = "";
 
     dates.forEach(function (date) {
@@ -258,7 +264,9 @@
   function renderMeals() {
     var available = state.day ? Object.keys(state.day.meals) : [];
     el.meals.textContent = "";
-    state.index.meals.forEach(function (meal) {
+    // Most spots serve one all-day menu; a lone "Menu" tab is just noise.
+    el.meals.hidden = state.loc.meals.length < 2;
+    state.loc.meals.forEach(function (meal) {
       var button = make("button", "seg", MEAL_LABELS[meal] || meal);
       button.type = "button";
       button.setAttribute("role", "tab");
@@ -520,28 +528,18 @@
   /* ---- hours ---- */
 
   function renderStatus() {
-    var hours = (state.index.location || {}).hours || {};
-    var now = centralParts();
-    var today = hours[now.weekday];
+    var status = openState(state.loc);
     el.status.hidden = false;
+    el.statusDot.className = "dot " + (status.open ? "open" : "closed");
 
-    if (!today) {
-      el.statusDot.className = "dot closed";
-      el.statusText.textContent = "Closed today";
+    if (!status.hours || status.hours === "24 hours") {
+      el.statusText.textContent = status.lead;
       return;
     }
-    if (today === "24 hours") {
-      el.statusDot.className = "dot open";
-      el.statusText.textContent = "Open 24 hours";
-      return;
-    }
-    var bits = today.split("-");
-    var open = now.minutes >= toMinutes(bits[0]) && now.minutes < toMinutes(bits[1]);
-    el.statusDot.className = "dot " + (open ? "open" : "closed");
     // The long form is the nice one; narrow screens get the short one instead.
-    setStatusText(open ? "Open" : "Closed",
-      open ? " until " + to12h(bits[1]) : " · " + to12h(bits[0]) + "–" + to12h(bits[1]),
-      open ? " · " + to12h(bits[1]) : "");
+    setStatusText(status.lead,
+      status.open ? " until " + status.until : " · " + status.hours,
+      status.open ? " · " + status.until : "");
   }
 
   function setStatusText(lead, wide, narrow) {
@@ -554,6 +552,148 @@
   function toMinutes(hhmm) {
     var bits = hhmm.split(":").map(Number);
     return bits[0] * 60 + bits[1];
+  }
+
+  /* ---- locations ---- */
+
+  /**
+   * Where a location stands right now, on the café's clock. Drives the app-bar
+   * dot, the line under the picker, and the open/closed tag on every option.
+   */
+  function openState(loc) {
+    var now = centralParts();
+    var today = ((loc && loc.hours) || {})[now.weekday];
+    if (!today) return { open: false, tag: "Closed", hours: null, lead: "Closed today" };
+    if (today === "24 hours") {
+      return { open: true, tag: "Open", hours: "24 hours", lead: "Open 24 hours" };
+    }
+    var bits = today.split("-");
+    var opens = toMinutes(bits[0]);
+    var shuts = toMinutes(bits[1]);
+    var open = now.minutes >= opens && now.minutes < shuts;
+    return {
+      open: open,
+      tag: open ? "Open" : "Closed",
+      hours: to12h(bits[0]) + "–" + to12h(bits[1]),
+      lead: open ? "Open" : "Closed",
+      until: to12h(bits[1]),
+      from: to12h(bits[0])
+    };
+  }
+
+  function renderLocations() {
+    el.location.textContent = "";
+    state.index.locations.forEach(function (loc) {
+      var option = make("option", null, locationLabel(loc));
+      option.value = loc.slug;
+      option.selected = state.loc && loc.slug === state.loc.slug;
+      el.location.appendChild(option);
+    });
+  }
+
+  function locationLabel(loc) {
+    var status = openState(loc);
+    return (loc.name || loc.slug) + " · " + (status.open ? "Open" : "Closed");
+  }
+
+  /** Re-stamp the open/closed text everywhere without rebuilding the menu. */
+  function refreshHours() {
+    if (!state.index) return;
+    var options = el.location.options;
+    for (var i = 0; i < options.length; i++) {
+      var loc = findLocation(options[i].value);
+      if (loc) options[i].textContent = locationLabel(loc);
+    }
+    if (state.loc) {
+      renderStatus();
+      renderPlaceMeta();
+    }
+  }
+
+  function renderPlaceMeta() {
+    var status = openState(state.loc);
+    var bits = [];
+    if (status.hours) bits.push("Today " + status.hours);
+    else bits.push("Closed today");
+    if (state.loc.address) bits.push(state.loc.address);
+    el.placeMeta.textContent = bits.join(" · ");
+  }
+
+  function findLocation(slug) {
+    var all = state.index.locations;
+    for (var i = 0; i < all.length; i++) if (all[i].slug === slug) return all[i];
+    return null;
+  }
+
+  /** Menu-board locations have no days, meals or per-item filtering to show. */
+  function setBoardMode(on) {
+    el.dayBlock.hidden = on;
+    el.meals.hidden = on;
+    el.toolbar.hidden = on;
+    el.stationBar.hidden = on;
+    el.summary.hidden = on;
+    el.menu.hidden = on;
+    el.boards.hidden = !on;
+    // Drop the other mode's nodes rather than leaving them hidden in the DOM.
+    if (on) {
+      el.menu.textContent = "";
+      el.favNote.hidden = true;
+      el.rail.classList.remove("is-open");
+      el.filterToggle.setAttribute("aria-expanded", "false");
+      if (state.spy) { state.spy.disconnect(); state.spy = null; }
+      state.sections = [];
+    } else {
+      el.boards.textContent = "";
+    }
+  }
+
+  function renderBoards() {
+    el.boards.textContent = "";
+    var images = state.loc.images || [];
+    el.dayTitle.textContent = state.loc.name || "";
+
+    var note = make("p", "boards-note",
+      "This spot posts a fixed menu board rather than a daily menu.");
+    el.boards.appendChild(note);
+
+    images.forEach(function (image) {
+      var figure = make("figure", "board");
+      var img = document.createElement("img");
+      img.src = new URL(image.src, DATA_URL).href;
+      img.alt = image.alt || (state.loc.name + " menu board");
+      img.loading = "lazy";
+      figure.appendChild(img);
+      if (image.description) figure.appendChild(make("figcaption", null, image.description));
+      el.boards.appendChild(figure);
+    });
+
+    if (!images.length) {
+      el.boards.appendChild(make("div", "empty", "No menu published for this spot yet."));
+    }
+  }
+
+  function selectLocation(slug) {
+    var loc = findLocation(slug) || state.index.locations[0];
+    state.loc = loc;
+    state.day = null;
+    state.open.clear();
+    save("location", loc.slug);
+
+    if (el.location.value !== loc.slug) el.location.value = loc.slug;
+    renderPlaceMeta();
+    renderStatus();
+
+    if (loc.kind === "images" || !loc.dates.length) {
+      setBoardMode(true);
+      showNotice("");
+      renderBoards();
+      return;
+    }
+
+    setBoardMode(false);
+    state.meal = mealForNow(centralParts().minutes);
+    state.date = pickInitialDate(loc);
+    selectDate(state.date);
   }
 
   /* ---- flow ---- */
@@ -572,7 +712,9 @@
     renderDays();
     showSkeleton();
 
-    loadDay(date).then(function (result) {
+    var slug = state.loc.slug;
+    loadDay(slug, date).then(function (result) {
+      if (state.loc.slug !== slug) return;
       if (state.date !== date) return;
       state.day = result.day;
       var available = Object.keys(result.day.meals);
@@ -597,15 +739,15 @@
   }
 
   function step(delta) {
-    var dates = state.index.dates;
+    var dates = state.loc.dates;
     var next = dates.indexOf(state.date) + delta;
     if (next >= 0 && next < dates.length) selectDate(dates[next]);
   }
 
-  function pickInitialDate(index) {
+  function pickInitialDate(loc) {
     var today = centralParts().date;
-    if (index.dates.indexOf(today) !== -1) return today;
-    return index.dates.filter(function (d) { return d >= today; })[0] || index.dates[index.dates.length - 1];
+    if (loc.dates.indexOf(today) !== -1) return today;
+    return loc.dates.filter(function (d) { return d >= today; })[0] || loc.dates[loc.dates.length - 1];
   }
 
   function wireControls() {
@@ -632,6 +774,10 @@
       el.filterToggle.setAttribute("aria-expanded", String(open));
     });
 
+    el.location.addEventListener("change", function () {
+      selectLocation(el.location.value);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
     el.textSize.addEventListener("click", cycleTextSize);
     el.resetFilters.addEventListener("click", resetFilters);
     el.prevDay.addEventListener("click", function () { step(-1); });
@@ -639,7 +785,7 @@
 
     el.todayJump.addEventListener("click", function () {
       var today = centralParts().date;
-      if (state.index.dates.indexOf(today) !== -1) selectDate(today);
+      if (state.loc.dates.indexOf(today) !== -1) selectDate(today);
     });
 
     document.addEventListener("keydown", function (event) {
@@ -662,13 +808,13 @@
 
     fetchJSON("index.json").then(function (index) {
       state.index = index;
-      state.meal = mealForNow(centralParts().minutes);
-      state.date = pickInitialDate(index);
+      if (!index.locations || !index.locations.length) throw new Error("No locations published.");
+      state.loc = findLocation(load("location", "")) || index.locations[0];
+      renderLocations();
       renderFilters();
-      renderStatus();
       wireControls();
       el.updated.textContent = "Menu data pulled " + new Date(index.generated_at).toLocaleString() + ".";
-      selectDate(state.date);
+      selectLocation(state.loc.slug);
     }).catch(function (err) {
       el.menu.textContent = "";
       var wrap = make("div", "empty");
@@ -679,6 +825,9 @@
   }
 
   boot();
+
+  // Hours go stale on a tab left open; re-stamp them every minute.
+  setInterval(refreshHours, 60000);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
