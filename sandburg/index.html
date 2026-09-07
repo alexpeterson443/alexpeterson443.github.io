@@ -4,7 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Today's menu at the Sandburg Café, UW-Milwaukee — meals, stations, calories, allergens and dietary filters." />
-  <meta name="theme-color" content="#12100c" />
+  <meta name="theme-color" content="#12100c" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#fbf7f0" media="(prefers-color-scheme: light)" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Sandburg" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Sandburg Café Menu · UWM</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -24,6 +32,7 @@
     <button class="nav-arrow" id="prevDay" type="button" aria-label="Previous day">‹</button>
     <div class="days" id="days" role="tablist" aria-label="Days"></div>
     <button class="nav-arrow" id="nextDay" type="button" aria-label="Next day">›</button>
+    <button class="today-jump" id="todayJump" type="button" hidden>Today</button>
   </nav>
 
   <nav class="meals" id="meals" role="tablist" aria-label="Meals"></nav>
@@ -31,6 +40,7 @@
   <section class="controls">
     <input id="search" class="search" type="search" placeholder="Search the menu…" aria-label="Search menu items" autocomplete="off" />
     <div class="chips" id="dietChips" aria-label="Dietary filters"></div>
+    <div class="chips" id="favChips"></div>
     <details class="allergen-box">
       <summary>Hide items containing… <span class="badge" id="allergenCount" hidden></span></summary>
       <div class="chips" id="allergenChips" aria-label="Allergens to hide"></div>

@@ -30,6 +30,15 @@ directly. Instead:
   there so the page still works offline.
 - Open/closed status from the café's posted hours.
 
+## Installing it as an app
+
+`manifest.webmanifest` plus `sw.js` make the page installable: Safari's
+*Share → Add to Home Screen* on an iPhone or iPad, or the install button in
+Chrome/Edge, gives it its own icon (`icon.svg`, rendered to `icon-192.png`,
+`icon-512.png` and `apple-touch-icon.png`) and launches it full screen. The
+service worker caches the page shell and the last menu data it saw, so it opens
+without a connection.
+
 ## Running it locally
 
 ```sh

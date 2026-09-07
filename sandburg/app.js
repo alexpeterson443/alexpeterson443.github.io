@@ -22,6 +22,8 @@
     notice: document.getElementById("notice"),
     favNote: document.getElementById("favNote"),
     updated: document.getElementById("updated"),
+    todayJump: document.getElementById("todayJump"),
+    favChips: document.getElementById("favChips"),
     status: document.getElementById("status"),
     statusDot: document.getElementById("statusDot"),
     statusText: document.getElementById("statusText")
@@ -36,6 +38,7 @@
     diets: new Set(),
     hidden: new Set(),
     favs: new Set(load("favs", [])),
+    favOnly: false,
     open: new Set()
   };
 
@@ -142,6 +145,7 @@
     });
     var selected = el.days.querySelector('[aria-selected="true"]');
     if (selected) selected.scrollIntoView({ block: "nearest", inline: "center" });
+    el.todayJump.hidden = state.date === today || dates.indexOf(today) === -1;
     el.prevDay.disabled = dates.indexOf(state.date) <= 0;
     el.nextDay.disabled = dates.indexOf(state.date) === dates.length - 1;
   }
@@ -174,6 +178,14 @@
         renderMenu();
       }));
     });
+    el.favChips.textContent = "";
+    var favSet = {
+      has: function () { return state.favOnly; },
+      add: function () { state.favOnly = true; },
+      delete: function () { state.favOnly = false; }
+    };
+    el.favChips.appendChild(chip("\u2605 Favorites only", favSet, renderMenu));
+
     el.allergenChips.textContent = "";
     ALLERGENS.forEach(function (allergen) {
       el.allergenChips.appendChild(chip(allergen, state.hidden, function () {
@@ -205,6 +217,7 @@
   }
 
   function matches(item) {
+    if (state.favOnly && !state.favs.has(item.name)) return false;
     var needle = state.search.trim().toLowerCase();
     if (needle) {
       var hay = (item.name + " " + (item.station || "") + " " + (item.description || "")).toLowerCase();
@@ -308,7 +321,7 @@
       star.setAttribute("aria-pressed", String(state.favs.has(item.name)));
       star.textContent = state.favs.has(item.name) ? "★" : "☆";
       save("favs", Array.from(state.favs));
-      renderFavNote(state.day.meals[state.meal] || []);
+      if (state.favOnly) renderMenu(); else renderFavNote(state.day.meals[state.meal] || []);
     });
 
     var row = document.createElement("div");
@@ -451,6 +464,10 @@
         renderMenu();
       }, 120);
     });
+    el.todayJump.addEventListener("click", function () {
+      var today = centralParts().date;
+      if (state.index.dates.indexOf(today) !== -1) selectDate(today);
+    });
     el.prevDay.addEventListener("click", function () { step(-1); });
     el.nextDay.addEventListener("click", function () { step(1); });
     document.addEventListener("keydown", function (event) {
@@ -484,4 +501,12 @@
   }
 
   boot();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {
+        /* offline support is a bonus; the page works without it */
+      });
+    });
+  }
 })();
