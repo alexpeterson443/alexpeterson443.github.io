@@ -78,6 +78,19 @@ A bowled day always wins over an excuse. When the calendar has an all day event
 mentioning closed, recess, holiday, break, or no classes, the page shows a hint
 but never excuses a day on its own.
 
+## Keeping the numbers current
+
+Average, high, days bowled, and the streak are recomputed on the server for
+every state read, over every game on record rather than only the days the Games
+list shows. The page refetches on load, once a minute while it is on screen,
+when it comes back from the background or the back/forward cache, when the
+network returns, and at midnight, so a game logged on another device shows up
+without a manual reload. A refresh that fails in the background keeps the last
+good numbers on screen rather than replacing them with an error.
+
+The average carries one decimal. A whole number barely moves when a single game
+is added, which makes a freshly recomputed average look stale.
+
 ## Alley hours
 
 The alley opens Mon to Fri 10:00 AM to 10:00 PM, Sat 12:00 PM to 10:00 PM, and

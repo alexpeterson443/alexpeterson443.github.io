@@ -105,7 +105,7 @@ function render() {
   $("score-summary").textContent = sc.games
     ? `${sc.games} game${sc.games === 1 ? "" : "s"}` + (sc.scored ? ` · best on ${prettyDate(sc.highDate)}` : "")
     : "Nothing logged yet";
-  $("avg").textContent = sc.average ?? "–";
+  $("avg").textContent = sc.average === null ? "–" : sc.average.toFixed(1);
   $("high").textContent = sc.high ?? "–";
   const games = $("games");
   games.innerHTML = "";
@@ -279,12 +279,15 @@ function render() {
   timer = setInterval(tick, 30_000);
 }
 
-async function load() {
+async function load({ quiet = false } = {}) {
   try {
     state = await api("/api/state");
     render();
   } catch (e) {
     if (e.message === "unauthorized") return;
+    // A background refresh that fails should not nag: the numbers on screen
+    // are still the last good ones and the next tick will try again.
+    if (quiet && state) return;
     const sub = $("subtitle");
     sub.textContent = state ? "Can't reach the server. Showing what was loaded before." : "Can't reach the server. Tap here to retry.";
     sub.classList.add("retry");
@@ -361,8 +364,23 @@ for (const button of document.querySelectorAll(".excuse-yesterday")) {
   });
 }
 
+// Keep the stats current without a manual reload. The page can sit open on the
+// home screen for hours, and a game logged on another device would otherwise
+// never show up here.
+const REFRESH_MS = 60_000;
+setInterval(() => {
+  if (document.visibilityState === "visible" && !busy) load({ quiet: true });
+}, REFRESH_MS);
+
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") load();
+  if (document.visibilityState === "visible") load({ quiet: true });
 });
+
+// Restored from the back/forward cache, so the DOM is whatever it was hours ago.
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) load({ quiet: true });
+});
+
+window.addEventListener("online", () => load({ quiet: true }));
 
 load();
