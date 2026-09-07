@@ -105,7 +105,7 @@ function render() {
   $("score-summary").textContent = sc.games
     ? `${sc.games} game${sc.games === 1 ? "" : "s"}` + (sc.scored ? ` · best on ${prettyDate(sc.highDate)}` : "")
     : "Nothing logged yet";
-  $("avg").textContent = sc.average === null ? "–" : sc.average.toFixed(1);
+  $("avg").textContent = sc.average ?? "–";
   $("high").textContent = sc.high ?? "–";
   const games = $("games");
   games.innerHTML = "";

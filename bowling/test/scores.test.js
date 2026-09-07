@@ -7,7 +7,7 @@ test("score stats: high, average, games, newest first", () => {
   assert.equal(s.games, 4);
   assert.equal(s.high, 159);
   assert.equal(s.highDate, "2026-09-04");
-  assert.equal(s.average, 139.8);   // 559 / 4, kept to one decimal
+  assert.equal(s.average, 139);     // 559 / 4 = 139.75, remainder dropped
   assert.deepEqual(s.days.map((d) => d.date), ["2026-09-04", "2026-09-02"]);
 });
 
@@ -19,12 +19,18 @@ test("legacy unscored games still count as games but not in high or average", ()
   assert.equal(s.average, 143);     // 429 / 3 lands exactly on a whole number
 });
 
-test("the average moves when a single game is added", () => {
+test("the average is recomputed as games are added", () => {
   const before = scoreStats({ "2026-09-04": [159, 115] });
   const after = scoreStats({ "2026-09-04": [159, 115], "2026-09-05": [120] });
-  assert.equal(before.average, 137);
-  assert.equal(after.average, 131.3);
-  assert.notEqual(before.average, after.average);
+  assert.equal(before.average, 137);   // 274 / 2
+  assert.equal(after.average, 131);    // 394 / 3 = 131.33, remainder dropped
+});
+
+test("the average is always a whole number", () => {
+  for (const scores of [{ a: [100, 101] }, { a: [99, 100, 100] }, { a: [0] }, { a: [300, 299] }]) {
+    const avg = scoreStats(scores).average;
+    assert.equal(Number.isInteger(avg), true, `${JSON.stringify(scores)} gave ${avg}`);
+  }
 });
 
 test("the average covers every game, not just the days the list shows", () => {

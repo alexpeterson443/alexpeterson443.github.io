@@ -88,8 +88,8 @@ network returns, and at midnight, so a game logged on another device shows up
 without a manual reload. A refresh that fails in the background keeps the last
 good numbers on screen rather than replacing them with an error.
 
-The average carries one decimal. A whole number barely moves when a single game
-is added, which makes a freshly recomputed average look stale.
+The average is a whole number, dropping the remainder the way a league average
+does.
 
 ## Alley hours
 

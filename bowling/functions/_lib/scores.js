@@ -19,9 +19,8 @@ export function scoreStats(scores) {
   const known = all.filter((n) => n !== null);
   const games = all.length;
   const high = known.length ? Math.max(...known) : null;
-  // One decimal: a whole number barely moves when a game is added, which
-  // makes a freshly recomputed average look stale.
-  const average = known.length ? Math.round((known.reduce((a, b) => a + b, 0) / known.length) * 10) / 10 : null;
+  // A whole number, dropping the remainder the way a league average does.
+  const average = known.length ? Math.floor(known.reduce((a, b) => a + b, 0) / known.length) : null;
   const highDate = high === null ? null
     : Object.keys(scores).sort().find((d) => scores[d].includes(high));
   return { games, scored: known.length, high, highDate, average, days: dayList(scores).slice(0, 30) };
