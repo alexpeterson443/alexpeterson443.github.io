@@ -634,3 +634,12 @@ button.primary.done {
   letter-spacing: 0.07em;
   font-weight: 650;
 }
+
+.pending {
+  color: var(--today);
+  background: rgba(255, 209, 102, 0.1);
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 12px;
+  padding: 8px 11px;
+}
+.pending[hidden] { display: none; }

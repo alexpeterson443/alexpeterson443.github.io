@@ -2,7 +2,7 @@ import { keyMatches, hasValidSession, makeSessionCookie } from "./_lib/auth.js";
 
 // Assets that reveal nothing are public so installs and icons always work.
 // The HTML page, the API, and the manifest stay gated.
-const PUBLIC = new Set(["/ping", "/style.css", "/app.js", "/icon-180.png", "/icon-512.png"]);
+const PUBLIC = new Set(["/ping", "/style.css", "/app.js", "/sw.js", "/icon-180.png", "/icon-512.png"]);
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy":

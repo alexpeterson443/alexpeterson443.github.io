@@ -17,6 +17,91 @@ function storedKey() {
   try { return urlKey || localStorage.getItem(KEY_STORE); } catch { return urlKey; }
 }
 
+// ---------- outbox ----------
+//
+// A game is written to this device before it is sent anywhere. The alley is in
+// a basement and the signal there is unreliable, so a save that depends on the
+// network is a save that loses games. Everything logged here survives a failed
+// request, a closed tab, and a dead battery, and is flushed whenever the app is
+// on screen and online. The server treats each id as write once, so replaying
+// the queue can never double log a game.
+
+const OUTBOX = "bowl_outbox";
+
+function newId() {
+  // crypto.randomUUID needs Safari 15.4; this works everywhere and is unique
+  // enough for one bowler's queue.
+  return `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readOutbox() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OUTBOX) || "[]");
+    return Array.isArray(raw) ? raw.filter((e) => e && typeof e.id === "string") : [];
+  } catch { return []; }
+}
+
+function writeOutbox(list) {
+  try { localStorage.setItem(OUTBOX, JSON.stringify(list)); return true; }
+  catch { return false; }
+}
+
+function queueGame(date, score) {
+  const entry = { id: newId(), date, score, at: Date.now() };
+  const stored = writeOutbox([...readOutbox(), entry]);
+  // If storage is unavailable the game only exists in this request, so the
+  // caller has to be told it is not safe yet.
+  return { entry, stored };
+}
+
+let flushing = false;
+
+/**
+ * Send everything queued, oldest first. Stops at the first network failure so
+ * games keep their order; drops anything the server refuses outright, since
+ * retrying that forever would wedge the queue behind it.
+ */
+async function flushOutbox() {
+  if (flushing || busy) return null;
+  const queue = readOutbox();
+  if (!queue.length) return null;
+  flushing = true;
+  let latest = null;
+  let rejected = null;
+  try {
+    for (const entry of queue) {
+      try {
+        latest = await api("/api/score", {
+          method: "POST",
+          body: JSON.stringify({ id: entry.id, date: entry.date, score: entry.score }),
+        });
+      } catch (e) {
+        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) {
+          rejected = `${entry.score} on ${prettyDate(entry.date)} was refused: ${e.message}`;
+        } else {
+          break;   // network or server trouble: keep it queued and try later
+        }
+      }
+      writeOutbox(readOutbox().filter((e) => e.id !== entry.id));
+    }
+  } finally {
+    flushing = false;
+  }
+  if (latest) { state = latest; render(); }
+  if (rejected) $("subtitle").textContent = rejected;
+  else if (latest) renderPending();
+  return latest;
+}
+
+/** How many games are still waiting to reach the server. */
+function renderPending() {
+  const n = readOutbox().length;
+  const el = $("pending");
+  if (!el) return;
+  el.hidden = n === 0;
+  if (n) el.textContent = `${n} game${n === 1 ? "" : "s"} saved on this device, waiting for signal.`;
+}
+
 async function api(path, opts = {}) {
   // The cookie normally carries the session; the key header is the fallback
   // for browsers with a separate or blocked cookie jar. Never put it in the URL.
@@ -29,7 +114,11 @@ async function api(path, opts = {}) {
     $("subtitle").textContent = "This device is not linked. Open your private link again.";
     throw new Error("unauthorized");
   }
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+  if (!res.ok) {
+    const err = new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -48,6 +137,21 @@ const EXCUSES = {
   injured: { status: (n) => `Injured. Heal up, streak paused at ${n}.`, confirm: "Mark today as an injured day?", undo: "Undo injured day", title: "injured" },
 };
 const excuseCopy = (reason) => EXCUSES[reason] || EXCUSES.closed;
+
+// The site timezone, mirrored on the client so a game can be logged before the
+// server has ever answered. Falls back to the device clock if Intl refuses.
+const TZ = "America/Chicago";
+function todayLocal() {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+  } catch {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+}
 
 function prettyDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -138,6 +242,7 @@ function render() {
     games.appendChild(li);
   }
 
+  renderPending();
   renderProgress(s.progress);
 
   // Calendar: what the schedule says about bowling.
@@ -304,8 +409,16 @@ async function load({ quiet = false } = {}) {
     // are still the last good ones and the next tick will try again.
     if (quiet && state) return;
     const sub = $("subtitle");
-    sub.textContent = state ? "Can't reach the server. Showing what was loaded before." : "Can't reach the server. Tap here to retry.";
-    sub.classList.add("retry");
+    sub.textContent = state ? "Can't reach the server. Showing what was loaded before." : "Offline. You can still log a game; it will sync later.";
+    if (state) sub.classList.add("retry");
+    // No state means a cold offline launch. Seed the form so a game can still
+    // be logged, and show anything already waiting on this device.
+    if (!state) {
+      const d = $("score-date");
+      if (!d.value) d.value = todayLocal();
+      d.max = todayLocal();
+      renderPending();
+    }
   }
 }
 $("subtitle").addEventListener("click", () => {
@@ -335,23 +448,39 @@ async function act(button, fn) {
   }
 }
 
-$("score-form").addEventListener("submit", (e) => {
+$("score-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("score");
   if (input.value === "") { input.focus(); return; }
   const score = Number(input.value);
   if (!Number.isInteger(score) || score < 0 || score > 300) return;
-  const date = $("score-date").value || state.today;
+  const date = $("score-date").value || (state && state.today) || todayLocal();
   const button = $("verify");
-  act(button, async () => {
-    const next = await api("/api/score", { method: "POST", body: JSON.stringify({ score, date }) });
+
+  // Queue first. Once it is on the device the game cannot be lost, so the form
+  // clears immediately and the network becomes someone else's problem.
+  const { stored } = queueGame(date, score);
+  if (stored) {
     input.value = "";
-    $("score-date").value = next.today;
+    $("score-date").value = (state && state.today) || todayLocal();
     $("ball").classList.add("spin");
     setTimeout(() => $("ball").classList.remove("spin"), 900);
+    renderPending();
+  }
+
+  button.disabled = true;
+  try {
+    const sent = await flushOutbox();
+    if (!sent && !stored) {
+      // No storage and no network: the only copy is still in the box.
+      $("subtitle").textContent = "Could not save that. Check your connection and try again.";
+      return;
+    }
+    if (!sent) $("subtitle").textContent = "Saved on this device. It will sync when you have signal.";
+  } finally {
     button.disabled = false;
-    return next;
-  });
+    renderPending();
+  }
 });
 
 $("verify-yesterday").addEventListener("click", () => {
@@ -552,11 +681,12 @@ function drawWarmup(p) {
 // never show up here.
 const REFRESH_MS = 60_000;
 setInterval(() => {
-  if (document.visibilityState === "visible" && !busy) load({ quiet: true });
+  if (document.visibilityState === "visible" && !busy) flushOutbox().then((sent) => { if (!sent) load({ quiet: true }); });
 }, REFRESH_MS);
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") load({ quiet: true });
+  if (document.visibilityState !== "visible") return;
+  flushOutbox().then((sent) => { if (!sent) load({ quiet: true }); });
 });
 
 // Restored from the back/forward cache, so the DOM is whatever it was hours ago.
@@ -564,6 +694,18 @@ window.addEventListener("pageshow", (e) => {
   if (e.persisted) load({ quiet: true });
 });
 
-window.addEventListener("online", () => load({ quiet: true }));
+// Signal is back: send anything the basement swallowed.
+window.addEventListener("online", () => {
+  flushOutbox().then((sent) => { if (!sent) load({ quiet: true }); });
+});
 
-load();
+// Keep a copy of the shell so the app opens in the basement, where there is no
+// signal and the gated HTML cannot be re-fetched.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+renderPending();
+load().then(() => flushOutbox());

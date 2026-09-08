@@ -44,19 +44,45 @@ export async function saveExcused(env, excused) {
   return clean;
 }
 
-export async function loadScores(env) {
+/**
+ * The score record, as {games, ids}.
+ *
+ * `ids` is a ledger of game ids the client has already had accepted. It is what
+ * makes a retry safe: a phone that loses signal after the write lands can send
+ * the same game again without logging it twice. Both live under one KV key so a
+ * game and its id are written in a single operation, never half applied.
+ *
+ * Older records were the bare {date: [...]} map and load as a ledger with no ids.
+ */
+export async function loadLedger(env) {
   const raw = await env.STREAK_KV.get(SCORES_KEY, "json");
-  const scores = {};
-  if (raw && typeof raw === "object") {
-    for (const [d, list] of Object.entries(raw)) if (Array.isArray(list)) scores[d] = list;
+  const src = raw && typeof raw === "object" && raw.games && typeof raw.games === "object" ? raw.games : raw;
+  const games = {};
+  if (src && typeof src === "object") {
+    for (const [d, list] of Object.entries(src)) if (Array.isArray(list)) games[d] = list;
   }
-  return scores;
+  const ids = raw && Array.isArray(raw.ids) ? raw.ids.filter((v) => typeof v === "string") : [];
+  return { games, ids };
 }
 
+/** Ids kept on file. Enough to cover any realistic backlog of unsent games. */
+export const MAX_IDS = 500;
+
+export async function saveLedger(env, games, ids = []) {
+  for (const d of Object.keys(games)) if (!games[d].length) delete games[d];
+  const trimmed = ids.slice(-MAX_IDS);
+  await env.STREAK_KV.put(SCORES_KEY, JSON.stringify({ games, ids: trimmed }));
+  return { games, ids: trimmed };
+}
+
+export async function loadScores(env) {
+  return (await loadLedger(env)).games;
+}
+
+/** Save games while preserving the id ledger already on file. */
 export async function saveScores(env, scores) {
-  for (const d of Object.keys(scores)) if (!scores[d].length) delete scores[d];
-  await env.STREAK_KV.put(SCORES_KEY, JSON.stringify(scores));
-  return scores;
+  const { ids } = await loadLedger(env);
+  return (await saveLedger(env, scores, ids)).games;
 }
 
 export async function buildState(env, days, scores = {}, excused = null) {
