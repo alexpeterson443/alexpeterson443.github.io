@@ -245,7 +245,7 @@ function render() {
   }
 
   renderPending();
-  renderProgress(s.progress);
+  renderProgress(s.progress, s.coach);
   renderTonight(s);
   renderInsights(s.coach);
   rankPanels(s);
@@ -532,7 +532,7 @@ function svg(tag, attrs, text) {
  * Drawn as SVG geometry rather than positioned elements: the CSP has no
  * style-src, so it falls back to default-src and any inline style is blocked.
  */
-function renderProgress(p) {
+function renderProgress(p, coach) {
   const panel = $("progress");
   if (!p || !p.games) { panel.hidden = true; return; }
   panel.hidden = false;
@@ -559,7 +559,7 @@ function renderProgress(p) {
   verdict.className = "verdict " + p.verdict.state;
 
   drawChart(p);
-  drawWarmup(p);
+  drawWarmup(p, coach);
 
   $("fact-spread").textContent = p.spread === null ? "–" : `±${p.spread}`;
   // A series is a fixed three game block, so the totals are comparable.
@@ -648,11 +648,14 @@ function drawChart(p) {
     + `The line through them is your rolling average, the dashed one your lifetime. Scale ${lo} to ${hi}.`;
 }
 
-function drawWarmup(p) {
+function drawWarmup(p, coach) {
   const box = $("warmup");
   const rows = p.session.rows;
   if (rows.length < 2) { box.hidden = true; return; }
   box.hidden = false;
+  // The gap the server vouches for, measured across seats he has actually
+  // bowled repeatedly. Thin seats are still drawn, just not trusted.
+  const warm = coach && coach.warmup;
 
   const el = $("warmup-chart");
   el.innerHTML = "";
@@ -664,7 +667,10 @@ function drawWarmup(p) {
   // Bars carry magnitude, so the scale runs from zero.
   const top = Math.max(...rows.map((r) => r.average));
   const trackW = W - labelW - valW;
-  const best = rows.filter((r) => r.average === top);
+  // Only a seat with real repetition can hold the best average; a game bowled
+  // twice sitting on top is a sample size, not a finding.
+  const solid = rows.filter((r) => r.sessions >= 3);
+  const solidTop = solid.length ? Math.max(...solid.map((r) => r.average)) : null;
 
   rows.forEach((r, i) => {
     const yTop = i * (rowH + gap);
@@ -674,17 +680,23 @@ function drawWarmup(p) {
       class: "bar-track", x: labelW, y: yTop + 4, width: trackW, height: rowH - 8, rx: 5,
     }));
     el.appendChild(svg("rect", {
-      class: "bar-fill" + (best.includes(r) ? " top" : ""),
+      class: "bar-fill" + (r.sessions < 3 ? " thin" : r.average === solidTop ? " top" : ""),
       x: labelW, y: yTop + 4, width: Math.max(4, (r.average / top) * trackW), height: rowH - 8, rx: 5,
     }));
     el.appendChild(svg("text", { class: "bar-value", x: W, y: mid + 3.5, "text-anchor": "end" },
       String(r.average)));
   });
 
-  $("warmup-gap").textContent = p.session.gap > 0 ? `+${p.session.gap} by the last game` : "";
-  $("warmup-note").textContent = p.session.gap > 8
-    ? `You warm up ${p.session.gap} pins into the night. Practice balls before game one turn that into scoring games.`
-    : "Your first game holds up against your last. No warm up tax.";
+  const thin = rows.some((r) => r.sessions < 3);
+  $("warmup-gap").textContent = warm && warm.gap > 0 ? `+${warm.gap} by game ${warm.to.game}` : "";
+  const note = !warm
+    ? "Not enough repeat games at each position to compare them yet."
+    : warm.gap > 8
+      ? `You warm up ${warm.gap} pins between game ${warm.from.game} and game ${warm.to.game}. Practice balls before game one turn that into scoring games.`
+      : `Game ${warm.from.game} holds up against game ${warm.to.game}. No warm up tax.`;
+  $("warmup-note").textContent = thin
+    ? `${note} Faded bars are positions you have bowled fewer than three times.`
+    : note;
 }
 
 // ---------- the adaptive layer ----------

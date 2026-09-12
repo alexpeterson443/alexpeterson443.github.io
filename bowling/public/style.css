@@ -796,3 +796,5 @@ button.primary.done {
 .game-dot.over { fill: var(--hit); opacity: 0.85; }
 .game-dot.under { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: 0.8; }
 .game-dot.recent { stroke: var(--accent-2); stroke-width: 1.4; opacity: 1; }
+/* A position bowled fewer than three times is drawn but not trusted. */
+.bar-fill.thin { opacity: 0.4; }

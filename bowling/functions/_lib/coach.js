@@ -174,6 +174,22 @@ function tailRun(series) {
   return { above, run, average: Math.floor(avg) };
 }
 
+/**
+ * The warm up gap, measured only between seats with real repetition behind them.
+ *
+ * The endpoint gap will not do. One eight game night creates a game 6 and a
+ * game 7 bowled twice each, and letting those define the gap reads noise off
+ * the end of the list: it can invent a cold start he does not have, or hide a
+ * real one behind a thin seat that happened to score badly.
+ */
+export function warmupGap(rows, minSessions = 3) {
+  const solid = rows.filter((r) => r.sessions >= minSessions);
+  if (solid.length < 2) return null;
+  const from = solid[0];
+  const to = solid[solid.length - 1];
+  return { gap: to.average - from.average, from, to, seats: solid.length };
+}
+
 /** Average by weekday, for weekdays bowled at least `minSessions` times. */
 export function byWeekday(series, minSessions = 2) {
   const groups = new Map();
@@ -247,16 +263,13 @@ export function insights(scores, report) {
     }
   }
 
-  // Warm up tax, straight off session position. Both ends of the comparison
-  // need real repetition behind them: two short nights would otherwise be
-  // enough to accuse him of a cold start.
-  const rows = report.session.rows;
-  const gap = report.session.gap;
-  const backed = rows.length >= 2 && rows[0].sessions >= 3 && rows[rows.length - 1].sessions >= 3;
-  if (backed && n >= 9 && gap !== null && gap >= 9) {
+  // Warm up tax, off session position but only across well bowled seats.
+  const warm = warmupGap(report.session.rows);
+  const gap = warm ? warm.gap : null;
+  if (warm && n >= 9 && gap >= 9) {
     push({
       id: "warmup", weight: 88, tone: "act", title: "You bowl into form",
-      text: `Game one of the night averages ${report.session.rows[0].average}, your last game ${report.session.rows[report.session.rows.length - 1].average}. That gap is ${gap} pins you are paying for a cold start. Throw practice balls before the first game counts.`,
+      text: `Game ${warm.from.game} of the night averages ${warm.from.average} across ${warm.from.sessions} sessions, game ${warm.to.game} averages ${warm.to.average}. That gap is ${gap} pins you are paying for a cold start. Throw practice balls before the first game counts.`,
     });
   }
 
@@ -446,6 +459,8 @@ export function coachReport(scores, report, ctx = {}) {
   return {
     form: f,
     last: lastGame(series),
+    // Sent so the bar chart and the observation quote one figure, not two.
+    warmup: warmupGap(report.session.rows),
     focus,
     insights: ranked.filter((i) => i !== focus).slice(0, 3),
     milestones: milestones(scores, report),

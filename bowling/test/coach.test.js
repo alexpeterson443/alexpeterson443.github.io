@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { progressReport, gameSeries } from "../functions/_lib/progress.js";
 import {
-  form, lastGame, averageTarget, trendEta, sessions, byWeekday,
+  form, lastGame, averageTarget, trendEta, sessions, byWeekday, warmupGap,
   insights, milestones, sessionPrompt, coachReport, FORM_WINDOW,
 } from "../functions/_lib/coach.js";
 
@@ -139,10 +139,47 @@ test("a warm up gap outranks everything else he can act on", () => {
   const warmup = found.find((i) => i.id === "warmup");
   assert.ok(warmup);
   assert.equal(warmup.tone, "act");
-  assert.match(warmup.text, /Game one of the night averages 70, your last game 110/);
+  assert.match(warmup.text, /Game 1 of the night averages 70 across 4 sessions, game 3 averages 110/);
   assert.match(warmup.text, /40 pins you are paying for a cold start/);
   // Nothing outweighs it, so it is what the app leads with.
   assert.equal(found[0].id, "warmup");
+});
+
+test("the warm up gap ignores positions bowled only once or twice", () => {
+  // One long night leaves a game 6 bowled twice. Letting that seat define the
+  // gap reads noise off the end of the list, in either direction.
+  const rows = [
+    { seat: 0, game: 1, sessions: 7, average: 98 },
+    { seat: 1, game: 2, sessions: 6, average: 95 },
+    { seat: 2, game: 3, sessions: 5, average: 107 },
+    { seat: 3, game: 4, sessions: 2, average: 100 },
+    { seat: 5, game: 6, sessions: 2, average: 108 },
+  ];
+  assert.deepEqual(warmupGap(rows), {
+    gap: 9, seats: 3, from: rows[0], to: rows[2],
+  });
+
+  // Nothing to compare when only one position has repetition behind it.
+  assert.equal(warmupGap([rows[0], rows[3]]), null);
+  assert.equal(warmupGap([]), null);
+});
+
+test("a real log with thin late positions still reports its warm up gap", () => {
+  // Shaped like the live log: four short nights plus two long ones, so the
+  // highest averages sit on positions he has only ever bowled twice.
+  const scores = log([
+    [95, 92, 108], [95, 92, 108], [95, 92, 108], [95, 92, 108],
+    [99, 93, 107, 120, 140, 150], [99, 93, 107, 120, 140, 150],
+  ]);
+  const report = progressReport(scores);
+  assert.deepEqual(report.session.rows.map((r) => [r.game, r.average, r.sessions]),
+    [[1, 96, 6], [2, 92, 6], [3, 108, 6], [4, 120, 2], [5, 140, 2], [6, 150, 2]]);
+  assert.equal(report.session.gap, 54, "the endpoint gap is inflated by seats bowled twice");
+
+  const warmup = insights(scores, report).find((i) => i.id === "warmup");
+  assert.ok(warmup, "the gap across well bowled positions is what counts");
+  assert.match(warmup.text, /Game 1 of the night averages 96 across 6 sessions, game 3 averages 108/);
+  assert.match(warmup.text, /That gap is 12 pins/);
 });
 
 test("a rising floor is reported, and so is a falling one", () => {
