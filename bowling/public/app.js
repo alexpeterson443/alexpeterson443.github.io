@@ -496,12 +496,17 @@ $("score-form").addEventListener("submit", async (e) => {
   // clears immediately and the network becomes someone else's problem.
   const { stored } = queueGame(date, score);
   if (stored) {
-    formOpen = false;
+    // Mid session he bowls three in a row, so the form stays open and focused
+    // while the lanes are open: type, tap, type, tap. Once they are shut the
+    // next game is not coming tonight and the form folds away again.
+    const live = state && state.hours && state.hours.open && !state.hours.lastCallPassed;
+    formOpen = !!live;
     input.value = "";
     $("score-date").value = (state && state.today) || todayLocal();
     $("ball").classList.add("spin");
     setTimeout(() => $("ball").classList.remove("spin"), 900);
     renderPending();
+    if (formOpen) input.focus();
   }
 
   button.disabled = true;
