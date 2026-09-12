@@ -320,8 +320,10 @@ function render() {
       hoursNow.textContent = "The alley is closed all day today.";
       hoursNow.classList.add("warn");
     } else if (hours.beforeOpen) {
+      // The countdown above already points at last call, so this line carries
+      // the one fact it does not: when the doors actually open.
       hoursNow.hidden = !unsettled;
-      hoursNow.textContent = `Last game goes on by ${hours.lastCallAt}.`;
+      hoursNow.textContent = `Opens ${hours.opensAt}.`;
     } else if (hours.open && hours.lastCallPassed) {
       // Still open, but too late to start a game. Only a problem if the day
       // still needs one.
