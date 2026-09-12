@@ -261,6 +261,7 @@ function render() {
   renderBetter(s.coach);
   renderFocus(s.coach);
   renderNumbers(s);
+  renderInside(s.frames);
   renderChartCard(s.progress);
   drawWarmup(s.progress, s.coach);
   applyLayout(s);
@@ -735,6 +736,63 @@ function renderFocus(c) {
   }
 }
 
+/** The example that makes the point, taken from his own log rather than guessed. */
+function worstLine(f) {
+  const worst = f.named.find((g) => g.label === "Your worst game");
+  return worst && worst.marks === 0
+    ? `a ${worst.score} game is ten open frames whichever way you split it.`
+    : "a low game is open frames whichever way you split it.";
+}
+
+/**
+ * What the games were made of, worked backwards from the totals.
+ *
+ * Marks lead because marks are what a total actually pins down. The strike to
+ * spare split is in the explanation rather than the headline, because the score
+ * genuinely does not decide it and a number there would be invented.
+ */
+function renderInside(f) {
+  const card = widget("inside");
+  if (!card) return;
+  card.hidden = !f || !f.enough;
+  if (card.hidden) return;
+
+  const t = f.typical;
+  const marks = (n) => `${n} mark${n === 1 ? "" : "s"}`;
+  $("inside-meta").textContent = `${t.marks} a game`;
+  $("inside-answer").textContent =
+    `Your ${f.average} average is about ${marks(t.marks)} and ${t.opens} open frames a game.`;
+  $("inside-worth").textContent = f.pinsPerMark
+    ? `Every extra mark is worth about ${f.pinsPerMark} pins, so one more spare a night is ${f.pinsPerMark} pins on your average.`
+    : "";
+
+  const list = $("inside-games");
+  list.innerHTML = "";
+  for (const g of f.named) {
+    const li = document.createElement("li");
+    li.className = "signal";
+    const label = document.createElement("span");
+    label.className = "s-label";
+    label.textContent = `${g.label}, ${g.score}`;
+    const value = document.createElement("span");
+    value.className = "s-value";
+    value.textContent = marks(g.marks);
+    const note = document.createElement("span");
+    note.className = "s-detail";
+    note.textContent = g.firm
+      ? `${g.opens} open frames.`
+      : `${g.opens} open frames, give or take a mark either way.`;
+    li.append(label, value, note);
+    list.appendChild(li);
+  }
+
+  $("inside-detail").textContent =
+    `Nothing here was recorded, it was worked out. A total does not say how it happened, so the app finds the scoring rates that would produce your ${f.average} average and reads each game back off them. `
+    + `Marks hold up under that: ${worstLine(f)} `
+    + `The split itself does not: your totals fit anything from ${f.split.strikeLow}% to ${f.split.strikeHigh}% of first balls striking, with ${f.split.spareLow}% to ${f.split.spareHigh}% of the rest picked up, and a total cannot choose between those. `
+    + `One more thing it shows: a bowler with fixed rates would swing about ${f.swing.bowling} pins from game to game. You swing ${f.swing.yours}. The difference is which night it is, not how you bowl.`;
+}
+
 /** Concrete targets, sitting under My numbers. */
 function renderTargets(c) {
   const targets = (c && c.milestones) || [];
@@ -1134,9 +1192,10 @@ document.addEventListener("click", (e) => {
   }
   const more = e.target.closest(".more");
   if (more) {
-    const detail = $("better-detail");
+    const detail = $(more.dataset.target);
+    if (!detail) return;
     detail.hidden = !detail.hidden;
-    more.textContent = detail.hidden ? "Why?" : "Hide";
+    more.textContent = detail.hidden ? (more.dataset.open || "Why?") : "Hide";
   }
 });
 

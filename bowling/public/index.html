@@ -112,9 +112,26 @@
       <div class="w-body">
         <p class="answer" id="better-answer">–</p>
         <p class="read" id="better-because"></p>
-        <button type="button" class="more" id="better-more" hidden>Why?</button>
+        <button type="button" class="more" id="better-more" data-target="better-detail" hidden>Why?</button>
         <p class="read quiet detail" id="better-detail" hidden></p>
         <ul class="signals" id="better-signals"></ul>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="inside">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>What your games were made of</h2>
+        <span class="w-meta" id="inside-meta"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <p class="answer small" id="inside-answer">–</p>
+        <p class="read" id="inside-worth"></p>
+        <ul class="signals" id="inside-games"></ul>
+        <button type="button" class="more" data-target="inside-detail">How is this worked out?</button>
+        <p class="read quiet detail" id="inside-detail" hidden></p>
       </div>
     </section>
 

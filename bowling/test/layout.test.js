@@ -13,6 +13,12 @@ test("the catalogue has unique ids and a title for each card", () => {
   assert.deepEqual(DEFAULT_PINNED.filter((id) => DEFAULT_COLLAPSED.includes(id)), []);
 });
 
+test("the reconstruction card is in the catalogue and opens by default", () => {
+  assert.ok(WIDGET_IDS.includes("inside"));
+  // It answers a question he asked outright, so it is not folded away.
+  assert.equal(DEFAULT_COLLAPSED.includes("inside"), false);
+});
+
 test("no stored arrangement means the catalogue order and nothing marked as his", () => {
   const l = normalizeLayout(null);
   assert.deepEqual(l.order, WIDGET_IDS);

@@ -12,6 +12,7 @@
 export const WIDGETS = [
   { id: "tonight", title: "Tonight" },
   { id: "better", title: "Am I getting better?" },
+  { id: "inside", title: "What your games were made of" },
   { id: "focus", title: "What to work on" },
   { id: "numbers", title: "My numbers" },
   { id: "chart", title: "Every game" },

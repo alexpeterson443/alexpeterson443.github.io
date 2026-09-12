@@ -4,6 +4,7 @@ import { progressReport } from "./progress.js";
 import { coachReport } from "./coach.js";
 import { normalizeLayout } from "./layout.js";
 import { planWindow, windowSentence, windowShort } from "./window.js";
+import { frameReport } from "./frames.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 
@@ -11,6 +12,7 @@ const KEY = "checkins";
 const SCORES_KEY = "scores";
 const EXCUSED_KEY = "excused";
 const LAYOUT_KEY = "layout";
+const FRAMES_KEY = "frames_v1";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -110,6 +112,24 @@ export async function clearLayout(env) {
   return normalizeLayout(null);
 }
 
+/**
+ * Working backwards from his totals to what the games were made of.
+ *
+ * The fit walks a family of rate pairs and scores an exact distribution for
+ * each, which is a tenth of a second of arithmetic. Far too much to repeat on
+ * every read, and it only changes when he logs a game, so it is cached against
+ * a signature of the log.
+ */
+export async function loadFrames(env, scores) {
+  const values = Object.values(scores).flat().filter((v) => typeof v === "number");
+  const sig = `${values.length}:${values.reduce((a, b) => a + b, 0)}:${values.reduce((a, b) => a + b * b, 0)}`;
+  const cached = await env.STREAK_KV.get(FRAMES_KEY, "json");
+  if (cached && cached.sig === sig) return cached.report;
+  const report = frameReport(scores);
+  await env.STREAK_KV.put(FRAMES_KEY, JSON.stringify({ sig, report }));
+  return report;
+}
+
 export async function buildState(env, days, scores = {}, excused = null) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
@@ -131,6 +151,7 @@ export async function buildState(env, days, scores = {}, excused = null) {
   const clock = (ms) => new Date(ms).toLocaleTimeString("en-US", {
     timeZone: tz, hour: "numeric", minute: "2-digit",
   });
+  const frames = await loadFrames(env, scores).catch(() => null);
   const plan = planWindow(calendar.busy || [], hours, nowMs);
   const bowlWindow = plan
     ? { ...plan, sentence: windowSentence(plan, clock), short: windowShort(plan, clock) }
@@ -149,6 +170,7 @@ export async function buildState(env, days, scores = {}, excused = null) {
       atRisk: stats.atRisk,
       window: bowlWindow,
     }),
+    frames,
     gamesToday: (scores[today] || []).length,
     scoresToday,
     calendar,
