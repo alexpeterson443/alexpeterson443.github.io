@@ -57,13 +57,21 @@ export function normalizeLayout(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { order: [...WIDGET_IDS], pinned: [...DEFAULT_PINNED], collapsed: [...DEFAULT_COLLAPSED], custom: false };
   }
-  const order = known(raw.order);
+  const custom = raw.custom === true;
+
+  // Folding a card is reading, not arranging, and it saves with custom false.
+  // Honouring the order stored alongside it would freeze the automatic
+  // ordering at whatever it happened to be that evening, and land every card
+  // added afterwards at the bottom. So an order is only his if he says it is.
+  const order = custom ? known(raw.order) : [];
   for (const id of WIDGET_IDS) if (!order.includes(id)) order.push(id);
+
   return {
     order,
-    pinned: known(raw.pinned),
-    collapsed: known(raw.collapsed),
-    custom: raw.custom === true,
+    // An explicit empty list is a choice; a missing one is a fresh record.
+    pinned: "pinned" in raw ? known(raw.pinned) : [...DEFAULT_PINNED],
+    collapsed: "collapsed" in raw ? known(raw.collapsed) : [...DEFAULT_COLLAPSED],
+    custom,
   };
 }
 

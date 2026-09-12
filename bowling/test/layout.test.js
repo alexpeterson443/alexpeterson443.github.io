@@ -40,6 +40,31 @@ test("his order is kept and anything missing from it is appended", () => {
   assert.equal(l.custom, true);
 });
 
+test("an order he never chose does not outlive the defaults", () => {
+  // Folding a card saves the whole layout with custom false. If that stored
+  // order were honoured, one fold would freeze the automatic ordering and send
+  // every card shipped afterwards to the bottom.
+  const stale = normalizeLayout({
+    order: ["games", "hours", "tonight"],
+    pinned: ["tonight", "better"],
+    collapsed: ["games"],
+    custom: false,
+  });
+  assert.deepEqual(stale.order, WIDGET_IDS, "the catalogue order stands until he arranges it");
+  assert.deepEqual(stale.collapsed, ["games"], "but the fold is still his");
+
+  // Once he has arranged it, his order is the order.
+  const his = normalizeLayout({ order: ["games", "hours"], custom: true });
+  assert.deepEqual(his.order.slice(0, 2), ["games", "hours"]);
+
+  // A record with no pinned or collapsed field is a fresh one, not an empty one.
+  const bare = normalizeLayout({ custom: false });
+  assert.deepEqual(bare.pinned, DEFAULT_PINNED);
+  assert.deepEqual(bare.collapsed, DEFAULT_COLLAPSED);
+  // An explicit empty list is a choice and is kept.
+  assert.deepEqual(normalizeLayout({ pinned: [], collapsed: [], custom: true }).pinned, []);
+});
+
 test("reading is not arranging", () => {
   // Folding a card shut is remembered without claiming he has arranged the
   // dashboard, so the app may still lead with what matters tonight.
@@ -54,6 +79,7 @@ test("ids that are not cards are dropped rather than rendered", () => {
     order: ["games", "not-a-card", "games", 7, null, "hours"],
     pinned: ["hours", "hours", "nope"],
     collapsed: ["history", "gone"],
+    custom: true,
   });
   assert.deepEqual(l.order.slice(0, 2), ["games", "hours"], "unknown ids and duplicates go");
   assert.deepEqual(l.pinned, ["hours"]);
