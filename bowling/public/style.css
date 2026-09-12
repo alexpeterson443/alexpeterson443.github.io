@@ -1,0 +1,1013 @@
+:root {
+  --bg: #0a0b12;
+  --panel: rgba(255, 255, 255, 0.045);
+  --panel-2: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #f4f5fb;
+  --muted: #9096b4;
+  --accent: #7c5cff;
+  --accent-2: #a78bfa;
+  --hit: #2ee6a8;
+  --hit-ink: #05261a;
+  --miss: #ff5c7a;
+  --today: #ffd166;
+  --excused: #5ea8ff;
+  --sick: #c9a3ff;
+  --injured: #ff9f5a;
+  --away: #ff8fd0;
+  --radius: 22px;
+  /* Named so the adaptive layer can swap them per form. The hero glow, the
+     streak gradient, the rolling average line and the page wash all read from
+     these, so one attribute on <body> recolours the app. */
+  --glow: rgba(124, 92, 255, 0.32);
+  --wash: rgba(124, 92, 255, 0.30);
+  --big-mid: #d9d0ff;
+  --big-end: #9a79ff;
+  --tint: rgba(124, 92, 255, 0.10);
+  --tint-line: rgba(124, 92, 255, 0.30);
+  color-scheme: dark;
+}
+
+/* Bowling three games well above his own scatter should not look identical to
+   bowling three games below it. Nothing here invents a signal: the state comes
+   from a test the server already ran against the spread in his log. */
+body[data-form="hot"] {
+  --accent: #ff9f5a;
+  --accent-2: #ffd166;
+  --glow: rgba(255, 159, 90, 0.34);
+  --wash: rgba(255, 159, 90, 0.26);
+  --big-mid: #ffe6c2;
+  --big-end: #ff9f5a;
+  --tint: rgba(255, 159, 90, 0.11);
+  --tint-line: rgba(255, 159, 90, 0.32);
+}
+body[data-form="cold"] {
+  --accent: #5ea8ff;
+  --accent-2: #8ec5ff;
+  --glow: rgba(94, 168, 255, 0.26);
+  --wash: rgba(94, 168, 255, 0.20);
+  --big-mid: #cfe4ff;
+  --big-end: #6aa9ff;
+  --tint: rgba(94, 168, 255, 0.11);
+  --tint-line: rgba(94, 168, 255, 0.32);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html { background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding: 24px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  background:
+    radial-gradient(80rem 46rem at 50% -22%, var(--wash), rgba(124, 92, 255, 0) 68%),
+    radial-gradient(50rem 34rem at 105% 4%, rgba(46, 230, 168, 0.07), rgba(46, 230, 168, 0) 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior-y: none;
+}
+
+.app {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 26px 22px 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(12, 14, 24, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  animation: rise 0.45s ease-out both;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Card order is no longer a CSS concern: the cards are moved in the DOM, so his
+   arrangement survives a reload and reads correctly to a screen reader. */
+
+/* Tablets and laptops: a roomier single column, centred in the viewport so a
+   short card does not leave a void beneath it. */
+@media (min-width: 521px) {
+  /* Rows are auto sized, so a card taller than the screen still starts at the
+     top and scrolls normally rather than being clipped. */
+  body { place-items: center; padding: 32px; }
+  .app { max-width: 600px; }
+  /* Keep the history squares a sensible size instead of stretching with the card. */
+  .grid { max-width: 392px; margin-left: auto; margin-right: auto; }
+}
+
+/* Wide enough for two columns side by side. An iPad 12.9" is 1024 points in
+   portrait, which stays one column, and 1366 in landscape, which splits. */
+@media (min-width: 1100px) {
+  body { padding: 40px 32px; }
+  .app {
+    max-width: 1040px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 22px 26px;
+    padding: 34px 32px 38px;
+  }
+  .hero { padding-top: 14px; }
+  .hero::before { width: 240px; height: 240px; }
+  .big { font-size: 4.2rem; }
+  .games .date { width: 7em; }
+}
+
+/* Pointer devices (iPad with a trackpad, or a laptop) get hover feedback. */
+@media (hover: hover) and (pointer: fine) {
+  .pill:hover, .games .chip:hover { background: var(--panel-2); }
+  button.primary:hover { filter: brightness(1.06); }
+}
+
+/* Phone sized screens: fill the screen edge to edge like a native app. */
+@media (max-width: 520px) {
+  body { padding: 0; }
+  .app {
+    max-width: none;
+    min-height: 100vh;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: calc(18px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Installed to the home screen: tighter header since there is no browser chrome. */
+@media (display-mode: standalone) {
+  .app { padding-top: calc(10px + env(safe-area-inset-top)); }
+}
+
+input, textarea { -webkit-user-select: text; user-select: text; }
+input, button { font: inherit; }
+
+/* ---------- header ---------- */
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.titles { display: grid; gap: 4px; min-width: 0; }
+
+/* The arranging switch, sitting where iOS puts it. */
+.edit-btn {
+  width: auto;
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent-2);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+body.editing .edit-btn {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.ball { font-size: 1.4rem; line-height: 1; display: inline-block; }
+.ball.spin { animation: roll 0.8s ease-out; }
+@keyframes roll {
+  0% { transform: rotate(-330deg) scale(0.75); }
+  60% { transform: rotate(12deg) scale(1.18); }
+  100% { transform: rotate(0) scale(1); }
+}
+.dates { margin: 0; color: var(--muted); font-size: 0.82rem; }
+.dates.retry { color: var(--today); text-decoration: underline; cursor: pointer; }
+
+/* ---------- hero ---------- */
+
+.hero { position: relative; padding: 6px 0 2px; }
+.streak-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 200px;
+  height: 200px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow), rgba(124, 92, 255, 0) 66%);
+  pointer-events: none;
+}
+.hero > * { position: relative; }
+
+.big {
+  font-size: clamp(3.1rem, 17vw, 4rem);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.045em;
+  background: linear-gradient(168deg, #ffffff 6%, var(--big-mid) 40%, var(--big-end) 98%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 10px 26px var(--glow));
+}
+.label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+}
+.status:empty { display: none; }
+
+/* The answer, directly under the state. */
+.lead {
+  margin: 9px 0 0;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+.lead.now { color: var(--hit); }
+.lead[hidden] { display: none; }
+.status::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.status.ok { color: var(--hit); border-color: rgba(46, 230, 168, 0.3); background: rgba(46, 230, 168, 0.1); }
+.status.ok::before { background: var(--hit); }
+.status.risk { color: var(--today); border-color: rgba(255, 209, 102, 0.3); background: rgba(255, 209, 102, 0.1); }
+.status.risk::before { background: var(--today); }
+.status.broken { color: var(--miss); border-color: rgba(255, 92, 122, 0.3); background: rgba(255, 92, 122, 0.1); }
+.status.broken::before { background: var(--miss); }
+.status.paused { color: var(--excused); border-color: rgba(94, 168, 255, 0.3); background: rgba(94, 168, 255, 0.1); }
+.status.paused::before { background: var(--excused); }
+.status.paused.sick { color: var(--sick); border-color: rgba(201, 163, 255, 0.32); background: rgba(201, 163, 255, 0.1); }
+.status.paused.sick::before { background: var(--sick); }
+.status.paused.injured { color: var(--injured); border-color: rgba(255, 159, 90, 0.32); background: rgba(255, 159, 90, 0.1); }
+.status.paused.injured::before { background: var(--injured); }
+.status.paused.away { color: var(--away); border-color: rgba(255, 143, 208, 0.32); background: rgba(255, 143, 208, 0.1); }
+.status.paused.away::before { background: var(--away); }
+
+.calendar[hidden] { display: none; }
+.calendar {
+  margin: 0;
+  display: block;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.calendar.today { color: var(--text); background: rgba(124, 92, 255, 0.16); border-color: rgba(124, 92, 255, 0.35); }
+.calendar.live { color: var(--hit-ink); background: var(--hit); border-color: transparent; font-weight: 650; }
+
+/* ---------- panels ---------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  text-align: center;
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+h2 {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+.meta { color: var(--muted); font-size: 0.78rem; text-align: right; }
+
+/* ---------- action ---------- */
+
+.score-form {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 10px;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 13px 12px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.25);
+}
+#score-date { -webkit-appearance: none; appearance: none; font-size: 0.95rem; }
+#score-date::-webkit-date-and-time-value { width: 100%; text-align: center; }
+#score::-webkit-outer-spin-button,
+#score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#score { -moz-appearance: textfield; appearance: textfield; font-weight: 700; }
+
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 14px;
+  padding: 14px 20px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  width: 100%;
+  font-weight: 650;
+  transition: transform 0.1s, opacity 0.2s, filter 0.2s;
+}
+button:active { transform: scale(0.985); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+.add-game {
+  width: 100%;
+  padding: 12px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent-2);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+.add-game[hidden] { display: none; }
+.score-form[hidden] { display: none; }
+
+button.primary {
+  grid-column: 1 / -1;
+  font-size: 1.02rem;
+  padding: 15px;
+  margin-top: 2px;
+  box-shadow: 0 10px 26px rgba(124, 92, 255, 0.32);
+}
+button.primary.done {
+  background: linear-gradient(135deg, #2ee6a8, #6ef0c4);
+  color: var(--hit-ink);
+  box-shadow: 0 10px 26px rgba(46, 230, 168, 0.26);
+}
+
+.hint { margin: 8px 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
+.hint.countdown { margin-top: 5px; font-variant-numeric: tabular-nums; }
+.hint.warn { color: var(--today); }
+/* A quiet link until he needs it, which is most days. */
+.excuses { margin-top: 12px; }
+.excuses-toggle {
+  width: auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.excuses-toggle.open { color: var(--text); }
+.excuses .pills { margin-top: 10px; }
+.excuses .pills[hidden] { display: none; }
+
+.pills { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+.pill {
+  width: auto;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 550;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.pill:active { background: var(--panel-2); }
+.undo-row[hidden] { display: none; }
+.undo-row { margin-top: 12px; }
+/* Pausing a run of days: a trip is known in advance and is never one day. */
+.range {
+  display: grid;
+  gap: 10px;
+  margin-top: 11px;
+  padding: 12px;
+  border-radius: 15px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  text-align: left;
+}
+.range[hidden] { display: none; }
+.range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.range-field { display: grid; gap: 4px; min-width: 0; }
+.range-field > span {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 700;
+  padding-left: 2px;
+}
+.range-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  text-align: center;
+  font-size: 0.86rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range .pills { justify-content: flex-start; }
+.pill.on {
+  border-color: var(--tint-line);
+  background: var(--tint);
+  color: var(--text);
+  font-weight: 650;
+}
+/* Two classes, so the later .read rule does not flatten this back to zero. */
+.upcoming.read { margin-top: 9px; }
+.upcoming[hidden] { display: none; }
+.upcoming button {
+  width: auto;
+  margin: 6px 6px 0 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 143, 208, 0.3);
+  background: rgba(255, 143, 208, 0.1);
+  color: var(--away);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+/* ---------- games ---------- */
+
+.games { list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; }
+.games:empty { display: none; }
+.games li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 13px;
+  padding: 9px 11px;
+}
+.games .date { color: var(--muted); font-size: 0.8rem; width: 6.4em; text-align: left; flex: none; white-space: nowrap; }
+.games .chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.games .chip {
+  width: auto;
+  padding: 5px 10px;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+}
+.games .chip.unknown { color: var(--muted); font-weight: 500; }
+.games .chip.best {
+  background: linear-gradient(135deg, #ffd166, #ffb84d);
+  color: #2b2100;
+  box-shadow: 0 4px 12px rgba(255, 209, 102, 0.22);
+}
+.games .count { color: var(--muted); font-size: 0.72rem; flex: none; }
+
+/* ---------- alley hours ---------- */
+
+.hours-week { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.hours-week li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+.hours-week .days { color: var(--muted); font-weight: 600; }
+.hours-week .time { font-variant-numeric: tabular-nums; }
+.hours-week li.now {
+  background: rgba(124, 92, 255, 0.14);
+  border-color: rgba(124, 92, 255, 0.32);
+}
+.hours-week li.now .days { color: var(--accent-2); }
+
+/* ---------- history ---------- */
+
+.grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cell {
+  aspect-ratio: 1;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid transparent;
+}
+.cell.hit { background: linear-gradient(155deg, #35eab0, #21c98f); color: var(--hit-ink); font-weight: 750; }
+.cell.miss { background: rgba(255, 92, 122, 0.16); border-color: rgba(255, 92, 122, 0.28); color: var(--miss); }
+.cell.excused { background: rgba(94, 168, 255, 0.16); border-color: rgba(94, 168, 255, 0.3); color: var(--excused); }
+.cell.excused.sick { background: rgba(201, 163, 255, 0.16); border-color: rgba(201, 163, 255, 0.3); color: var(--sick); }
+.cell.excused.injured { background: rgba(255, 159, 90, 0.16); border-color: rgba(255, 159, 90, 0.3); color: var(--injured); }
+.cell.excused.away { background: rgba(255, 143, 208, 0.16); border-color: rgba(255, 143, 208, 0.3); color: var(--away); }
+.cell.today { outline: 2px solid var(--today); outline-offset: -2px; color: var(--today); font-weight: 750; }
+.cell.today.hit { color: var(--hit-ink); }
+.cell.blank { background: none; }
+.cell.weekday {
+  background: none;
+  aspect-ratio: auto;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(144, 150, 180, 0.65);
+  padding-bottom: 3px;
+}
+
+@supports not (aspect-ratio: 1 / 1) {
+  .cell { min-height: 40px; }
+  .cell.weekday { min-height: 0; }
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(74px, auto));
+  justify-content: center;
+  gap: 7px 18px;
+  margin-top: 14px;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.legend span { text-align: left; white-space: nowrap; }
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  flex: none;
+}
+.pill .dot { margin-right: 0; }
+.dot.hit { background: var(--hit); }
+.dot.miss { background: rgba(255, 92, 122, 0.55); }
+.dot.excused { background: rgba(94, 168, 255, 0.6); }
+.dot.excused.sick { background: rgba(201, 163, 255, 0.6); }
+.dot.excused.injured { background: rgba(255, 159, 90, 0.6); }
+.dot.excused.away { background: rgba(255, 143, 208, 0.65); }
+.dot.today { background: none; outline: 2px solid var(--today); outline-offset: -2px; }
+
+.yesterday { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--line); }
+.yesterday .hint { margin-top: 0; margin-bottom: 9px; }
+.yesterday .pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.yesterday .pill { justify-content: center; padding: 8px 6px; }
+.yesterday #verify-yesterday { grid-column: 1 / -1; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- widget chrome ---------- */
+
+.zone { display: flex; flex-direction: column; gap: 14px; }
+.zone[hidden] { display: none; }
+.zone-label {
+  margin: 2px 0 -4px;
+  padding-left: 4px;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.zone.rest .zone-label { margin-top: 10px; }
+.zone-empty {
+  display: none;
+  margin: 0;
+  padding: 18px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+body.editing .zone.empty .zone-empty { display: block; }
+
+.widget { text-align: left; padding: 0; overflow: hidden; }
+.widget[hidden] { display: none; }
+
+.w-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  cursor: pointer;
+}
+body.editing .w-head { cursor: default; }
+.w-head h2 { flex: 1; min-width: 0; }
+/* Secondary, so it never pushes the title into a second line. */
+.w-meta {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-align: right;
+  flex: 0 1 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.w-meta:empty { display: none; }
+/* While arranging, the header needs its room for the star and the handle. */
+body.editing .w-meta { display: none; }
+.w-body { padding: 0 15px 15px; display: grid; gap: 12px; }
+.widget.folded .w-body { display: none; }
+.widget.folded .w-head { padding-bottom: 13px; }
+
+/* Header controls. The pin and the grip only exist while he is arranging. */
+.w-pin, .w-fold, .w-grip {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border-radius: 9px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  display: none;
+  place-items: center;
+  line-height: 1;
+}
+.w-fold { display: grid; }
+.w-fold::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 0.18s ease;
+}
+.widget.folded .w-fold::before { transform: rotate(-45deg) translate(-1px, 2px); }
+
+body.editing .w-pin { display: grid; }
+body.editing .w-grip { display: grid; touch-action: none; cursor: grab; }
+body.editing .w-fold { display: none; }
+
+.w-pin::before {
+  content: "☆";
+  font-size: 1.05rem;
+}
+.w-pin.on { color: var(--accent-2); }
+.w-pin.on::before { content: "★"; }
+
+/* Three bars, the iOS reorder handle. */
+.w-grip::before {
+  content: "";
+  width: 15px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  box-shadow: inset 0 0 0 2px transparent;
+  background:
+    linear-gradient(currentColor, currentColor) center / 15px 2px no-repeat;
+}
+
+/* Arranging mode: cards lift slightly so it is obvious they can be moved. */
+body.editing .widget {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: var(--panel-2);
+}
+body.dragging-now { cursor: grabbing; }
+body.dragging-now .widget { transition: none; }
+.widget.dragging {
+  position: relative;
+  z-index: 5;
+  border-color: var(--tint-line);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  opacity: 0.97;
+}
+
+.edit-note {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px solid var(--tint-line);
+  background: var(--tint);
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.edit-note p { margin: 0; }
+.edit-note[hidden] { display: none; }
+
+/* ---------- widget contents ---------- */
+
+/* The window to actually go: the only line in the app about a game he has not
+   bowled yet, so it reads as an instruction rather than a note. */
+.plan {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px solid var(--tint-line);
+  background: var(--tint);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  font-weight: 550;
+}
+.plan[hidden] { display: none; }
+.plan.now {
+  border-color: rgba(46, 230, 168, 0.34);
+  background: rgba(46, 230, 168, 0.1);
+  color: var(--hit);
+  font-weight: 650;
+}
+
+.read { margin: 0; font-size: 0.88rem; line-height: 1.5; }
+.read.quiet { color: var(--muted); font-size: 0.8rem; }
+.read[hidden] { display: none; }
+
+/* The plain answer, which is the first thing he should be able to read. */
+.answer {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 780;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+}
+.answer.small { font-size: 1.1rem; letter-spacing: -0.015em; }
+.answer[hidden] { display: none; }
+.answer.improving, .answer.good { color: var(--hit); }
+.answer.declining, .answer.bad { color: var(--miss); }
+.answer.flat, .answer.early { color: var(--text); }
+.answer.act { color: var(--accent-2); }
+
+.more {
+  width: auto;
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+.more[hidden] { display: none; }
+.detail[hidden] { display: none; }
+
+/* Signals: a number is never shown without a caption saying what it is. */
+.signals, .metrics { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.signals:empty, .metrics:empty { display: none; }
+.signals li, .metrics li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.s-label, .m-label { font-size: 0.82rem; font-weight: 600; align-self: center; }
+.s-value, .m-value {
+  font-size: 1.12rem;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  text-align: right;
+  align-self: center;
+  white-space: nowrap;
+}
+.s-detail, .m-caption {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+.signal.better .s-value { color: var(--hit); }
+.signal.worse .s-value { color: var(--miss); }
+
+.insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.insights:empty { display: none; }
+.insight {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--muted);
+}
+.insight strong { font-size: 0.8rem; font-weight: 700; }
+.insight span { font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
+.insight.good { border-left-color: var(--hit); }
+.insight.good strong { color: var(--hit); }
+.insight.bad { border-left-color: var(--miss); }
+.insight.bad strong { color: var(--miss); }
+.insight.act { border-left-color: var(--accent-2); }
+.insight.act strong { color: var(--accent-2); }
+.insight.flat strong { color: var(--muted); }
+
+.targets { display: grid; gap: 9px; }
+.targets[hidden] { display: none; }
+.targets h3 {
+  margin: 4px 0 0;
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.target-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.target-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 13px;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.target-list strong {
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+.target-list span { font-size: 0.77rem; line-height: 1.45; color: var(--muted); }
+
+/* Recent form, above the chart. */
+.form-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.form-now span {
+  display: block;
+  font-size: 2.4rem;
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.form-now small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 650;
+}
+.delta {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.delta.up { color: var(--hit); border-color: rgba(46, 230, 168, 0.3); background: rgba(46, 230, 168, 0.1); }
+.delta.down { color: var(--miss); border-color: rgba(255, 92, 122, 0.3); background: rgba(255, 92, 122, 0.1); }
+.delta[hidden] { display: none; }
+
+.form-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.form-chip[hidden] { display: none; }
+.form-chip.hot { color: var(--injured); border-color: rgba(255, 159, 90, 0.36); background: rgba(255, 159, 90, 0.12); }
+.form-chip.cold { color: var(--excused); border-color: rgba(94, 168, 255, 0.36); background: rgba(94, 168, 255, 0.12); }
+.form-chip.steady { color: var(--accent-2); border-color: rgba(167, 139, 250, 0.32); background: rgba(167, 139, 250, 0.1); }
+
+/* ---------- charts ---------- */
+
+.chart { margin: 0; display: grid; gap: 8px; }
+.chart figcaption { color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
+.chart svg, #warmup-chart { display: block; width: 100%; }
+.chart svg { height: 132px; }
+.grid-line { stroke: var(--line); stroke-width: 1; }
+.axis-label, .bar-label, .bar-value, .tip-text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.axis-label { fill: var(--muted); font-size: 8px; }
+.mean-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.55; }
+.roll-line { stroke: var(--accent-2); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.game-dot { fill: var(--hit); opacity: 0.75; }
+.game-dot.best { fill: var(--today); opacity: 1; }
+.game-dot.over { fill: var(--hit); opacity: 0.85; }
+.game-dot.under { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: 0.8; }
+.game-dot.recent { stroke: var(--accent-2); stroke-width: 1.4; opacity: 1; }
+.game-hit { fill: transparent; cursor: pointer; }
+.tip-bg { fill: rgba(12, 14, 24, 0.96); stroke: var(--line); stroke-width: 1; }
+.tip-text { fill: var(--text); font-size: 8px; }
+.tip[hidden] { display: none; }
+
+.bar-label { fill: var(--muted); font-size: 9px; }
+.bar-value { fill: var(--text); font-size: 10px; font-weight: 700; }
+.bar-track { fill: var(--panel-2); }
+.bar-fill { fill: var(--accent); }
+.bar-fill.top { fill: var(--hit); }
+/* A position bowled fewer than three times is drawn but not trusted. */
+.bar-fill.thin { opacity: 0.4; }
+
+.pending {
+  color: var(--today);
+  background: rgba(255, 209, 102, 0.1);
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 12px;
+  padding: 8px 11px;
+}
+.pending[hidden] { display: none; }
