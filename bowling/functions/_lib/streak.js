@@ -49,8 +49,71 @@ export function dateRange(start, end) {
   return out;
 }
 
-/** Why a day was excused. */
-export const EXCUSE_REASONS = ["closed", "sick", "injured"];
+/**
+ * Why a day was excused.
+ *
+ * "away" is for being off campus: home to see family, a trip, anywhere without
+ * his alley. Those days are known in advance and usually come in runs, which is
+ * why the pause below takes a range and accepts dates that have not happened.
+ */
+export const EXCUSE_REASONS = ["closed", "sick", "injured", "away"];
+
+/** Longest run of days one pause may cover. A semester is not a pause. */
+export const MAX_PAUSE_DAYS = 60;
+
+/** How far ahead a trip can be marked. */
+export const PAUSE_AHEAD_DAYS = 365;
+
+/**
+ * Consecutive dates sharing a reason, collapsed into runs.
+ *
+ * A four day trip is one thing he did, not four, and sending it as one run
+ * keeps the payload small enough that a long pause cannot crowd out the next
+ * one. Expects the entries in date order.
+ */
+export function groupRuns(entries) {
+  const runs = [];
+  for (const { date, reason } of entries) {
+    const prev = runs[runs.length - 1];
+    if (prev && prev.reason === reason && addDays(prev.to, 1) === date) {
+      prev.to = date;
+      prev.days += 1;
+    } else {
+      runs.push({ from: date, to: date, reason, days: 1 });
+    }
+  }
+  return runs;
+}
+
+/**
+ * Check and expand a pause into the days it covers.
+ *
+ * Returns `{ dates }` or `{ error }`. A single day is a range of one, so the
+ * endpoint has one path rather than two. Future dates are allowed on purpose:
+ * he books a trip before he takes it, and a day excused in advance does nothing
+ * to the streak until it arrives.
+ */
+export function pauseRange({ from, to, reason }, today, start, opts = {}) {
+  const r = reason === undefined ? "closed" : reason;
+  if (!EXCUSE_REASONS.includes(r)) {
+    return { error: `reason must be one of ${EXCUSE_REASONS.join(", ")}` };
+  }
+  if (!isValidIsoDate(from)) return { error: "from must be YYYY-MM-DD" };
+  const last = to === undefined ? from : to;
+  if (!isValidIsoDate(last)) return { error: "to must be YYYY-MM-DD" };
+  if (last < from) return { error: "to must not be before from" };
+  // Undoing skips this: a day already on file before the start date still has
+  // to be removable, whatever put it there.
+  if (!opts.allowBefore && from < start) return { error: `nothing before ${start} to pause` };
+  if (last > addDays(today, PAUSE_AHEAD_DAYS)) {
+    return { error: `cannot pause more than ${PAUSE_AHEAD_DAYS} days ahead` };
+  }
+  const dates = dateRange(from, last);
+  if (dates.length > MAX_PAUSE_DAYS) {
+    return { error: `a pause covers at most ${MAX_PAUSE_DAYS} days` };
+  }
+  return { dates, reason: r };
+}
 
 /**
  * Normalise excused input to a {date: reason} map. Accepts the legacy list of

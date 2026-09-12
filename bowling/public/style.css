@@ -14,6 +14,7 @@
   --excused: #5ea8ff;
   --sick: #c9a3ff;
   --injured: #ff9f5a;
+  --away: #ff8fd0;
   --radius: 22px;
   /* Named so the adaptive layer can swap them per form. The hero glow, the
      streak gradient, the rolling average line and the page wash all read from
@@ -305,6 +306,8 @@ h1 {
 .status.paused.sick::before { background: var(--sick); }
 .status.paused.injured { color: var(--injured); border-color: rgba(255, 159, 90, 0.32); background: rgba(255, 159, 90, 0.1); }
 .status.paused.injured::before { background: var(--injured); }
+.status.paused.away { color: var(--away); border-color: rgba(255, 143, 208, 0.32); background: rgba(255, 143, 208, 0.1); }
+.status.paused.away::before { background: var(--away); }
 
 .calendar[hidden] { display: none; }
 .calendar {
@@ -454,6 +457,63 @@ button.primary.done {
 .pill:active { background: var(--panel-2); }
 .undo-row[hidden] { display: none; }
 .undo-row { margin-top: 12px; }
+/* Pausing a run of days: a trip is known in advance and is never one day. */
+.range {
+  display: grid;
+  gap: 10px;
+  margin-top: 11px;
+  padding: 12px;
+  border-radius: 15px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  text-align: left;
+}
+.range[hidden] { display: none; }
+.range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.range-field { display: grid; gap: 4px; min-width: 0; }
+.range-field > span {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 700;
+  padding-left: 2px;
+}
+.range-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  text-align: center;
+  font-size: 0.86rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range .pills { justify-content: flex-start; }
+.pill.on {
+  border-color: var(--tint-line);
+  background: var(--tint);
+  color: var(--text);
+  font-weight: 650;
+}
+/* Two classes, so the later .read rule does not flatten this back to zero. */
+.upcoming.read { margin-top: 9px; }
+.upcoming[hidden] { display: none; }
+.upcoming button {
+  width: auto;
+  margin: 6px 6px 0 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 143, 208, 0.3);
+  background: rgba(255, 143, 208, 0.1);
+  color: var(--away);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
 /* ---------- games ---------- */
 
 .games { list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; }
@@ -528,6 +588,7 @@ button.primary.done {
 .cell.excused { background: rgba(94, 168, 255, 0.16); border-color: rgba(94, 168, 255, 0.3); color: var(--excused); }
 .cell.excused.sick { background: rgba(201, 163, 255, 0.16); border-color: rgba(201, 163, 255, 0.3); color: var(--sick); }
 .cell.excused.injured { background: rgba(255, 159, 90, 0.16); border-color: rgba(255, 159, 90, 0.3); color: var(--injured); }
+.cell.excused.away { background: rgba(255, 143, 208, 0.16); border-color: rgba(255, 143, 208, 0.3); color: var(--away); }
 .cell.today { outline: 2px solid var(--today); outline-offset: -2px; color: var(--today); font-weight: 750; }
 .cell.today.hit { color: var(--hit-ink); }
 .cell.blank { background: none; }
@@ -549,7 +610,7 @@ button.primary.done {
 
 .legend {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, auto));
+  grid-template-columns: repeat(auto-fit, minmax(74px, auto));
   justify-content: center;
   gap: 7px 18px;
   margin-top: 14px;
@@ -572,6 +633,7 @@ button.primary.done {
 .dot.excused { background: rgba(94, 168, 255, 0.6); }
 .dot.excused.sick { background: rgba(201, 163, 255, 0.6); }
 .dot.excused.injured { background: rgba(255, 159, 90, 0.6); }
+.dot.excused.away { background: rgba(255, 143, 208, 0.65); }
 .dot.today { background: none; outline: 2px solid var(--today); outline-offset: -2px; }
 
 .yesterday { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--line); }

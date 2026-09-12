@@ -23,16 +23,23 @@ functions/
   _middleware.js   private link gate for every route
   api/state.js     GET  -> streak stats
   manifest.webmanifest.js  web app manifest; start_url carries the key when fetched through the private link
-  api/excuse.js    POST {date?, reason?} excuse today or yesterday (closed, sick, injured), DELETE {date} undo
-  api/score.js     POST {score, date?} log a scored game (verifies that day), DELETE {date, index}
+  api/excuse.js    POST {reason?} pause today, or {from, to?, reason?} pause a run of days; DELETE {date} | {from, to?} undo
+  api/score.js     POST {score, date?, id?} log a scored game (verifies that day), DELETE {date, index}
+  api/layout.js    GET/PUT the card arrangement, DELETE back to automatic order
   _lib/scores.js   score stats (unit tested)
+  _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
+  _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
+  _lib/frames.js   works a total back into strikes, spares and open frames (unit tested)
+  _lib/window.js   gaps between commitments where the lanes are open (unit tested)
+  _lib/layout.js   the widget catalogue and his arrangement (unit tested)
   ping.js          public reachability check
   _lib/ics.js      iCalendar parser with recurrence (unit tested)
   _lib/calendar.js fetches the feed, caches it, finds bowling sessions
   _lib/hours.js    alley opening hours (unit tested)
   _lib/streak.js   pure date + streak math (unit tested)
-  _lib/store.js    KV read/write and first run seeding
+  _lib/store.js    KV read/write, caching, and first run seeding
 test/              node --test
+public/sw.js       offline shell, so the app opens in the Union basement
 wrangler.toml      Pages config, KV binding, START_DATE, TIMEZONE
 ```
 
@@ -70,25 +77,112 @@ email. Free for up to 50 users.
 
 ## Days you can't bowl
 
-If you genuinely can't bowl, tap **Alley closed**, **Sick**, or **Injured** under
-the score form. The day is excused: it neither breaks nor extends the streak, and
-shows in the history grid in blue (closed), purple (sick), or orange (injured).
-Like scores it can be applied to today or yesterday only, and **Undo** removes it.
-A bowled day always wins over an excuse. When the calendar has an all day event
-mentioning closed, recess, holiday, break, or no classes, the page shows a hint
-but never excuses a day on its own.
+If you genuinely can't bowl, tap **Alley closed**, **Sick**, **Injured**, or
+**Away** under the score form. The day is paused: it neither breaks nor extends
+the streak, and shows in the history grid in blue (closed), purple (sick),
+orange (injured), or pink (away). Those pills cover today or yesterday, and
+**Undo** removes them.
+
+Going home to see family is known in advance and covers several days, so
+**Going away? Pause those days** takes a range instead. Pick the first and last
+day, pick a reason, and the whole run is paused in one go. Dates in the future
+are the point: a day paused in advance does nothing to the streak until it
+arrives. A pause covers at most 60 days and reaches a year ahead. Runs you have
+already booked are listed under the link, and tapping one undoes it.
+
+A bowled day always wins over a pause, so marking a trip you end up bowling
+through costs nothing. When the calendar has an all day event mentioning closed,
+recess, holiday, break, or no classes, the page shows a hint but never pauses a
+day on its own.
+
+## Your dashboard
+
+Everything below the score form is a card you arrange. **Edit** in the top right
+reveals a star to pin a card to the top and a handle to drag it anywhere,
+including in and out of the Pinned group. Tapping a card's header folds it shut,
+and a folded card still shows its headline figure, so the whole dashboard reads
+in one screen and opens where you tap. The arrangement is stored in KV rather
+than on the device, so the phone and the iPad agree.
+
+Until you arrange it yourself the app leads with whatever matters tonight: with
+the day still open and the lanes shut or closing, Alley hours climbs above the
+statistics. The moment you move or pin a card that stops, because a dashboard
+that reshuffles under you is not one you can learn. **Back to automatic order**
+hands it back.
+
+## What it tells you
+
+`_lib/coach.js` sits on top of the raw statistics and is allowed to say nothing.
+Every observation carries a guard, so a thin log produces a short list. Nothing
+flatters: a widening swing and worsening bad games are stated as plainly as a
+personal best.
+
+- **Tonight** has no fixed content. Before the lanes open it says what your
+  first game of the night averages; mid session it says which game of the night
+  is usually your best and that there is still time for it; past last call it
+  says a game bowled earlier can still be logged.
+- **Am I getting better?** answers in words, with the arithmetic behind a *Why?*
+  button, and carries the signals that move in weeks rather than years: how
+  steady you are, your worst game lately, your best game lately. Each is a
+  number with a caption saying what it measures and which way is good.
+- **What to work on** names the single highest value thing the log can prove,
+  with the rest of the observations under it.
+- A trend is only called when its 95% interval clears zero, and until then the
+  card says how far off that is rather than drawing a hopeful arrow.
+
+## When to go
+
+With `CALENDAR_ICS_URL` set, the app subtracts today's commitments from the
+alley's hours and shows the gaps where you are free and the lanes will still
+seat a game, bounded by now at one end and last call at the other. Back to back
+classes merge into one block and a gap under 45 minutes is not offered. A day
+with nothing on the calendar gets no window, because "free until last call" is
+the opening hours read back to you.
+
+## What your games were made of
+
+A total does not say how it happened: 118 could be five strikes and five open
+frames, or no strikes and eight spares. `_lib/frames.js` works backwards. Two
+rates describe almost any bowler, and each pair implies an exact distribution of
+final scores, computed frame by frame rather than simulated. The rates that
+reproduce your average are found, and every game is read back off them.
+
+Marks, meaning strikes plus spares, are what a total really pins down: a 70 is
+ten open frames whichever way you split it. The strike to spare split is not
+determined by totals and the card says so instead of inventing a number. The
+useful figure is that scores ladder up about eleven pins per mark, so one more
+spare a night is a number you can check.
+
+It also shows that your scores swing further than any fixed pair of rates can
+produce, which means a good part of the variation is which night it is rather
+than how you bowl. The fit takes a tenth of a second, so it is cached in KV
+against a signature of the log and recomputed only when a game is logged.
 
 ## Screen sizes
 
 One column edge to edge on a phone. From 521px it becomes a centred 600px card,
 which covers iPad Split View and an iPad 12.9" in portrait. From 1100px it
-splits into two columns, streak and score entry on the left, games, hours, and
-history on the right, so an iPad 12.9" in landscape (1366 points) fills the
+splits into two columns, streak and score entry on the left and the cards you
+arranged on the right, so an iPad 12.9" in landscape (1366 points) fills the
 screen without scrolling. The card centres vertically when it is shorter than
 the viewport, and starts at the top and scrolls when it is taller.
 
-Older iPadOS is handled too: no `Object.hasOwn` or `:has()` on the critical
-path, and the history grid keeps a usable size without `aspect-ratio`.
+Older iPadOS is handled too: no `Object.hasOwn`, `:has()`, or
+`crypto.randomUUID` on the critical path, and the history grid keeps a usable
+size without `aspect-ratio`.
+
+## A logged game is never lost
+
+The alley is in the Union basement where the signal is unreliable, so a game is
+written to the device before it is sent anywhere. The form clears the moment it
+is queued and the queue flushes on load, on the refresh tick, on return from the
+background, and when the network returns, so a game survives a failed request, a
+closed tab, and a force quit. Each queued game carries an id and the server
+records the ids it has accepted, so replaying the queue cannot double log. KV has
+no compare and set, so the write reads itself back and reapplies if it did not
+land. A service worker keeps the shell, and nothing else, so the app still opens
+with no signal; today's date is derived on the client so a game can be typed
+before the server has ever answered.
 
 ## Keeping the numbers current
 

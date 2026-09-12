@@ -57,9 +57,29 @@
           <button class="pill excuse" data-reason="closed"><i class="dot excused closed"></i>Alley closed</button>
           <button class="pill excuse" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
           <button class="pill excuse" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+          <button class="pill excuse" data-reason="away"><i class="dot excused away"></i>Away</button>
         </div>
       </div>
       <div class="undo-row"><button id="unexcuse" class="pill" hidden>Undo</button></div>
+
+      <!-- A trip is known in advance and covers several days, so this stays
+           available whatever today is doing. -->
+      <button type="button" class="excuses-toggle" id="trip-open">Going away? Pause those days</button>
+      <p class="read quiet upcoming" id="upcoming" hidden></p>
+      <div class="range" id="trip" hidden>
+        <div class="range-row">
+          <label class="range-field"><span>First day</span><input id="trip-from" type="date" /></label>
+          <label class="range-field"><span>Last day</span><input id="trip-to" type="date" /></label>
+        </div>
+        <div class="pills" id="trip-reasons">
+          <button type="button" class="pill trip-reason on" data-reason="away"><i class="dot excused away"></i>Away</button>
+          <button type="button" class="pill trip-reason" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
+          <button type="button" class="pill trip-reason" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+          <button type="button" class="pill trip-reason" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+        </div>
+        <button type="button" class="add-game" id="trip-save">Pause these days</button>
+        <p class="read quiet" id="trip-note">These days will not break your streak, and will not count towards it either.</p>
+      </div>
     </section>
    </div>
 
@@ -244,6 +264,7 @@
           <span><i class="dot excused closed"></i>closed</span>
           <span><i class="dot excused sick"></i>sick</span>
           <span><i class="dot excused injured"></i>injured</span>
+          <span><i class="dot excused away"></i>away</span>
           <span><i class="dot today"></i>today</span>
         </div>
         <div class="yesterday" id="yesterday-hint" hidden>
@@ -253,6 +274,7 @@
             <button class="pill excuse-yesterday" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
             <button class="pill excuse-yesterday" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
             <button class="pill excuse-yesterday" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+            <button class="pill excuse-yesterday" data-reason="away"><i class="dot excused away"></i>Away</button>
           </div>
         </div>
       </div>

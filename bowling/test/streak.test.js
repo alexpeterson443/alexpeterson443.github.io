@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeStats, dateRange, todayIn, msUntilMidnight, addDays } from "../functions/_lib/streak.js";
+import {
+  computeStats, dateRange, todayIn, msUntilMidnight, addDays,
+  pauseRange, groupRuns, EXCUSE_REASONS, MAX_PAUSE_DAYS,
+} from "../functions/_lib/streak.js";
 
 const START = "2026-08-28";
 const seed = dateRange(START, "2026-09-03");
@@ -110,4 +113,84 @@ test("a bowled day is never excused, and a real miss still breaks the streak", (
   assert.deepEqual(s.excused, ["2026-09-05"]);       // Sep 3 was bowled, so the excuse is ignored
   assert.deepEqual(s.missed, ["2026-09-04"]);        // Sep 4 was a real miss
   assert.equal(s.current, 0);
+});
+
+test("a day away pauses the streak like any other reason", () => {
+  assert.deepEqual(EXCUSE_REASONS, ["closed", "sick", "injured", "away"]);
+  // Home to see family: the run neither breaks the streak nor extends it.
+  const stats = computeStats(
+    ["2026-09-01", "2026-09-02", "2026-09-06", "2026-09-07"],
+    "2026-09-07",
+    "2026-09-01",
+    { "2026-09-03": "away", "2026-09-04": "away", "2026-09-05": "away" },
+  );
+  assert.equal(stats.current, 4);
+  assert.equal(stats.longest, 4);
+  assert.deepEqual(stats.missed, []);
+  assert.equal(stats.excuseReasons["2026-09-04"], "away");
+});
+
+test("a pause takes a range, and checks it", () => {
+  const today = "2026-09-12";
+  const start = "2026-08-28";
+  const ok = pauseRange({ from: "2026-09-20", to: "2026-09-23", reason: "away" }, today, start);
+  assert.deepEqual(ok.dates, ["2026-09-20", "2026-09-21", "2026-09-22", "2026-09-23"]);
+  assert.equal(ok.reason, "away");
+
+  // A trip booked before it happens is the point, and one day is a range of one.
+  assert.deepEqual(pauseRange({ from: "2026-12-24", reason: "away" }, today, start).dates, ["2026-12-24"]);
+  assert.equal(pauseRange({ from: today }, today, start).reason, "closed");
+
+  // And the things it must refuse.
+  assert.match(pauseRange({ from: "2026-09-20", to: "2026-09-19" }, today, start).error, /before from/);
+  assert.match(pauseRange({ from: "2026-08-01" }, today, start).error, /nothing before 2026-08-28/);
+  assert.match(pauseRange({ from: "not-a-date" }, today, start).error, /YYYY-MM-DD/);
+  assert.match(pauseRange({ from: "2026-09-20", to: "nope" }, today, start).error, /to must be/);
+  assert.match(pauseRange({ from: today, reason: "hungover" }, today, start).error, /reason must be one of/);
+  assert.match(pauseRange({ from: "2026-09-13", to: "2027-09-13" }, today, start).error, /days ahead/);
+  assert.match(
+    pauseRange({ from: "2026-09-01", to: addDays("2026-09-01", MAX_PAUSE_DAYS) }, today, start).error,
+    /at most 60 days/,
+  );
+  // Exactly the limit is allowed.
+  assert.equal(
+    pauseRange({ from: "2026-09-01", to: addDays("2026-09-01", MAX_PAUSE_DAYS - 1) }, today, start).dates.length,
+    MAX_PAUSE_DAYS,
+  );
+});
+
+test("a day away that he bowled anyway still counts as bowled", () => {
+  const stats = computeStats(["2026-09-04"], "2026-09-05", "2026-09-01", { "2026-09-04": "away" });
+  assert.equal(stats.days.includes("2026-09-04"), true);
+  assert.equal(stats.excused.includes("2026-09-04"), false, "a scored day wins over a pause");
+});
+
+test("consecutive paused days collapse into one run", () => {
+  const runs = groupRuns([
+    { date: "2026-09-20", reason: "away" },
+    { date: "2026-09-21", reason: "away" },
+    { date: "2026-09-22", reason: "away" },
+    // A different reason starts a new run even though the day is adjacent.
+    { date: "2026-09-23", reason: "sick" },
+    // And so does a gap.
+    { date: "2026-09-25", reason: "away" },
+  ]);
+  assert.deepEqual(runs, [
+    { from: "2026-09-20", to: "2026-09-22", reason: "away", days: 3 },
+    { from: "2026-09-23", to: "2026-09-23", reason: "sick", days: 1 },
+    { from: "2026-09-25", to: "2026-09-25", reason: "away", days: 1 },
+  ]);
+  assert.deepEqual(groupRuns([]), []);
+});
+
+test("undoing a pause is not held to the start date", () => {
+  const today = "2026-09-12";
+  const start = "2026-08-28";
+  // Creating one before the start is refused, since there is no streak there.
+  assert.match(pauseRange({ from: "2026-08-01" }, today, start).error, /nothing before/);
+  // Removing one that is somehow on file must still work, whatever put it there.
+  assert.deepEqual(
+    pauseRange({ from: "2026-08-01" }, today, start, { allowBefore: true }).dates,
+    ["2026-08-01"],
+  );
 });

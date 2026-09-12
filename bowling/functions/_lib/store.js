@@ -1,4 +1,4 @@
-import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap } from "./streak.js";
+import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap, groupRuns } from "./streak.js";
 import { scoreStats } from "./scores.js";
 import { progressReport } from "./progress.js";
 import { coachReport } from "./coach.js";
@@ -171,6 +171,14 @@ export async function buildState(env, days, scores = {}, excused = null) {
       window: bowlWindow,
     }),
     frames,
+    // Days he has already marked off ahead of time, so a trip he booked last
+    // week is visible rather than a surprise when it arrives.
+    upcoming: groupRuns(
+      Object.keys(excused)
+        .filter((d) => d > today)
+        .sort()
+        .map((d) => ({ date: d, reason: excused[d] })),
+    ).slice(0, 40),
     gamesToday: (scores[today] || []).length,
     scoresToday,
     calendar,

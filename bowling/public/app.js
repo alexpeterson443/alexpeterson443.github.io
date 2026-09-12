@@ -135,6 +135,7 @@ const EXCUSES = {
   closed: { status: (n) => `Alley closed today. Streak paused at ${n}.`, confirm: "Mark today as closed?", undo: "Undo closed day", title: "alley closed" },
   sick: { status: (n) => `Sick day. Rest up, streak paused at ${n}.`, confirm: "Mark today as a sick day?", undo: "Undo sick day", title: "sick" },
   injured: { status: (n) => `Injured. Heal up, streak paused at ${n}.`, confirm: "Mark today as an injured day?", undo: "Undo injured day", title: "injured" },
+  away: { status: (n) => `Away from your alley. Streak paused at ${n}.`, confirm: "Mark today as a day away?", undo: "Undo day away", title: "away" },
 };
 const excuseCopy = (reason) => EXCUSES[reason] || EXCUSES.closed;
 
@@ -257,6 +258,7 @@ function render() {
   }
 
   renderPending();
+  renderUpcoming(s);
   renderTonight(s);
   renderBetter(s.coach);
   renderFocus(s.coach);
@@ -474,13 +476,21 @@ async function act(button, fn) {
   try {
     state = await fn();
     render();
+    return true;
   } catch (e) {
     if (e.message !== "unauthorized") {
-      $("subtitle").textContent = "That didn't save. Check your connection and try again.";
-      if (button) button.disabled = false;
+      // A 4xx carries a message written for him ("a pause covers at most 60
+      // days"); only a network failure deserves the generic line.
+      $("subtitle").textContent = e.status && e.status >= 400 && e.status < 500
+        ? e.message
+        : "That didn't save. Check your connection and try again.";
     }
+    return false;
   } finally {
     busy = false;
+    // Re-enabled whatever happened: render() only ever revives the log button,
+    // so anything else stays dead until a reload.
+    if (button) button.disabled = false;
   }
 }
 
@@ -529,6 +539,94 @@ function openForm() {
   formOpen = true;
   $("score-form").hidden = false;
   $("add-game").hidden = true;
+}
+
+// ---------- pausing a trip ----------
+
+let tripReason = "away";
+
+function tripBounds() {
+  const start = (state && state.start) || "2026-08-28";
+  const today = (state && state.today) || todayLocal();
+  const [y, m, d] = today.split("-").map(Number);
+  const ahead = new Date(Date.UTC(y, m - 1, d + 365)).toISOString().slice(0, 10);
+  return { start, today, ahead };
+}
+
+$("trip-open").addEventListener("click", () => {
+  const panel = $("trip");
+  panel.hidden = !panel.hidden;
+  $("trip-open").classList.toggle("open", !panel.hidden);
+  if (panel.hidden) return;
+  const { start, today, ahead } = tripBounds();
+  for (const id of ["trip-from", "trip-to"]) {
+    const el = $(id);
+    el.min = start;
+    el.max = ahead;
+    if (!el.value) el.value = today;
+  }
+});
+
+for (const button of document.querySelectorAll(".trip-reason")) {
+  button.addEventListener("click", () => {
+    tripReason = button.dataset.reason;
+    for (const other of document.querySelectorAll(".trip-reason")) {
+      other.classList.toggle("on", other === button);
+    }
+  });
+}
+
+// Keep the two dates in order rather than letting the server refuse them.
+$("trip-from").addEventListener("change", () => {
+  if ($("trip-to").value && $("trip-to").value < $("trip-from").value) $("trip-to").value = $("trip-from").value;
+});
+$("trip-to").addEventListener("change", () => {
+  // Guard on the field being read, not the other one: clearing this box would
+  // otherwise copy the empty value into the first day.
+  if ($("trip-to").value && $("trip-to").value < $("trip-from").value) $("trip-from").value = $("trip-to").value;
+});
+
+$("trip-save").addEventListener("click", () => {
+  const from = $("trip-from").value;
+  const to = $("trip-to").value || from;
+  if (!from) { $("trip-from").focus(); return; }
+  const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  const label = days === 1 ? prettyDate(from) : `${prettyDate(from)} to ${prettyDate(to)}`;
+  if (!confirm(`Pause ${days} day${days === 1 ? "" : "s"} (${label})? They won't break your streak, and won't count towards it either.`)) return;
+  act($("trip-save"), () => api("/api/excuse", {
+    method: "POST",
+    body: JSON.stringify({ from, to, reason: tripReason }),
+  })).then((ok) => {
+    if (!ok) return;
+    $("trip").hidden = true;
+    $("trip-open").classList.remove("open");
+  });
+});
+
+/** Days already marked off ahead of time, each run tappable to undo. */
+function renderUpcoming(s) {
+  const el = $("upcoming");
+  const runs = s.upcoming || [];
+  el.hidden = !runs.length;
+  if (el.hidden) return;
+  el.textContent = "Already paused: ";
+  for (const run of runs) {
+    const label = run.from === run.to
+      ? prettyDate(run.from)
+      : `${prettyDate(run.from)} to ${prettyDate(run.to)}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${label} · ${excuseCopy(run.reason).title}`;
+    button.title = "Tap to undo";
+    button.addEventListener("click", () => {
+      if (!confirm(`Unpause ${label}?`)) return;
+      act(button, () => api("/api/excuse", {
+        method: "DELETE",
+        body: JSON.stringify({ from: run.from, to: run.to }),
+      }));
+    });
+    el.appendChild(button);
+  }
 }
 
 $("add-game").addEventListener("click", () => {
