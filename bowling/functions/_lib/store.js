@@ -2,12 +2,14 @@ import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap }
 import { scoreStats } from "./scores.js";
 import { progressReport } from "./progress.js";
 import { coachReport } from "./coach.js";
+import { normalizeLayout } from "./layout.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
 const EXCUSED_KEY = "excused";
+const LAYOUT_KEY = "layout";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -86,6 +88,27 @@ export async function saveScores(env, scores) {
   return (await saveLedger(env, scores, ids)).games;
 }
 
+/**
+ * How he has arranged his widgets. Stored rather than kept on the device so the
+ * phone and the iPad agree, and normalised on the way out so a card added in a
+ * later release still appears.
+ */
+export async function loadLayout(env) {
+  return normalizeLayout(await env.STREAK_KV.get(LAYOUT_KEY, "json"));
+}
+
+export async function saveLayout(env, layout) {
+  const clean = normalizeLayout(layout);
+  await env.STREAK_KV.put(LAYOUT_KEY, JSON.stringify(clean));
+  return clean;
+}
+
+/** Forget his arrangement, so the app goes back to leading with what matters. */
+export async function clearLayout(env) {
+  await env.STREAK_KV.delete(LAYOUT_KEY);
+  return normalizeLayout(null);
+}
+
 export async function buildState(env, days, scores = {}, excused = null) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
@@ -99,7 +122,9 @@ export async function buildState(env, days, scores = {}, excused = null) {
   const progress = progressReport(scores);
   const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(), lastCallFromEnv(env));
   const scoresToday = (scores[today] || []).filter((n) => typeof n === "number");
+  const layout = await loadLayout(env);
   return {
+    layout,
     ...stats,
     scores: scoreStats(scores),
     progress,

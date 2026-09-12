@@ -232,13 +232,13 @@ export function insights(scores, report) {
     const rise = Math.min(...recent) - Math.min(...earlier);
     if (rise >= 5) {
       push({
-        id: "floor", weight: 74, tone: "good", title: "Your floor is rising",
-        text: `Worst of your last ${half} games is ${Math.min(...recent)}. In your first ${half} it was ${Math.min(...earlier)}. Bad games getting less bad is improvement the average is too slow to show.`,
+        id: "floor", weight: 74, tone: "good", title: "Your bad games are getting better",
+        text: `Your worst game in the last ${half} was ${Math.min(...recent)}. In your first ${half} it was ${Math.min(...earlier)}. Your bad nights are getting less bad, which your average is far too slow to show.`,
       });
     } else if (rise <= -8) {
       push({
-        id: "floor", weight: 66, tone: "bad", title: "Your floor dropped",
-        text: `Worst of your last ${half} games is ${Math.min(...recent)}, down from ${Math.min(...earlier)}. Something in the bad games got worse, not better.`,
+        id: "floor", weight: 66, tone: "bad", title: "Your bad games got worse",
+        text: `Your worst game in the last ${half} was ${Math.min(...recent)}, down from ${Math.min(...earlier)}. Your bad nights got worse, not better.`,
       });
     }
   }
@@ -251,13 +251,13 @@ export function insights(scores, report) {
       const change = report.recentSpread - Math.round(early);
       if (change <= -3) {
         push({
-          id: "consistency", weight: 70, tone: "good", title: "Tighter games",
-          text: `Your last ${report.window} games scatter by ${report.recentSpread} pins against ${Math.round(early)} early on. Repeatable is worth more than one big night.`,
+          id: "consistency", weight: 70, tone: "good", title: "You are more consistent",
+          text: `Your last ${report.window} games land within about ${report.recentSpread} pins of each other. Early on it was ${Math.round(early)}. Being able to repeat a score is worth more than one big night.`,
         });
       } else if (change >= 4) {
         push({
-          id: "consistency", weight: 60, tone: "bad", title: "Games are scattering",
-          text: `Your last ${report.window} games scatter by ${report.recentSpread} pins against ${Math.round(early)} early on. Wilder, not better, and it makes any trend harder to read.`,
+          id: "consistency", weight: 60, tone: "bad", title: "You are less consistent",
+          text: `Your last ${report.window} games are spread over about ${report.recentSpread} pins, against ${Math.round(early)} early on. More up and down, not better, and it makes any direction harder to see.`,
         });
       }
     }
@@ -291,7 +291,7 @@ export function insights(scores, report) {
       });
     } else if (rm !== null && em !== null && rm > em + 0.6) {
       push({
-        id: "volume", weight: 44, tone: "good", title: "Longer nights",
+        id: "volume", weight: 44, tone: "good", title: "Your nights got longer",
         text: `Last ${recent.length} sessions averaged ${rm.toFixed(1)} games against ${em.toFixed(1)} before. More games is how the sample gets big enough to read.`,
       });
     }
@@ -302,8 +302,8 @@ export function insights(scores, report) {
   const bestAt = values.lastIndexOf(best);
   if (n >= 6 && bestAt >= n - ROLL_WINDOW) {
     push({
-      id: "ceiling", weight: 64, tone: "good", title: "New ceiling",
-      text: `${best} on ${series[bestAt].date} is your best game, and it landed inside your last ${n - bestAt} games. A ceiling that moves is worth more than an average that has not.`,
+      id: "ceiling", weight: 64, tone: "good", title: "A new best game",
+      text: `${best} is the best game you have bowled, and it came in your last ${n - bestAt} games. Your top end moving is worth more than an average that has not.`,
     });
   }
 
@@ -312,7 +312,7 @@ export function insights(scores, report) {
   if (run && run.run >= 3) {
     push(run.above
       ? { id: "run", weight: 56, tone: "good", title: `${run.run} straight above average`, text: `Every one of your last ${run.run} games beat your ${run.average} average. Keep bowling while this holds.` }
-      : { id: "run", weight: 62, tone: "bad", title: `${run.run} straight below average`, text: `Your last ${run.run} games all came in under your ${run.average} average. Worth checking something concrete: ball, lane, or how tired you were.` });
+      : { id: "run", weight: 62, tone: "bad", title: `${run.run} straight below average`, text: `Your last ${run.run} games all came in under your ${run.average} average. Worth checking something concrete: the ball, the lane, or how tired you were.` });
   }
 
   // Best and worst weekday, once there is more than one session on each.
@@ -334,18 +334,86 @@ export function insights(scores, report) {
     const eta = trendEta(series);
     if (eta && eta.games > 0 && eta.games <= 200) {
       push({
-        id: "eta", weight: 46, tone: "flat", title: "How far off a verdict is",
-        text: `At your current slope and scatter it takes about ${eta.at} games before the trend clears zero. That is ${eta.games} more. Bowling more games is the only thing that shortens it.`,
+        id: "eta", weight: 46, tone: "flat", title: "When you will know",
+        text: `Your scores swing far enough that it takes roughly ${eta.at} games logged before anyone could call the direction. That is ${eta.games} more. Bowling more games per night is the only thing that brings it closer, and steadier scores would cut it sharply.`,
       });
     }
   } else if (n < MIN_TREND_GAMES) {
     push({
-      id: "eta", weight: 40, tone: "flat", title: "Too early for a trend",
-      text: `${MIN_TREND_GAMES - n} more ${MIN_TREND_GAMES - n === 1 ? "game" : "games"} before a slope means anything. Until then the panel reports counts, not direction.`,
+      id: "eta", weight: 40, tone: "flat", title: "Too early to tell",
+      text: `${MIN_TREND_GAMES - n} more ${MIN_TREND_GAMES - n === 1 ? "game" : "games"} before a direction means anything. Until then this shows you what happened, not where it is heading.`,
     });
   }
 
   return out.sort((a, b) => b.weight - a.weight);
+}
+
+/**
+ * The plain answer to the only question he actually asks, plus the things that
+ * are measurable right now even when the direction is not.
+ *
+ * The trend is usually the least useful number in a first season: it needs
+ * hundreds of games. Consistency and the worst game move in weeks, and they
+ * move for reasons he can act on, so they carry the card while the trend is
+ * still unreadable. Each signal says what it is in a sentence, because a number
+ * with no caption is the reason the old panel was unreadable.
+ */
+export function better(scores, report) {
+  const series = gameSeries(scores);
+  const values = series.map((g) => g.score);
+  const n = values.length;
+  const signals = [];
+
+  if (n >= 8) {
+    const half = Math.min(ROLL_WINDOW, Math.floor(n / 2));
+    const recent = values.slice(-half);
+    const early = values.slice(0, half);
+
+    const nowSwing = spread(recent);
+    const thenSwing = spread(early);
+    if (nowSwing !== null && thenSwing !== null) {
+      const now = Math.round(nowSwing);
+      const then = Math.round(thenSwing);
+      signals.push({
+        id: "swing",
+        label: "How steady you are",
+        value: `${now} pins`,
+        direction: now < then - 2 ? "better" : now > then + 2 ? "worse" : "level",
+        detail: `Your last ${half} games land within about ${now} pins of each other. Over your first ${half} it was ${then}. Smaller means you can repeat it.`,
+      });
+    }
+
+    const worstNow = Math.min(...recent);
+    const worstThen = Math.min(...early);
+    signals.push({
+      id: "worst",
+      label: "Your worst game lately",
+      value: String(worstNow),
+      direction: worstNow > worstThen + 4 ? "better" : worstNow < worstThen - 4 ? "worse" : "level",
+      detail: `The worst of your last ${half} games was ${worstNow}. Early on it was ${worstThen}. Bad games getting less bad is usually the first real sign of progress.`,
+    });
+
+    const bestNow = Math.max(...recent);
+    const bestEver = Math.max(...values);
+    signals.push({
+      id: "best",
+      label: "Your best game lately",
+      value: String(bestNow),
+      direction: bestNow >= bestEver ? "better" : "level",
+      detail: bestNow >= bestEver
+        ? `${bestNow} is the best you have bowled, and it happened in your last ${half} games.`
+        : `Best of your last ${half} games was ${bestNow}. Your record is ${bestEver}.`,
+    });
+  }
+
+  return {
+    answer: report.verdict.headline,
+    because: report.verdict.text,
+    detail: report.verdict.detail,
+    state: report.verdict.state,
+    games: n,
+    signals,
+  };
 }
 
 /** Targets computed from his own log rather than round numbers picked for him. */
@@ -461,6 +529,7 @@ export function coachReport(scores, report, ctx = {}) {
     last: lastGame(series),
     // Sent so the bar chart and the observation quote one figure, not two.
     warmup: warmupGap(report.session.rows),
+    better: better(scores, report),
     focus,
     insights: ranked.filter((i) => i !== focus).slice(0, 3),
     milestones: milestones(scores, report),

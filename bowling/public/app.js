@@ -163,9 +163,6 @@ function prettyDate(iso) {
 function render() {
   const s = state;
   $("streak").textContent = s.current;
-  $("total").textContent = s.total;
-  $("longest").textContent = s.longest;
-  $("high").textContent = s.scores.high ?? "–";
   $("subtitle").textContent = `Started ${prettyDate(s.start)} · ${prettyDate(s.today)}`;
 
   const status = $("status");
@@ -211,10 +208,8 @@ function render() {
   dateInput.max = s.today;
   if (!dateInput.value || dateInput.value > s.today || dateInput.value < s.start) dateInput.value = s.today;
   $("score-summary").textContent = sc.games
-    ? `${sc.games} game${sc.games === 1 ? "" : "s"}` + (sc.scored ? ` · best on ${prettyDate(sc.highDate)}` : "")
+    ? `${sc.games} game${sc.games === 1 ? "" : "s"}`
     : "Nothing logged yet";
-  $("avg").textContent = sc.average ?? "–";
-  $("high").textContent = sc.high ?? "–";
   const games = $("games");
   games.innerHTML = "";
   for (const d of sc.days) {
@@ -245,10 +240,13 @@ function render() {
   }
 
   renderPending();
-  renderProgress(s.progress, s.coach);
   renderTonight(s);
-  renderInsights(s.coach);
-  rankPanels(s);
+  renderBetter(s.coach);
+  renderFocus(s.coach);
+  renderNumbers(s);
+  renderChartCard(s.progress);
+  drawWarmup(s.progress, s.coach);
+  applyLayout(s);
 
   // Calendar: what the schedule says about bowling.
   const cal = s.calendar || { configured: false };
@@ -324,7 +322,7 @@ function render() {
     $("hours-note").textContent = hours.lastCallMinutes
       ? `Last game goes on ${hours.lastCallMinutes} minutes before close.`
       : "";
-    $("hours-today").textContent = hours.closedToday ? "Closed today" : `Today ${hours.todayLabel}`;
+    $("hours-today").textContent = hours.closedToday ? "Closed today" : hours.todayLabel;
     const week = $("hours-week");
     week.innerHTML = "";
     for (const row of hours.week) {
@@ -343,6 +341,7 @@ function render() {
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
+  $("history-meta").textContent = `${s.total} day${s.total === 1 ? "" : "s"} bowled`;
 
   // Calendar grid: week rows starting Monday, from the start date to today.
   const grid = $("grid");
@@ -525,24 +524,25 @@ function svg(tag, attrs, text) {
 }
 
 /**
- * The progress panel. Everything here is either a plain count or a claim the
- * server already checked against the scatter in the log, so nothing on screen
- * asserts a trend the data cannot support.
+ * The chart card: recent form against the lifetime average, then every game.
  *
- * Drawn as SVG geometry rather than positioned elements: the CSP has no
- * style-src, so it falls back to default-src and any inline style is blocked.
+ * Drawn as SVG geometry rather than positioned elements. The CSP sets no
+ * style-src so it falls back to default-src, which refuses a style attribute
+ * written with setAttribute; CSSOM writes such as el.style.transform are not
+ * refused, which is what makes the drag below possible.
  */
-function renderProgress(p, coach) {
-  const panel = $("progress");
-  if (!p || !p.games) { panel.hidden = true; return; }
-  panel.hidden = false;
+function renderChartCard(p) {
+  const card = widget("chart");
+  if (!card) return;
+  const empty = !p || !p.games;
+  card.hidden = empty;
+  if (empty) return;
 
-  $("progress-window").textContent = `${p.games} game${p.games === 1 ? "" : "s"} on record`;
+  $("chart-meta").textContent = `${p.games} game${p.games === 1 ? "" : "s"}`;
   $("form-avg").textContent = p.recentAverage ?? "–";
-  panel.querySelector(".form-now small").textContent =
+  card.querySelector(".form-now small").textContent =
     p.window < 10 ? `last ${p.window} games` : "last 10 games";
 
-  // Recent form against the lifetime average: the number that actually moves.
   const delta = $("form-delta");
   if (p.delta === null || p.games < 3) {
     delta.hidden = true;
@@ -551,22 +551,144 @@ function renderProgress(p, coach) {
     delta.className = "delta" + (p.delta > 0 ? " up" : p.delta < 0 ? " down" : "");
     delta.textContent = p.delta === 0
       ? `level with your ${p.average} average`
-      : `${p.delta > 0 ? "+" : ""}${p.delta} vs your ${p.average} average`;
+      : `${p.delta > 0 ? "+" : ""}${p.delta} on your ${p.average} average`;
   }
 
-  const verdict = $("verdict");
-  verdict.textContent = p.verdict.text;
-  verdict.className = "verdict " + p.verdict.state;
-
   drawChart(p);
-  drawWarmup(p, coach);
+}
 
-  $("fact-spread").textContent = p.spread === null ? "–" : `±${p.spread}`;
-  // A series is a fixed three game block, so the totals are comparable.
-  $("fact-best").textContent = p.best ? p.best.total : "–";
-  panel.querySelector("#fact-best + small").textContent = p.best
-    ? `best 3 on ${prettyDate(p.best.date).replace(/^\w+, /, "")}`
-    : "best 3 games";
+/**
+ * My numbers, each with a caption saying what it is.
+ *
+ * The old panel showed "±24" under the words "pin spread", which meant nothing
+ * unless you already knew. Every row here says what the number measures and
+ * which direction is good.
+ */
+function renderNumbers(s) {
+  const p = s.progress;
+  const sc = s.scores;
+  const rows = [];
+
+  rows.push({ label: "Average", value: sc.average ?? "–", caption: p.games ? `across all ${p.games} games` : "no games yet" });
+  if (sc.high !== null) rows.push({ label: "Best game", value: sc.high, caption: prettyDate(sc.highDate) });
+  if (p.best) rows.push({ label: "Best three in a row", value: p.best.total, caption: `${prettyDate(p.best.date)}, ${Math.round(p.best.total / 3)} a game` });
+  if (p.spread !== null) {
+    rows.push({
+      label: "Game to game swing", value: `${p.spread} pins`,
+      caption: "how far your games usually sit from each other. Smaller means you can repeat it.",
+    });
+  }
+  rows.push({ label: "Days bowled", value: s.total, caption: `longest run ${s.longest} day${s.longest === 1 ? "" : "s"}` });
+
+  const list = $("metrics");
+  list.innerHTML = "";
+  for (const r of rows) {
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    label.className = "m-label";
+    label.textContent = r.label;
+    const value = document.createElement("span");
+    value.className = "m-value";
+    value.textContent = r.value;
+    const caption = document.createElement("span");
+    caption.className = "m-caption";
+    caption.textContent = r.caption;
+    li.append(label, value, caption);
+    list.appendChild(li);
+  }
+  $("numbers-meta").textContent = p.games ? `${p.games} game${p.games === 1 ? "" : "s"}` : "";
+
+  renderTargets(s.coach);
+}
+
+/** The plain answer card. Words first, the statistics behind a Why? button. */
+function renderBetter(c) {
+  const card = widget("better");
+  if (!card) return;
+  const b = c && c.better;
+  card.hidden = !b;
+  if (!b) return;
+
+  $("better-answer").textContent = b.answer;
+  $("better-answer").className = "answer " + b.state;
+  $("better-because").textContent = b.because;
+  $("better-games").textContent = b.games ? `${b.games} game${b.games === 1 ? "" : "s"}` : "";
+
+  const more = $("better-more");
+  const detail = $("better-detail");
+  more.hidden = !b.detail;
+  detail.textContent = b.detail || "";
+  if (!b.detail) detail.hidden = true;
+
+  const list = $("better-signals");
+  list.innerHTML = "";
+  for (const sig of b.signals) {
+    const li = document.createElement("li");
+    li.className = `signal ${sig.direction}`;
+    const label = document.createElement("span");
+    label.className = "s-label";
+    label.textContent = sig.label;
+    const value = document.createElement("span");
+    value.className = "s-value";
+    value.textContent = sig.value;
+    const note = document.createElement("span");
+    note.className = "s-detail";
+    note.textContent = sig.detail;
+    li.append(label, value, note);
+    list.appendChild(li);
+  }
+}
+
+/** The one thing to work on, with the rest of the observations under it. */
+function renderFocus(c) {
+  const card = widget("focus");
+  if (!card) return;
+  const focus = c && c.focus;
+  const items = (c && c.insights) || [];
+  card.hidden = !focus && !items.length;
+  if (card.hidden) return;
+
+  const title = $("focus-title");
+  const text = $("focus-text");
+  if (focus) {
+    title.hidden = false;
+    title.textContent = focus.title;
+    title.className = "answer small " + focus.tone;
+    text.textContent = focus.text;
+  } else {
+    title.hidden = true;
+    text.textContent = "Nothing in your log points at one thing to fix right now.";
+  }
+
+  const list = $("insights");
+  list.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = `insight ${item.tone}`;
+    const head = document.createElement("strong");
+    head.textContent = item.title;
+    const body = document.createElement("span");
+    body.textContent = item.text;
+    li.append(head, body);
+    list.appendChild(li);
+  }
+}
+
+/** Concrete targets, sitting under My numbers. */
+function renderTargets(c) {
+  const targets = (c && c.milestones) || [];
+  $("targets").hidden = !targets.length;
+  const rows = $("target-list");
+  rows.innerHTML = "";
+  for (const t of targets) {
+    const li = document.createElement("li");
+    const label = document.createElement("strong");
+    label.textContent = t.label;
+    const body = document.createElement("span");
+    body.textContent = t.text;
+    li.append(label, body);
+    rows.appendChild(li);
+  }
 }
 
 function drawChart(p) {
@@ -649,7 +771,8 @@ function drawChart(p) {
 }
 
 function drawWarmup(p, coach) {
-  const box = $("warmup");
+  const box = widget("warmup");
+  if (!box) return;
   const rows = p.session.rows;
   if (rows.length < 2) { box.hidden = true; return; }
   box.hidden = false;
@@ -731,17 +854,19 @@ function ordinal(n) {
 }
 
 /**
- * The Tonight panel: form, the prompt for this hour, and the one thing worth
- * acting on. This is the block that has no fixed content at all.
+ * Tonight: the prompt for this hour and how the last few games are going.
+ * The block with no fixed content at all.
  */
 function renderTonight(s) {
   const c = s.coach;
-  const panel = $("tonight");
+  const panel = widget("tonight");
+  if (!panel) return;
   if (!c) { panel.hidden = true; return; }
   panel.hidden = false;
 
   // The accent follows form, so the app looks different when he is bowling
-  // differently. Set as an attribute because the CSP blocks inline styles.
+  // differently. A data attribute against fixed rules, not a style attribute,
+  // which the CSP does refuse.
   document.body.dataset.form = c.form.state;
 
   const chip = $("form-chip");
@@ -754,79 +879,292 @@ function renderTonight(s) {
   const formRead = $("form-read");
   formRead.hidden = !c.form.text;
   if (c.form.text) formRead.textContent = c.form.text;
-
-  const focus = $("focus");
-  focus.hidden = !c.focus;
-  if (c.focus) {
-    focus.className = `focus ${c.focus.tone}`;
-    $("focus-title").textContent = c.focus.title;
-    $("focus-text").textContent = c.focus.text;
-  }
 }
 
-/** Ranked observations and the targets that follow from them. */
-function renderInsights(c) {
-  const list = $("insights");
-  list.innerHTML = "";
-  for (const item of (c && c.insights) || []) {
-    const li = document.createElement("li");
-    li.className = `insight ${item.tone}`;
-    const head = document.createElement("strong");
-    head.textContent = item.title;
-    const body = document.createElement("span");
-    body.textContent = item.text;
-    li.append(head, body);
-    list.appendChild(li);
-  }
+// ---------- widgets ----------
+//
+// Every card below the score form is a widget: pin it to the top, drag it into
+// any order, fold it shut. The arrangement lives on the server so the phone and
+// the iPad agree, with a copy on the device so a cold offline launch still
+// opens in the order he left it.
+//
+// Until he arranges it himself the app is free to lead with whatever matters
+// tonight. The moment he moves a card that stops: his order wins and nothing
+// reshuffles under him again, which is the difference between a dashboard and
+// a dashboard you can trust.
 
-  const targets = (c && c.milestones) || [];
-  $("targets").hidden = !targets.length;
-  const rows = $("target-list");
-  rows.innerHTML = "";
-  for (const t of targets) {
-    const li = document.createElement("li");
-    const label = document.createElement("strong");
-    label.textContent = t.label;
-    const body = document.createElement("span");
-    body.textContent = t.text;
-    li.append(label, body);
-    rows.appendChild(li);
-  }
+const LAYOUT_STORE = "bowl_layout";
+const FALLBACK_ORDER = ["tonight", "better", "focus", "numbers", "chart", "warmup", "games", "hours", "history"];
+
+let layout = null;
+let editing = false;
+let layoutTimer = null;
+let layoutDirty = false;
+
+const widget = (id) => document.querySelector(`[data-widget="${id}"]`);
+const zone = (name) => $(`zone-${name}`);
+const placedCards = () => [...document.querySelectorAll(".zone [data-widget]")];
+
+function storedLayout() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAYOUT_STORE) || "null");
+    return raw && Array.isArray(raw.order) ? raw : null;
+  } catch { return null; }
+}
+
+function keepLayout(l) {
+  try { localStorage.setItem(LAYOUT_STORE, JSON.stringify(l)); } catch {}
 }
 
 /**
- * Which panel gets the top of its column.
+ * What to lead with when he has not arranged the cards himself.
  *
- * With the day running out the lanes matter more than the statistics, so Alley
- * hours climbs; once the day is settled the numbers lead. Ordering is applied
- * through a data attribute against fixed CSS rules, never an inline style.
+ * With the day still open and the lanes shut or closing, where the lanes are up
+ * to matters more than any statistic. Once the day is settled the numbers lead.
  */
-function rankPanels(s) {
-  const side = {
-    progress: $("progress"),
-    scores: document.querySelector(".scores"),
-    hours: document.querySelector(".hours"),
-    history: document.querySelector(".history"),
-  };
+function suggestedOrder(s, base) {
+  if (!s) return base;
   const h = s.hours;
   const unsettled = !s.verifiedToday && !s.excusedToday;
   const running = unsettled && h && (
     h.closedToday || !h.open || h.lastCallPassed ||
     (h.msUntilLastCall !== null && h.msUntilLastCall < 3 * 3_600_000)
   );
-
-  const order = [];
-  if (running) order.push("hours");
-  if (s.progress && s.progress.games) order.push("progress");
-  order.push("scores");
-  if (!order.includes("hours")) order.push("hours");
-  if (!order.includes("progress")) order.push("progress");
-  order.push("history");
-
-  order.forEach((key, i) => {
-    if (side[key]) side[key].dataset.rank = String(i + 1);
-  });
+  const lead = [];
+  if (running) lead.push("hours");
+  lead.push("tonight");
+  if (s.coach && s.coach.focus) lead.push("focus");
+  lead.push("better");
+  return [...lead, ...base.filter((id) => !lead.includes(id))];
 }
+
+/** Move every card into its zone, in order. */
+function applyLayout(s) {
+  const incoming = (s && s.layout) || layout || storedLayout();
+  layout = {
+    order: [...FALLBACK_ORDER],
+    pinned: [],
+    collapsed: [],
+    custom: false,
+    ...(incoming || {}),
+  };
+  // Anything the server has never heard of still has to appear somewhere.
+  for (const id of FALLBACK_ORDER) if (!layout.order.includes(id)) layout.order.push(id);
+
+  const order = layout.custom ? layout.order : suggestedOrder(s, layout.order);
+  const pinnedZone = zone("pinned");
+  const restZone = zone("rest");
+
+  for (const id of order) {
+    const el = widget(id);
+    if (!el) continue;
+    // appendChild moves an existing node, so walking the order in sequence is
+    // all the sorting this needs.
+    (layout.pinned.includes(id) ? pinnedZone : restZone).appendChild(el);
+    el.classList.toggle("folded", layout.collapsed.includes(id));
+    const pin = el.querySelector(".w-pin");
+    if (pin) {
+      const on = layout.pinned.includes(id);
+      pin.classList.toggle("on", on);
+      pin.setAttribute("aria-label", on ? "Unpin card" : "Pin card");
+    }
+  }
+
+  const anyPinned = layout.pinned.some((id) => {
+    const el = widget(id);
+    return el && !el.hidden;
+  });
+  pinnedZone.hidden = !anyPinned && !editing;
+  pinnedZone.classList.toggle("empty", !anyPinned);
+}
+
+/** Read the arrangement back off the DOM after he has changed it. */
+function captureLayout() {
+  const order = [];
+  const pinned = [];
+  const collapsed = [];
+  for (const el of placedCards()) {
+    const id = el.dataset.widget;
+    order.push(id);
+    if (el.closest(".zone").dataset.zone === "pinned") pinned.push(id);
+    if (el.classList.contains("folded")) collapsed.push(id);
+  }
+  layout = { order, pinned, collapsed, custom: true };
+  keepLayout(layout);
+  return layout;
+}
+
+/** Send it up, coalescing a flurry of drags into one write. */
+function persistLayout() {
+  clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(async () => {
+    try {
+      const saved = await api("/api/layout", { method: "PUT", body: JSON.stringify(layout) });
+      layout = saved;
+      keepLayout(layout);
+      layoutDirty = false;
+    } catch {
+      // The arrangement is already on the device, so this is worth a retry
+      // later rather than an error in his face.
+      layoutDirty = true;
+    }
+  }, 400);
+}
+
+function setEditing(on) {
+  if (!layout) return;
+  editing = on;
+  document.body.classList.toggle("editing", on);
+  $("edit-toggle").textContent = on ? "Done" : "Edit";
+  $("edit-note").hidden = !on;
+  zone("pinned").hidden = !layout.pinned.some((id) => {
+    const el = widget(id);
+    return el && !el.hidden;
+  }) && !on;
+}
+
+$("edit-toggle").addEventListener("click", () => setEditing(!editing));
+
+// Back to the app deciding. Useful precisely because arranging it himself is
+// otherwise permanent.
+$("layout-reset").addEventListener("click", async () => {
+  clearTimeout(layoutTimer);
+  try {
+    layout = await api("/api/layout", { method: "DELETE" });
+    keepLayout(layout);
+    layoutDirty = false;
+    applyLayout(state);
+  } catch {
+    $("subtitle").textContent = "Could not reset the order. Check your connection.";
+  }
+});
+
+document.addEventListener("click", (e) => {
+  const pin = e.target.closest(".w-pin");
+  if (pin && layout) {
+    const el = pin.closest("[data-widget]");
+    const id = el.dataset.widget;
+    const next = layout.pinned.includes(id)
+      ? layout.pinned.filter((x) => x !== id)
+      : [...layout.pinned, id];
+    // Pinning is an arrangement, so it counts as his order from here on.
+    layout = { ...layout, pinned: next, custom: true };
+    applyLayout(null);
+    captureLayout();
+    persistLayout();
+    return;
+  }
+  const fold = e.target.closest(".w-fold");
+  if (fold) {
+    fold.closest("[data-widget]").classList.toggle("folded");
+    captureLayout();
+    persistLayout();
+    return;
+  }
+  const more = e.target.closest(".more");
+  if (more) {
+    const detail = $("better-detail");
+    detail.hidden = !detail.hidden;
+    more.textContent = detail.hidden ? "Why?" : "Hide";
+  }
+});
+
+// ---------- drag ----------
+//
+// The card follows the finger through a transform while the list reorders live
+// underneath it. Each reorder changes the card's own layout position, so the
+// shift it causes is measured and folded back into the transform; without that
+// the card would jump by its own height every time it swapped places.
+
+let drag = null;
+
+function setDragTranslate(px) {
+  drag.translate = px;
+  // A CSSOM write. The CSP refuses setAttribute("style", ...) but not this.
+  drag.el.style.transform = `translateY(${px}px)`;
+}
+
+/** Where the card would sit with no transform applied. */
+function dragLayoutTop() {
+  return drag.el.getBoundingClientRect().top - drag.translate;
+}
+
+function reorderTo(y) {
+  const el = drag.el;
+
+  // An empty zone has no card to aim at, so the zone itself is the target.
+  // This is the only way to pin the very first card by dragging.
+  for (const z of [zone("pinned"), zone("rest")]) {
+    if (z.hidden || z.querySelector("[data-widget]:not(.dragging)")) continue;
+    const r = z.getBoundingClientRect();
+    if (y >= r.top && y <= r.bottom && el.parentNode !== z) { z.appendChild(el); return; }
+  }
+
+  const others = placedCards().filter((c) => c !== el);
+  for (const c of others) {
+    const r = c.getBoundingClientRect();
+    if (y < r.top + r.height / 2) {
+      if (c !== el.nextElementSibling) c.parentNode.insertBefore(el, c);
+      return;
+    }
+  }
+  const last = others[others.length - 1];
+  const host = last ? last.parentNode : zone("rest");
+  if (el.parentNode !== host || el.nextElementSibling !== null) host.appendChild(el);
+}
+
+/** Keep dragging usable on a long list by nudging the page at the edges. */
+function edgeScroll(y) {
+  const margin = 90;
+  if (y < margin) window.scrollBy(0, -Math.ceil((margin - y) / 6));
+  else if (y > window.innerHeight - margin) window.scrollBy(0, Math.ceil((y - (window.innerHeight - margin)) / 6));
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (!editing || e.button !== 0) return;
+  const grip = e.target.closest(".w-grip");
+  if (!grip) return;
+  const el = grip.closest("[data-widget]");
+  if (!el) return;
+  e.preventDefault();
+  grip.setPointerCapture(e.pointerId);
+  drag = { el, grip, pointerId: e.pointerId, startY: e.clientY, shift: 0, translate: 0, moved: false };
+  el.classList.add("dragging");
+  document.body.classList.add("dragging-now");
+});
+
+document.addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  e.preventDefault();
+  drag.moved = true;
+  setDragTranslate(e.clientY - drag.startY + drag.shift);
+
+  const before = dragLayoutTop();
+  reorderTo(e.clientY);
+  const after = dragLayoutTop();
+  if (after !== before) {
+    // The list moved the card; cancel that out so it stays under the finger.
+    drag.shift -= after - before;
+    setDragTranslate(e.clientY - drag.startY + drag.shift);
+  }
+  edgeScroll(e.clientY);
+});
+
+function endDrag() {
+  if (!drag) return;
+  const { el, moved } = drag;
+  el.style.transform = "";
+  el.classList.remove("dragging");
+  document.body.classList.remove("dragging-now");
+  drag = null;
+  if (!moved) return;
+  captureLayout();
+  applyLayout(null);
+  persistLayout();
+}
+
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
 
 // Keep the stats current without a manual reload. The page can sit open on the
 // home screen for hours, and a game logged on another device would otherwise
@@ -848,6 +1186,7 @@ window.addEventListener("pageshow", (e) => {
 
 // Signal is back: send anything the basement swallowed.
 window.addEventListener("online", () => {
+  if (layoutDirty) persistLayout();
   flushOutbox().then((sent) => { if (!sent) load({ quiet: true }); });
 });
 

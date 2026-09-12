@@ -172,15 +172,25 @@ export function bestSession(scores, size = SERIES_GAMES) {
 export function verdict(series) {
   const n = series.length;
   if (n < MIN_TREND_GAMES) {
+    const left = MIN_TREND_GAMES - n;
     return {
       state: "early",
       games: n,
-      needed: MIN_TREND_GAMES - n,
-      text: `${MIN_TREND_GAMES - n} more ${MIN_TREND_GAMES - n === 1 ? "game" : "games"} before a trend means anything.`,
+      needed: left,
+      headline: "Too early to tell",
+      text: `${left} more ${left === 1 ? "game" : "games"} and this can start looking for a direction.`,
+      detail: `A handful of games cannot tell getting better apart from having a good night. ${MIN_TREND_GAMES} games is the least it takes to try.`,
     };
   }
   const t = trend(series);
-  if (!t || t.low === null) return { state: "early", games: n, needed: 1, text: "Not enough spread to read a trend." };
+  if (!t || t.low === null) {
+    return {
+      state: "early", games: n, needed: 1,
+      headline: "Too early to tell",
+      text: "Your games are too alike so far to read a direction from them.",
+      detail: "Reading a direction needs some variety in the scores as well as enough of them.",
+    };
+  }
 
   // Reported per ten games rather than per week. A weekly rate would mean
   // multiplying by a games per week figure measured over a handful of days,
@@ -195,17 +205,40 @@ export function verdict(series) {
     gamesPerWeek: gamesPerWeek(series) === null ? null : Math.round(gamesPerWeek(series)),
   };
 
+  // Signed pins read as plain words, since "from -2 to 27 pins" is the kind of
+  // line that makes someone stop reading the panel.
+  const span = (lo, hi) => {
+    const a = Math.round(lo);
+    const b = Math.round(hi);
+    if (a >= 0) return `${a} to ${b} pins better`;
+    if (b <= 0) return `${Math.abs(b)} to ${Math.abs(a)} pins worse`;
+    return `${Math.abs(a)} pins worse to ${b} pins better`;
+  };
+  const range = span(per10(t.low), per10(t.high));
+
   if (t.low > 0) {
-    return { ...out, state: "improving", text: `Improving, about ${Math.round(per10(t.slope))} pins every 10 games.` };
+    return {
+      ...out, state: "improving",
+      headline: "Yes, you are improving",
+      text: `About ${Math.round(per10(t.slope))} pins better every 10 games.`,
+      detail: `Your scores still jump around, but not by enough to explain the climb. Over 10 games the honest range is ${range}.`,
+    };
   }
   if (t.high < 0) {
-    return { ...out, state: "declining", text: `Sliding, about ${Math.round(Math.abs(per10(t.slope)))} pins every 10 games.` };
+    return {
+      ...out, state: "declining",
+      headline: "You are going backwards",
+      text: `About ${Math.round(Math.abs(per10(t.slope)))} pins worse every 10 games.`,
+      detail: `This is not just a bad night. Over 10 games the honest range is ${range}.`,
+    };
   }
   return {
     ...out,
     state: "flat",
-    // The interval is the finding. It says exactly how much the log rules out.
-    text: `No trend yet. Over 10 games the data still allows anything from ${Math.round(per10(t.low))} to ${Math.round(per10(t.high))} pins.`,
+    headline: "Cannot tell yet",
+    text: `Your games swing too far apart for ${n} of them to show a direction.`,
+    // The interval is still the finding; it is just said in words now.
+    detail: `Over 10 games this stretch fits anything from ${range}, so calling it either way would be guessing.`,
   };
 }
 

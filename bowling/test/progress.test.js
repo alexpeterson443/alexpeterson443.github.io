@@ -109,10 +109,11 @@ test("a short log refuses to call a trend and says how many games are missing", 
   assert.equal(v.state, "early");
   assert.equal(v.games, 6);
   assert.equal(v.needed, MIN_TREND_GAMES - 6);
+  assert.equal(v.headline, "Too early to tell");
   assert.match(v.text, /6 more games/);
 
   const one = verdict(gameSeries(log([Array(MIN_TREND_GAMES - 1).fill(95)])));
-  assert.match(one.text, /1 more game before/);
+  assert.match(one.text, /^1 more game and this/);
 });
 
 test("a genuine climb is reported with a rate, noise is reported as no trend", () => {
@@ -121,16 +122,22 @@ test("a genuine climb is reported with a rate, noise is reported as no trend", (
   assert.equal(up.slopePerGame, 1);
   assert.equal(up.slopePer10, 10);         // a pin a game is ten over the rolling window
   assert.equal(up.gamesPerWeek, 21);
-  assert.match(up.text, /Improving, about 10 pins every 10 games/);
+  assert.equal(up.headline, "Yes, you are improving");
+  assert.match(up.text, /About 10 pins better every 10 games/);
+  assert.match(up.detail, /honest range is 10 to 10 pins better/);
 
   const noisy = verdict(gameSeries(log([[70, 130, 70], [130, 70, 130], [70, 130, 70], [130, 70, 130]])));
   assert.equal(noisy.state, "flat");
   assert.ok(noisy.lowPer10 < 0 && noisy.highPer10 > 0);
-  assert.match(noisy.text, /No trend yet/);
+  assert.equal(noisy.headline, "Cannot tell yet");
+  assert.match(noisy.text, /swing too far apart for 12 of them/);
+  // The interval is still the finding; it is only said in words now.
+  assert.match(noisy.detail, /pins worse to \d+ pins better/);
 
   const down = verdict(gameSeries(log([[111, 110, 109], [108, 107, 106], [105, 104, 103], [102, 101, 100]])));
   assert.equal(down.state, "declining");
-  assert.match(down.text, /Sliding, about 10 pins every 10 games/);
+  assert.equal(down.headline, "You are going backwards");
+  assert.match(down.text, /About 10 pins worse every 10 games/);
 });
 
 test("the report separates recent form from the lifetime average", () => {

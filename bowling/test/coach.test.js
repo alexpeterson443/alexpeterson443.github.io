@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { progressReport, gameSeries } from "../functions/_lib/progress.js";
 import {
   form, lastGame, averageTarget, trendEta, sessions, byWeekday, warmupGap,
-  insights, milestones, sessionPrompt, coachReport, FORM_WINDOW,
+  insights, milestones, sessionPrompt, coachReport, better, FORM_WINDOW,
 } from "../functions/_lib/coach.js";
 
 /** Days of games, starting Fri 2026-09-04. */
@@ -130,7 +130,8 @@ test("a thin log says it is thin and nothing more", () => {
   const scores = log([[100, 105], [95, 110]]);
   const found = insights(scores, progressReport(scores));
   assert.deepEqual(found.map((i) => i.id), ["eta"]);
-  assert.match(found[0].text, /8 more games before a slope means anything/);
+  assert.equal(found[0].title, "Too early to tell");
+  assert.match(found[0].text, /8 more games before a direction means anything/);
 });
 
 test("a warm up gap outranks everything else he can act on", () => {
@@ -187,13 +188,15 @@ test("a rising floor is reported, and so is a falling one", () => {
   const rising = insights(up, progressReport(up)).find((i) => i.id === "floor");
   assert.ok(rising);
   assert.equal(rising.tone, "good");
-  assert.match(rising.text, /Bad games getting less bad/);
+  assert.equal(rising.title, "Your bad games are getting better");
+  assert.match(rising.text, /bad nights are getting less bad/);
 
   const down = log([[95, 98, 100], [96, 99, 102], [60, 65, 70], [62, 68, 72]]);
   const falling = insights(down, progressReport(down)).find((i) => i.id === "floor");
   assert.ok(falling);
   assert.equal(falling.tone, "bad");
-  assert.match(falling.text, /got worse, not better/);
+  assert.equal(falling.title, "Your bad games got worse");
+  assert.match(falling.text, /bad nights got worse, not better/);
 });
 
 test("shorter nights are called out hardest when there is a warm up gap", () => {
@@ -209,16 +212,16 @@ test("shorter nights are called out hardest when there is a warm up gap", () => 
 
 test("a tightening spread is progress and a widening one is not", () => {
   const tight = log([[40, 100, 160], [50, 110, 170], [104, 105, 106], [103, 105, 107]]);
-  const better = insights(tight, progressReport(tight)).find((i) => i.id === "consistency");
-  assert.ok(better);
-  assert.equal(better.tone, "good");
-  assert.match(better.text, /Repeatable is worth more/);
+  const tighter = insights(tight, progressReport(tight)).find((i) => i.id === "consistency");
+  assert.ok(tighter);
+  assert.equal(tighter.tone, "good");
+  assert.match(tighter.text, /land within about 33 pins of each other. Early on it was 54/);
 
   const loose = log([[104, 105, 106], [103, 105, 107], [40, 100, 160], [50, 110, 170]]);
   const worse = insights(loose, progressReport(loose)).find((i) => i.id === "consistency");
   assert.ok(worse);
   assert.equal(worse.tone, "bad");
-  assert.match(worse.text, /Wilder, not better/);
+  assert.match(worse.text, /More up and down, not better/);
 });
 
 test("a run of games on one side of the average is only called at three", () => {
@@ -230,6 +233,18 @@ test("a run of games on one side of the average is only called at three", () => 
   assert.ok(run);
   assert.equal(run.tone, "bad");
   assert.match(run.title, /straight below average/);
+});
+
+test("no observation title leans on a statistical term", () => {
+  // He said he could not tell what the panel was telling him. Words like slope
+  // and scatter belong in the code, not on a card.
+  const scores = log([
+    [60, 90, 110, 115], [62, 92, 112, 118], [95, 98, 100, 105], [96], [99], [102],
+  ]);
+  for (const item of insights(scores, progressReport(scores))) {
+    assert.doesNotMatch(item.title, /slope|scatter|spread|verdict|trend|variance|deviation|ceiling|floor/i,
+      `title still reads as statistics: ${item.title}`);
+  }
 });
 
 test("milestones are built from his own numbers", () => {
@@ -279,6 +294,48 @@ test("the session prompt changes with the hour, not just the data", () => {
   assert.equal(sessionPrompt(report, { excusedToday: true }).phase, "excused");
 });
 
+test("the plain answer leads with words, and every number carries a caption", () => {
+  const scores = log([[60, 65, 70], [62, 68, 72], [95, 98, 100], [96, 99, 150]]);
+  const b = better(scores, progressReport(scores));
+
+  assert.equal(b.answer, "Yes, you are improving");
+  assert.match(b.because, /About 62 pins better every 10 games/);
+  assert.match(b.detail, /honest range is 38 to 87 pins better/);
+  // No statistical term survives into the part he actually reads.
+  for (const text of [b.answer, b.because, ...b.signals.map((s) => `${s.label} ${s.detail}`)]) {
+    assert.doesNotMatch(text, /slope|scatter|interval|standard error|deviation|confidence|trend clears/i);
+  }
+
+  const byId = Object.fromEntries(b.signals.map((s) => [s.id, s]));
+  assert.deepEqual(Object.keys(byId).sort(), ["best", "swing", "worst"]);
+  assert.ok(b.signals.every((s) => s.label && s.value && s.detail),
+    "a number with no caption is what made the old panel unreadable");
+
+  assert.equal(byId.worst.value, "95");
+  assert.equal(byId.worst.direction, "better");   // the worst of his first six was 60
+  assert.equal(byId.best.value, "150");
+  assert.equal(byId.best.direction, "better");    // and it is the record
+  assert.match(byId.best.detail, /best you have bowled/);
+
+  // Climbing and getting less repeatable at the same time is a real state, and
+  // the card has to be able to say both at once rather than pick the nice one.
+  assert.equal(byId.swing.value, "21 pins");
+  assert.equal(byId.swing.direction, "worse");
+});
+
+test("the plain answer says nothing it cannot back on a thin log", () => {
+  const scores = log([[100, 120]]);
+  const b = better(scores, progressReport(scores));
+  assert.equal(b.answer, "Too early to tell");
+  assert.deepEqual(b.signals, [], "three games cannot carry a comparison");
+  assert.equal(b.games, 2);
+
+  const empty = better({}, progressReport({}));
+  assert.equal(empty.games, 0);
+  assert.deepEqual(empty.signals, []);
+  assert.ok(empty.answer);
+});
+
 test("the whole report holds together on an empty log", () => {
   const r = coachReport({}, progressReport({}), {});
   assert.equal(r.form.state, "unknown");
@@ -288,6 +345,8 @@ test("the whole report holds together on an empty log", () => {
   assert.deepEqual(r.milestones, []);
   assert.deepEqual(r.weekday, []);
   assert.ok(r.session.text);
+  assert.ok(r.better.answer);
+  assert.equal(r.warmup, null);
 });
 
 test("the focus is something he can act on, and at most three insights show", () => {
