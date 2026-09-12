@@ -527,6 +527,8 @@ export function coachReport(scores, report, ctx = {}) {
   return {
     form: f,
     last: lastGame(series),
+    // When he is free to go, which only matters while the day is unsettled.
+    window: ctx.verifiedToday || ctx.excusedToday ? null : ctx.window || null,
     // Sent so the bar chart and the observation quote one figure, not two.
     warmup: warmupGap(report.session.rows),
     better: better(scores, report),

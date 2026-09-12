@@ -1,18 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WIDGETS, WIDGET_IDS, DEFAULT_PINNED, normalizeLayout, isLayoutInput } from "../functions/_lib/layout.js";
+import {
+  WIDGETS, WIDGET_IDS, DEFAULT_PINNED, DEFAULT_COLLAPSED, normalizeLayout, isLayoutInput,
+} from "../functions/_lib/layout.js";
 
 test("the catalogue has unique ids and a title for each card", () => {
   assert.equal(new Set(WIDGET_IDS).size, WIDGET_IDS.length);
   assert.ok(WIDGETS.every((w) => typeof w.title === "string" && w.title.length));
   assert.ok(DEFAULT_PINNED.every((id) => WIDGET_IDS.includes(id)));
+  assert.ok(DEFAULT_COLLAPSED.every((id) => WIDGET_IDS.includes(id)));
+  // Anything pinned is an answer, so it must not also arrive folded shut.
+  assert.deepEqual(DEFAULT_PINNED.filter((id) => DEFAULT_COLLAPSED.includes(id)), []);
 });
 
 test("no stored arrangement means the catalogue order and nothing marked as his", () => {
   const l = normalizeLayout(null);
   assert.deepEqual(l.order, WIDGET_IDS);
   assert.deepEqual(l.pinned, DEFAULT_PINNED);
-  assert.deepEqual(l.collapsed, []);
+  // The reference cards arrive folded so the dashboard reads in one screen.
+  assert.deepEqual(l.collapsed, DEFAULT_COLLAPSED);
   assert.equal(l.custom, false, "until he arranges it the app may lead with what matters tonight");
   assert.equal(normalizeLayout("nonsense").custom, false);
   assert.equal(normalizeLayout([]).custom, false);
@@ -26,6 +32,15 @@ test("his order is kept and anything missing from it is appended", () => {
   assert.deepEqual([...l.order].sort(), [...WIDGET_IDS].sort());
   assert.deepEqual(l.pinned, ["games"]);
   assert.equal(l.custom, true);
+});
+
+test("reading is not arranging", () => {
+  // Folding a card shut is remembered without claiming he has arranged the
+  // dashboard, so the app may still lead with what matters tonight.
+  const read = normalizeLayout({ order: [...WIDGET_IDS], collapsed: ["games"], custom: false });
+  assert.deepEqual(read.collapsed, ["games"]);
+  assert.equal(read.custom, false);
+  assert.equal(normalizeLayout({ collapsed: ["games"], custom: true }).custom, true);
 });
 
 test("ids that are not cards are dropped rather than rendered", () => {
@@ -48,4 +63,7 @@ test("the endpoint only accepts lists of short strings", () => {
   assert.equal(isLayoutInput({ order: [1, 2] }), false);
   assert.equal(isLayoutInput({ pinned: ["x".repeat(41)] }), false);
   assert.equal(isLayoutInput({ order: Array(WIDGET_IDS.length + 1).fill("games") }), false);
+  // Folding a card sends custom: false, so the flag has to be a real boolean.
+  assert.equal(isLayoutInput({ custom: false }), true);
+  assert.equal(isLayoutInput({ custom: "yes" }), false);
 });

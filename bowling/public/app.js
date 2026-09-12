@@ -167,9 +167,26 @@ function render() {
 
   const status = $("status");
   const verify = $("verify");
+  // The one line that has to be readable without scrolling.
+  const lead = $("lead");
+  const plan = s.coach && s.coach.window;
+  lead.hidden = !(plan && plan.short);
+  if (!lead.hidden) {
+    lead.textContent = plan.short;
+    lead.className = "lead" + (plan.open ? " now" : "");
+  }
   const hint = $("form-hint");
   verify.disabled = false;
   verify.classList.remove("done");
+
+  // Once the day is logged the form is not what he came for, so it folds away
+  // behind a single button and gives the screen back to the cards. `formOpen`
+  // is his intent: without it the minute by minute refresh would fold a form he
+  // is halfway through typing into.
+  const settled = s.verifiedToday && !readOutbox().length;
+  if (!settled) formOpen = false;
+  $("score-form").hidden = settled && !formOpen;
+  $("add-game").hidden = !settled || formOpen;
 
   if (s.verifiedToday) {
     status.className = "status ok";
@@ -179,8 +196,8 @@ function render() {
     verify.textContent = "Add game";
     verify.classList.add("done");
     hint.textContent = s.scoresToday && s.scoresToday.length
-      ? `Today: ${s.scoresToday.join(", ")}. Log another game if you bowl more.`
-      : "Log another game if you bowl more.";
+      ? `Today: ${s.scoresToday.join(", ")}`
+      : "";
   } else if (s.excusedToday) {
     status.className = `status paused ${s.excuseToday || "closed"}`;
     status.textContent = excuseCopy(s.excuseToday).status(s.current);
@@ -188,7 +205,7 @@ function render() {
     hint.textContent = "Bowled after all? Enter the score and today counts.";
   } else {
     verify.textContent = "I bowled";
-    hint.textContent = "Enter a game score to verify today.";
+    hint.textContent = "";
     if (s.atRisk) {
       status.className = "status risk";
       status.textContent = "Not verified yet. Streak ends at midnight.";
@@ -280,7 +297,10 @@ function render() {
 
   // Excuses (closed, sick, injured): offered only while today is unresolved.
   $("excuses").hidden = s.verifiedToday || s.excusedToday;
-  if (!$("score").matches(":focus")) $("score-date").value = s.today;
+  if ($("excuses").hidden) {
+    $("excuse-pills").hidden = true;
+    $("excuses-toggle").classList.remove("open");
+  }
   $("unexcuse").hidden = !s.excusedToday;
   $("unexcuse").closest(".undo-row").hidden = !s.excusedToday;
   $("unexcuse").textContent = excuseCopy(s.excuseToday).undo;
@@ -291,6 +311,7 @@ function render() {
   // Alley hours: where today sits, and the week's table.
   const hours = s.hours;
   const hoursNow = $("hours-now");
+  // Only when it says something the countdown above it does not.
   hoursNow.hidden = !hours;
   if (hours) {
     hoursNow.className = "hint hours-now";
@@ -299,7 +320,8 @@ function render() {
       hoursNow.textContent = "The alley is closed all day today.";
       hoursNow.classList.add("warn");
     } else if (hours.beforeOpen) {
-      hoursNow.textContent = `Alley opens at ${hours.opensAt}. Last game goes on by ${hours.lastCallAt}.`;
+      hoursNow.hidden = !unsettled;
+      hoursNow.textContent = `Last game goes on by ${hours.lastCallAt}.`;
     } else if (hours.open && hours.lastCallPassed) {
       // Still open, but too late to start a game. Only a problem if the day
       // still needs one.
@@ -308,9 +330,12 @@ function render() {
         : `Alley open until ${hours.closesAt}.`;
       if (unsettled) hoursNow.classList.add("warn");
     } else if (hours.open) {
-      // The countdown right above already carries the time remaining.
-      hoursNow.textContent = `Alley open until ${hours.closesAt}. Last game by ${hours.lastCallAt}.`;
-      if ((hours.msUntilLastCall ?? 0) < 2 * 3_600_000 && unsettled) hoursNow.classList.add("warn");
+      // The countdown right above already carries the time remaining, so this
+      // line only earns its space when the deadline is close.
+      const soon = (hours.msUntilLastCall ?? 0) < 2 * 3_600_000 && unsettled;
+      hoursNow.hidden = !soon;
+      hoursNow.textContent = `Last game goes on by ${hours.lastCallAt}.`;
+      if (soon) hoursNow.classList.add("warn");
     } else {
       const next = hours.next;
       hoursNow.textContent = next
@@ -341,7 +366,7 @@ function render() {
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
-  $("history-meta").textContent = `${s.total} day${s.total === 1 ? "" : "s"} bowled`;
+  $("history-meta").textContent = `${s.total} day${s.total === 1 ? "" : "s"}`;
 
   // Calendar grid: week rows starting Monday, from the start date to today.
   const grid = $("grid");
@@ -382,7 +407,9 @@ function render() {
   // comes before midnight; the page still reloads at midnight.
   const closeAt = hours && hours.msUntilLastCall !== null ? Date.now() + hours.msUntilLastCall : null;
   const openAt = hours && hours.msUntilNextOpen !== null ? Date.now() + hours.msUntilNextOpen : null;
-  const nextDay = hours && hours.next ? (hours.next.tomorrow ? "tomorrow" : hours.next.day) : null;
+  const nextDay = hours && hours.next
+    ? (hours.next.today ? "today" : hours.next.tomorrow ? "tomorrow" : hours.next.day)
+    : null;
   const tick = () => {
     const left = deadline - Date.now();
     if (left <= 0) { clearInterval(timer); return load(); }
@@ -435,6 +462,8 @@ $("subtitle").addEventListener("click", () => {
 
 // Run one action at a time; on failure keep the last good state on screen.
 let busy = false;
+// Whether he has deliberately opened the score form on a day already logged.
+let formOpen = false;
 async function act(button, fn) {
   if (busy) return;
   busy = true;
@@ -465,6 +494,7 @@ $("score-form").addEventListener("submit", async (e) => {
   // clears immediately and the network becomes someone else's problem.
   const { stored } = queueGame(date, score);
   if (stored) {
+    formOpen = false;
     input.value = "";
     $("score-date").value = (state && state.today) || todayLocal();
     $("ball").classList.add("spin");
@@ -487,10 +517,28 @@ $("score-form").addEventListener("submit", async (e) => {
   }
 });
 
+function openForm() {
+  formOpen = true;
+  $("score-form").hidden = false;
+  $("add-game").hidden = true;
+}
+
+$("add-game").addEventListener("click", () => {
+  openForm();
+  $("score").focus();
+});
+
 $("verify-yesterday").addEventListener("click", () => {
+  openForm();
   $("score-date").value = state.yesterday;
   $("score").focus();
   $("score").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+$("excuses-toggle").addEventListener("click", () => {
+  const pills = $("excuse-pills");
+  pills.hidden = !pills.hidden;
+  $("excuses-toggle").classList.toggle("open", !pills.hidden);
 });
 
 for (const button of document.querySelectorAll(".excuse")) {
@@ -538,7 +586,7 @@ function renderChartCard(p) {
   card.hidden = empty;
   if (empty) return;
 
-  $("chart-meta").textContent = `${p.games} game${p.games === 1 ? "" : "s"}`;
+  $("chart-meta").textContent = p.recentAverage === null ? `${p.games} games` : `Last 10: ${p.recentAverage}`;
   $("form-avg").textContent = p.recentAverage ?? "–";
   card.querySelector(".form-now small").textContent =
     p.window < 10 ? `last ${p.window} games` : "last 10 games";
@@ -596,7 +644,7 @@ function renderNumbers(s) {
     li.append(label, value, caption);
     list.appendChild(li);
   }
-  $("numbers-meta").textContent = p.games ? `${p.games} game${p.games === 1 ? "" : "s"}` : "";
+  $("numbers-meta").textContent = sc.average === null ? "" : `Avg ${sc.average}`;
 
   renderTargets(s.coach);
 }
@@ -612,7 +660,11 @@ function renderBetter(c) {
   $("better-answer").textContent = b.answer;
   $("better-answer").className = "answer " + b.state;
   $("better-because").textContent = b.because;
-  $("better-games").textContent = b.games ? `${b.games} game${b.games === 1 ? "" : "s"}` : "";
+  // Folded, the header is all he sees, so it carries the answer rather than a
+  // count he can get anywhere else.
+  $("better-games").textContent = {
+    improving: "Improving", declining: "Sliding", flat: "Not yet", early: "Too early",
+  }[b.state] || "";
 
   const more = $("better-more");
   const detail = $("better-detail");
@@ -655,7 +707,9 @@ function renderFocus(c) {
     title.textContent = focus.title;
     title.className = "answer small " + focus.tone;
     text.textContent = focus.text;
+    $("focus-meta").textContent = items.length ? `+${items.length} more` : "";
   } else {
+    $("focus-meta").textContent = "";
     title.hidden = true;
     text.textContent = "Nothing in your log points at one thing to fix right now.";
   }
@@ -874,6 +928,13 @@ function renderTonight(s) {
   chip.className = `form-chip ${c.form.state}`;
   chip.textContent = FORM_LABEL[c.form.state] || "";
 
+  const plan = $("session-window");
+  plan.hidden = !(c.window && c.window.sentence);
+  if (!plan.hidden) {
+    plan.textContent = c.window.sentence;
+    plan.className = "plan" + (c.window.open ? " now" : "");
+  }
+
   $("session-read").textContent = c.session.text;
 
   const formRead = $("form-read");
@@ -895,6 +956,7 @@ function renderTonight(s) {
 
 const LAYOUT_STORE = "bowl_layout";
 const FALLBACK_ORDER = ["tonight", "better", "focus", "numbers", "chart", "warmup", "games", "hours", "history"];
+const FALLBACK_COLLAPSED = ["chart", "warmup", "games", "history"];
 
 let layout = null;
 let editing = false;
@@ -944,7 +1006,7 @@ function applyLayout(s) {
   layout = {
     order: [...FALLBACK_ORDER],
     pinned: [],
-    collapsed: [],
+    collapsed: [...FALLBACK_COLLAPSED],
     custom: false,
     ...(incoming || {}),
   };
@@ -979,7 +1041,7 @@ function applyLayout(s) {
 }
 
 /** Read the arrangement back off the DOM after he has changed it. */
-function captureLayout() {
+function captureLayout(custom = true) {
   const order = [];
   const pinned = [];
   const collapsed = [];
@@ -989,7 +1051,7 @@ function captureLayout() {
     if (el.closest(".zone").dataset.zone === "pinned") pinned.push(id);
     if (el.classList.contains("folded")) collapsed.push(id);
   }
-  layout = { order, pinned, collapsed, custom: true };
+  layout = { order, pinned, collapsed, custom };
   keepLayout(layout);
   return layout;
 }
@@ -1054,10 +1116,12 @@ document.addEventListener("click", (e) => {
     persistLayout();
     return;
   }
-  const fold = e.target.closest(".w-fold");
-  if (fold) {
-    fold.closest("[data-widget]").classList.toggle("folded");
-    captureLayout();
+  // The chevron is the affordance, but the whole header is the target: on a
+  // phone a 30px button is a miss waiting to happen.
+  const head = editing ? null : e.target.closest(".w-head");
+  if (head && layout) {
+    head.closest("[data-widget]").classList.toggle("folded");
+    captureLayout(layout.custom);
     persistLayout();
     return;
   }

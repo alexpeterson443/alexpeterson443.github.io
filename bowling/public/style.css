@@ -131,9 +131,9 @@ body {
     gap: 22px 26px;
     padding: 34px 32px 38px;
   }
-  .hero { padding-top: 20px; }
-  .hero::before { width: 320px; height: 320px; }
-  .big { font-size: 5.6rem; }
+  .hero { padding-top: 14px; }
+  .hero::before { width: 240px; height: 240px; }
+  .big { font-size: 4.2rem; }
   .games .date { width: 7em; }
 }
 
@@ -217,14 +217,20 @@ h1 {
 
 /* ---------- hero ---------- */
 
-.hero { position: relative; padding: 12px 0 4px; }
+.hero { position: relative; padding: 6px 0 2px; }
+.streak-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
 .hero::before {
   content: "";
   position: absolute;
   left: 50%;
   top: -6px;
-  width: 270px;
-  height: 270px;
+  width: 200px;
+  height: 200px;
   transform: translateX(-50%);
   border-radius: 50%;
   background: radial-gradient(circle, var(--glow), rgba(124, 92, 255, 0) 66%);
@@ -233,7 +239,7 @@ h1 {
 .hero > * { position: relative; }
 
 .big {
-  font-size: clamp(4.4rem, 27vw, 6rem);
+  font-size: clamp(3.1rem, 17vw, 4rem);
   font-weight: 800;
   line-height: 0.92;
   letter-spacing: -0.045em;
@@ -247,16 +253,17 @@ h1 {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 0.7rem;
-  font-weight: 600;
-  margin-top: 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
 }
 
 .status {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 16px 0 0;
+  margin: 12px 0 0;
   padding: 9px 15px;
   border-radius: 999px;
   background: var(--panel);
@@ -267,6 +274,17 @@ h1 {
   text-align: left;
 }
 .status:empty { display: none; }
+
+/* The answer, directly under the state. */
+.lead {
+  margin: 9px 0 0;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+.lead.now { color: var(--hit); }
+.lead[hidden] { display: none; }
 .status::before {
   content: "";
   flex: none;
@@ -290,8 +308,9 @@ h1 {
 
 .calendar[hidden] { display: none; }
 .calendar {
-  margin: 10px 0 0;
-  display: inline-block;
+  margin: 0;
+  display: block;
+  text-align: left;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -336,20 +355,6 @@ h2 {
   grid-template-columns: 1.25fr 1fr;
   gap: 10px;
 }
-.field {
-  display: grid;
-  gap: 5px;
-  text-align: left;
-  min-width: 0;
-}
-.field > span {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  color: var(--muted);
-  font-weight: 700;
-  padding-left: 2px;
-}
 input {
   width: 100%;
   min-width: 0;
@@ -387,6 +392,19 @@ button {
 button:active { transform: scale(0.985); }
 button:disabled { opacity: 0.45; cursor: default; }
 
+.add-game {
+  width: 100%;
+  padding: 12px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent-2);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+.add-game[hidden] { display: none; }
+.score-form[hidden] { display: none; }
+
 button.primary {
   grid-column: 1 / -1;
   font-size: 1.02rem;
@@ -400,10 +418,24 @@ button.primary.done {
   box-shadow: 0 10px 26px rgba(46, 230, 168, 0.26);
 }
 
-.hint { margin: 12px 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
+.hint { margin: 8px 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
 .hint.countdown { margin-top: 5px; font-variant-numeric: tabular-nums; }
 .hint.warn { color: var(--today); }
-.excuses .hint { margin-bottom: 9px; }
+/* A quiet link until he needs it, which is most days. */
+.excuses { margin-top: 12px; }
+.excuses-toggle {
+  width: auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.excuses-toggle.open { color: var(--text); }
+.excuses .pills { margin-top: 10px; }
+.excuses .pills[hidden] { display: none; }
 
 .pills { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
 .pill {
@@ -586,7 +618,9 @@ body.editing .zone.empty .zone-empty { display: block; }
   align-items: center;
   gap: 10px;
   padding: 13px 15px;
+  cursor: pointer;
 }
+body.editing .w-head { cursor: default; }
 .w-head h2 { flex: 1; min-width: 0; }
 /* Secondary, so it never pushes the title into a second line. */
 .w-meta {
@@ -688,6 +722,26 @@ body.dragging-now .widget { transition: none; }
 .edit-note[hidden] { display: none; }
 
 /* ---------- widget contents ---------- */
+
+/* The window to actually go: the only line in the app about a game he has not
+   bowled yet, so it reads as an instruction rather than a note. */
+.plan {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px solid var(--tint-line);
+  background: var(--tint);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  font-weight: 550;
+}
+.plan[hidden] { display: none; }
+.plan.now {
+  border-color: rgba(46, 230, 168, 0.34);
+  background: rgba(46, 230, 168, 0.1);
+  color: var(--hit);
+  font-weight: 650;
+}
 
 .read { margin: 0; font-size: 0.88rem; line-height: 1.5; }
 .read.quiet { color: var(--muted); font-size: 0.8rem; }

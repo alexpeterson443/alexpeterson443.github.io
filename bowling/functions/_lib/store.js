@@ -3,6 +3,7 @@ import { scoreStats } from "./scores.js";
 import { progressReport } from "./progress.js";
 import { coachReport } from "./coach.js";
 import { normalizeLayout } from "./layout.js";
+import { planWindow, windowSentence, windowShort } from "./window.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 
@@ -123,6 +124,17 @@ export async function buildState(env, days, scores = {}, excused = null) {
   const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(), lastCallFromEnv(env));
   const scoresToday = (scores[today] || []).filter((n) => typeof n === "number");
   const layout = await loadLayout(env);
+
+  // The gap between his commitments where the lanes are still seating games.
+  // This is the only figure here that is about a game he has not bowled yet.
+  const nowMs = Date.now();
+  const clock = (ms) => new Date(ms).toLocaleTimeString("en-US", {
+    timeZone: tz, hour: "numeric", minute: "2-digit",
+  });
+  const plan = planWindow(calendar.busy || [], hours, nowMs);
+  const bowlWindow = plan
+    ? { ...plan, sentence: windowSentence(plan, clock), short: windowShort(plan, clock) }
+    : null;
   return {
     layout,
     ...stats,
@@ -135,6 +147,7 @@ export async function buildState(env, days, scores = {}, excused = null) {
       scoresToday,
       hours,
       atRisk: stats.atRisk,
+      window: bowlWindow,
     }),
     gamesToday: (scores[today] || []).length,
     scoresToday,

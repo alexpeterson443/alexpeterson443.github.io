@@ -180,3 +180,23 @@ test("day of week matches the calendar", () => {
   assert.equal(dayOfWeek("2026-09-07"), 1);  // Monday
   assert.equal(dayOfWeek("2026-08-28"), 5);  // Friday, the streak start
 });
+
+test("a day settled before the alley opens points at today, not tomorrow", () => {
+  // Reachable: the day is logged while the lanes are still shut, and the
+  // countdown sits directly above the line naming the opening time. Saying
+  // "tomorrow" in one and noon in the other reads as a contradiction.
+  const sat = hoursStatus(HOURS, TZ, "2026-09-12", new Date("2026-09-12T15:00:00Z"));
+  assert.equal(sat.beforeOpen, true, "10am Central on a Saturday opening at noon");
+  assert.equal(sat.next.today, true);
+  assert.equal(sat.next.tomorrow, false);
+  assert.equal(sat.next.date, "2026-09-12");
+  assert.equal(sat.next.opens, "12:00 PM");
+  assert.equal(sat.msUntilNextOpen, sat.msUntilOpen);
+
+  // Once open, the next opening is a later day again.
+  const later = hoursStatus(HOURS, TZ, "2026-09-12", new Date("2026-09-12T19:00:00Z"));
+  assert.equal(later.open, true);
+  assert.equal(later.next.today, false);
+  assert.equal(later.next.tomorrow, true);
+  assert.equal(later.next.date, "2026-09-13");
+});

@@ -29,22 +29,20 @@
     </header>
 
     <section class="hero">
-      <div class="big" id="streak">–</div>
-      <div class="label">day streak</div>
+      <div class="streak-row">
+        <div class="big" id="streak">–</div>
+        <div class="label">day<br />streak</div>
+      </div>
       <p class="status" id="status"></p>
-      <p class="calendar" id="calendar" hidden></p>
+      <p class="lead" id="lead" hidden></p>
     </section>
 
     <section class="action panel">
+      <button type="button" class="add-game" id="add-game" hidden>Add another game</button>
       <form id="score-form" class="score-form">
-        <label class="field">
-          <span>Day</span>
-          <input id="score-date" type="date" required />
-        </label>
-        <label class="field">
-          <span>Score</span>
-          <input id="score" type="number" inputmode="numeric" min="0" max="300" step="1" placeholder="—" required />
-        </label>
+        <input id="score-date" class="field" type="date" aria-label="Day bowled" required />
+        <input id="score" class="field" type="number" inputmode="numeric" min="0" max="300"
+               step="1" placeholder="Score" aria-label="Game score" required />
         <button type="submit" id="verify" class="primary">I bowled</button>
       </form>
       <p class="hint" id="form-hint">Enter a game score to verify today.</p>
@@ -54,8 +52,8 @@
       <p class="hint pending" id="pending" hidden></p>
 
       <div class="excuses" id="excuses" hidden>
-        <p class="hint">Can't bowl today?</p>
-        <div class="pills">
+        <button type="button" class="excuses-toggle" id="excuses-toggle">Can't bowl today?</button>
+        <div class="pills" id="excuse-pills" hidden>
           <button class="pill excuse" data-reason="closed"><i class="dot excused closed"></i>Alley closed</button>
           <button class="pill excuse" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
           <button class="pill excuse" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
@@ -96,6 +94,8 @@
         <button type="button" class="w-grip" aria-label="Move card"></button>
       </header>
       <div class="w-body">
+        <p class="calendar" id="calendar" hidden></p>
+        <p class="plan" id="session-window" hidden></p>
         <p class="read" id="session-read"></p>
         <p class="read quiet" id="form-read" hidden></p>
       </div>
@@ -122,7 +122,7 @@
       <header class="w-head">
         <button type="button" class="w-pin" aria-label="Pin card"></button>
         <h2>What to work on</h2>
-        <span class="w-meta"></span>
+        <span class="w-meta" id="focus-meta"></span>
         <button type="button" class="w-fold" aria-label="Fold card"></button>
         <button type="button" class="w-grip" aria-label="Move card"></button>
       </header>

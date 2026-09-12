@@ -1,7 +1,7 @@
 import { parseEvents, expandOccurrences } from "./ics.js";
 import { todayIn, dayNumber, addDays } from "./streak.js";
 
-const CACHE_KEY = "cal_cache_v2";
+const CACHE_KEY = "cal_cache_v3";
 const CLOSURE_RE = /closed|recess|holiday|no classes|break/i;
 const CACHE_TTL_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 8_000;
@@ -36,6 +36,16 @@ async function downloadFeed(url) {
  * Matching occurrences for the window, cached in KV for 10 minutes. Only the
  * matched sessions are stored, never the raw feed or the feed URL.
  */
+/** A commitment that rules out bowling, trimmed to what the maths needs. */
+const BUSY_MAX = 40;
+function slimBusy(o) {
+  return {
+    start: o.start,
+    end: o.end,
+    summary: (o.summary || "").trim().slice(0, BUSY_MAX) || null,
+  };
+}
+
 async function cachedOccurrences(env, url, keyword, fromMs, toMs, tz) {
   const urlHash = (await sha256(url)).slice(0, 16);
   const cached = await env.STREAK_KV.get(CACHE_KEY, "json");
@@ -51,7 +61,17 @@ async function cachedOccurrences(env, url, keyword, fromMs, toMs, tz) {
       .map(slim);
     // Campus closures and breaks, used only as a hint for excusing a day.
     const closures = all.filter((o) => o.allDay && CLOSURE_RE.test(o.summary)).map(slim);
-    const fresh = { urlHash, keyword, fromMs, fetchedAt: Date.now(), occurrences, closures };
+    // Where he has to be today and tomorrow. Bowling itself is not a conflict
+    // with bowling, so matched sessions are left out.
+    const today = todayIn(tz);
+    const horizon = addDays(today, 1);
+    const busy = all
+      .filter((o) => !o.allDay)
+      .filter((o) => !`${o.summary}\n${o.location}`.toLowerCase().includes(keyword))
+      .filter((o) => { const d = todayIn(tz, new Date(o.start)); return d === today || d === horizon; })
+      .map(slimBusy)
+      .sort((a, b) => a.start - b.start);
+    const fresh = { urlHash, keyword, fromMs, fetchedAt: Date.now(), occurrences, closures, busy };
     await env.STREAK_KV.put(CACHE_KEY, JSON.stringify(fresh), { expirationTtl: 86_400 });
     return fresh;
   } catch (err) {
@@ -116,6 +136,7 @@ export async function bowlingSchedule(env) {
     configured: true,
     today: todays,
     next,
+    busy: (feed.busy || []).filter((b) => dateIn(b.start, tz) === today),
     closureToday: closureToday ? closureToday.summary : null,
     matched: matches.length,
     fetchedAt: feed.fetchedAt,

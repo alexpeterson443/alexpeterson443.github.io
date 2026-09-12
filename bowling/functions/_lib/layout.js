@@ -26,6 +26,16 @@ export const WIDGET_IDS = WIDGETS.map((w) => w.id);
 /** What sits at the top before he has moved anything: what to do, and whether it is working. */
 export const DEFAULT_PINNED = ["tonight", "better"];
 
+/**
+ * Cards that arrive folded.
+ *
+ * These four are references rather than answers, and unfolded they turn the app
+ * into a page he has to hunt through. Folded, each still shows its headline
+ * figure in the header, so the whole dashboard reads in one screen and opens
+ * only where he taps.
+ */
+export const DEFAULT_COLLAPSED = ["chart", "warmup", "games", "history"];
+
 const known = (list) => {
   const out = [];
   if (!Array.isArray(list)) return out;
@@ -44,7 +54,7 @@ const known = (list) => {
  */
 export function normalizeLayout(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { order: [...WIDGET_IDS], pinned: [...DEFAULT_PINNED], collapsed: [], custom: false };
+    return { order: [...WIDGET_IDS], pinned: [...DEFAULT_PINNED], collapsed: [...DEFAULT_COLLAPSED], custom: false };
   }
   const order = known(raw.order);
   for (const id of WIDGET_IDS) if (!order.includes(id)) order.push(id);
@@ -59,6 +69,7 @@ export function normalizeLayout(raw) {
 /** True when the body is a shape the layout endpoint will accept. */
 export function isLayoutInput(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  if ("custom" in body && typeof body.custom !== "boolean") return false;
   for (const field of ["order", "pinned", "collapsed"]) {
     if (field in body && !Array.isArray(body[field])) return false;
     if (Array.isArray(body[field])) {

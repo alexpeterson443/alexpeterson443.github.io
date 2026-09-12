@@ -126,17 +126,22 @@ export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAU
   const open = h !== null && t >= openMs && t < closeMs;
   const beforeOpen = h !== null && t < openMs;
 
-  // The next day the alley opens. Today is already spoken for by the time this
-  // matters, so the search starts tomorrow.
+  // When the lanes next open. Usually that is a later day, since by the time
+  // this matters today's session has happened; but a day can be settled before
+  // the alley has even opened, and then the next opening is today. Saying
+  // "tomorrow" there contradicts the opening time shown beside it.
   let next = null;
-  for (let step = 1; step <= 7; step++) {
+  if (beforeOpen) {
+    next = { day: NAMES[dow], today: true, tomorrow: false, opens: clockLabel(h[0]), date: today, msUntil: openMs - t };
+  }
+  for (let step = 1; next === null && step <= 7; step++) {
     const i = (dow + step) % 7;
     const nh = hours[i];
     if (!nh) continue;
     const date = addIsoDays(today, step);
     const [ny, nmo, nd] = date.split("-").map(Number);
     const opensMs = zonedToUtc({ y: ny, mo: nmo, d: nd, h: Math.floor(nh[0] / 60), mi: nh[0] % 60 }, tz);
-    next = { day: NAMES[i], tomorrow: step === 1, opens: clockLabel(nh[0]), date, msUntil: opensMs - t };
+    next = { day: NAMES[i], today: false, tomorrow: step === 1, opens: clockLabel(nh[0]), date, msUntil: opensMs - t };
     break;
   }
 
@@ -151,6 +156,11 @@ export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAU
     lastCallMinutes: lastCall,
     lastCallPassed: h !== null && t >= lastCallMs,
     msUntilOpen: beforeOpen ? openMs - t : null,
+    // Real instants, so the free window maths can work in absolute time rather
+    // than re-deriving the day's boundaries from the labels.
+    openMs,
+    closeMs,
+    lastCallMs,
     // Time left to get a game on today. Last call, not the posted close, is the
     // deadline, so the countdown points at that rather than at midnight.
     msUntilLastCall: h !== null && t < lastCallMs ? lastCallMs - t : null,

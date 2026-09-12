@@ -7,7 +7,7 @@
 //
 // Only the shell is cached. No scores, no state, no API response ever lands here.
 
-const CACHE = "bowl-shell-v3";
+const CACHE = "bowl-shell-v4";
 const SHELL = ["/style.css", "/app.js", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
