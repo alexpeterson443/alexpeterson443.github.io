@@ -176,7 +176,9 @@ function render() {
 
   if (s.verifiedToday) {
     status.className = "status ok";
-    status.textContent = "Today is locked in. Nice.";
+    // What that game actually did, rather than a pat on the back. A game under
+    // the average pulled it down and the pill says so.
+    status.textContent = lastGameLine(s) || "Today is locked in.";
     verify.textContent = "Add game";
     verify.classList.add("done");
     hint.textContent = s.scoresToday && s.scoresToday.length
@@ -244,6 +246,9 @@ function render() {
 
   renderPending();
   renderProgress(s.progress);
+  renderTonight(s);
+  renderInsights(s.coach);
+  rankPanels(s);
 
   // Calendar: what the schedule says about bowling.
   const cal = s.calendar || { configured: false };
@@ -605,10 +610,15 @@ function drawChart(p) {
   const tipText = svg("text", { class: "tip-text", x: 0, y: 0, "text-anchor": "middle" });
   tip.append(tipBg, tipText);
 
+  // Dots carry their own verdict: over or under the lifetime average, with the
+  // last three ringed so current form is visible without reading the numbers.
+  const recentFrom = p.games - 3;
   p.series.forEach((g) => {
     const isBest = g.score === best;
+    const side = p.average === null ? "" : g.score >= p.average ? " over" : " under";
     el.appendChild(svg("circle", {
-      class: "game-dot" + (isBest ? " best" : ""), cx: x(g.n), cy: y(g.score), r: isBest ? 3.4 : 2.6,
+      class: "game-dot" + (isBest ? " best" : side) + (g.n > recentFrom ? " recent" : ""),
+      cx: x(g.n), cy: y(g.score), r: isBest ? 3.4 : 2.6,
     }));
     // Hit target deliberately larger than the mark.
     const hit = svg("rect", { class: "game-hit", x: x(g.n) - 7, y: T, width: 14, height: plotH });
@@ -634,7 +644,8 @@ function drawChart(p) {
   el.appendChild(tip);
 
   $("chart-caption").textContent = `Every game since ${prettyDate(p.series[0].date)}. `
-    + `The violet line is your rolling average, the dashed line your ${p.average} lifetime. Scale ${lo} to ${hi}.`;
+    + `Filled dots beat your ${p.average} average, hollow ones did not, and the last three are ringed. `
+    + `The line through them is your rolling average, the dashed one your lifetime. Scale ${lo} to ${hi}.`;
 }
 
 function drawWarmup(p) {
@@ -674,6 +685,135 @@ function drawWarmup(p) {
   $("warmup-note").textContent = p.session.gap > 8
     ? `You warm up ${p.session.gap} pins into the night. Practice balls before game one turn that into scoring games.`
     : "Your first game holds up against your last. No warm up tax.";
+}
+
+// ---------- the adaptive layer ----------
+//
+// The server decides what is true; this decides what gets said and where it
+// sits. Everything here is driven off `state.coach`, which is recomputed from
+// the log on every request, so the same screen reads differently after a good
+// night than after a bad one, and differently again at 9 PM than at noon.
+
+const FORM_LABEL = { hot: "Hot", cold: "Cold", steady: "Steady", unknown: "" };
+
+/** One line on the most recent game, for the status pill. */
+function lastGameLine(s) {
+  const last = s.coach && s.coach.last;
+  if (!last || last.date !== s.today) return null;
+  const rank = last.isBest
+    ? "Best game you have bowled"
+    : `${ordinal(last.rank)} best of ${last.of}`;
+  if (last.moved === null) return `${last.score}. ${rank}.`;
+  const moved = last.moved > 0
+    ? `average up to ${last.average}`
+    : last.moved < 0
+      ? `average down to ${last.average}`
+      : `average holds at ${last.average}`;
+  return `${last.score}. ${rank}, ${moved}.`;
+}
+
+function ordinal(n) {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] || "th"}`;
+}
+
+/**
+ * The Tonight panel: form, the prompt for this hour, and the one thing worth
+ * acting on. This is the block that has no fixed content at all.
+ */
+function renderTonight(s) {
+  const c = s.coach;
+  const panel = $("tonight");
+  if (!c) { panel.hidden = true; return; }
+  panel.hidden = false;
+
+  // The accent follows form, so the app looks different when he is bowling
+  // differently. Set as an attribute because the CSP blocks inline styles.
+  document.body.dataset.form = c.form.state;
+
+  const chip = $("form-chip");
+  chip.hidden = !FORM_LABEL[c.form.state];
+  chip.className = `form-chip ${c.form.state}`;
+  chip.textContent = FORM_LABEL[c.form.state] || "";
+
+  $("session-read").textContent = c.session.text;
+
+  const formRead = $("form-read");
+  formRead.hidden = !c.form.text;
+  if (c.form.text) formRead.textContent = c.form.text;
+
+  const focus = $("focus");
+  focus.hidden = !c.focus;
+  if (c.focus) {
+    focus.className = `focus ${c.focus.tone}`;
+    $("focus-title").textContent = c.focus.title;
+    $("focus-text").textContent = c.focus.text;
+  }
+}
+
+/** Ranked observations and the targets that follow from them. */
+function renderInsights(c) {
+  const list = $("insights");
+  list.innerHTML = "";
+  for (const item of (c && c.insights) || []) {
+    const li = document.createElement("li");
+    li.className = `insight ${item.tone}`;
+    const head = document.createElement("strong");
+    head.textContent = item.title;
+    const body = document.createElement("span");
+    body.textContent = item.text;
+    li.append(head, body);
+    list.appendChild(li);
+  }
+
+  const targets = (c && c.milestones) || [];
+  $("targets").hidden = !targets.length;
+  const rows = $("target-list");
+  rows.innerHTML = "";
+  for (const t of targets) {
+    const li = document.createElement("li");
+    const label = document.createElement("strong");
+    label.textContent = t.label;
+    const body = document.createElement("span");
+    body.textContent = t.text;
+    li.append(label, body);
+    rows.appendChild(li);
+  }
+}
+
+/**
+ * Which panel gets the top of its column.
+ *
+ * With the day running out the lanes matter more than the statistics, so Alley
+ * hours climbs; once the day is settled the numbers lead. Ordering is applied
+ * through a data attribute against fixed CSS rules, never an inline style.
+ */
+function rankPanels(s) {
+  const side = {
+    progress: $("progress"),
+    scores: document.querySelector(".scores"),
+    hours: document.querySelector(".hours"),
+    history: document.querySelector(".history"),
+  };
+  const h = s.hours;
+  const unsettled = !s.verifiedToday && !s.excusedToday;
+  const running = unsettled && h && (
+    h.closedToday || !h.open || h.lastCallPassed ||
+    (h.msUntilLastCall !== null && h.msUntilLastCall < 3 * 3_600_000)
+  );
+
+  const order = [];
+  if (running) order.push("hours");
+  if (s.progress && s.progress.games) order.push("progress");
+  order.push("scores");
+  if (!order.includes("hours")) order.push("hours");
+  if (!order.includes("progress")) order.push("progress");
+  order.push("history");
+
+  order.forEach((key, i) => {
+    if (side[key]) side[key].dataset.rank = String(i + 1);
+  });
 }
 
 // Keep the stats current without a manual reload. The page can sit open on the

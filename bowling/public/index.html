@@ -61,6 +61,19 @@
       <div class="undo-row"><button id="unexcuse" class="pill" hidden>Undo</button></div>
     </section>
 
+    <section class="tonight panel" id="tonight" hidden>
+      <div class="panel-head">
+        <h2>Tonight</h2>
+        <span class="form-chip" id="form-chip" hidden></span>
+      </div>
+      <p class="read" id="session-read"></p>
+      <p class="read form-read" id="form-read" hidden></p>
+      <div class="focus" id="focus" hidden>
+        <span class="focus-tag" id="focus-title"></span>
+        <span class="focus-text" id="focus-text"></span>
+      </div>
+    </section>
+
     <section class="stats">
       <div><span id="total">–</span><small>days</small></div>
       <div><span id="longest">–</span><small>longest</small></div>
@@ -96,6 +109,13 @@
       <div class="facts">
         <div><span id="fact-spread">–</span><small>pin spread</small></div>
         <div><span id="fact-best">–</span><small>best series</small></div>
+      </div>
+
+      <ul class="insights" id="insights"></ul>
+
+      <div class="targets" id="targets" hidden>
+        <div class="panel-head"><h3>Next up</h3></div>
+        <ul class="target-list" id="target-list"></ul>
       </div>
     </section>
 

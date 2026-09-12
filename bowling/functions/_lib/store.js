@@ -1,6 +1,7 @@
 import { todayIn, msUntilMidnight, computeStats, dateRange, addDays, excuseMap } from "./streak.js";
 import { scoreStats } from "./scores.js";
 import { progressReport } from "./progress.js";
+import { coachReport } from "./coach.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 
@@ -95,14 +96,25 @@ export async function buildState(env, days, scores = {}, excused = null) {
   const bowled = [...days, ...scored];
   const stats = computeStats(bowled, today, env.START_DATE, excused);
   const calendar = await bowlingSchedule(env).catch((e) => ({ configured: true, today: [], next: null, error: e.message }));
+  const progress = progressReport(scores);
+  const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(), lastCallFromEnv(env));
+  const scoresToday = (scores[today] || []).filter((n) => typeof n === "number");
   return {
     ...stats,
     scores: scoreStats(scores),
-    progress: progressReport(scores),
+    progress,
+    // What the log means tonight, which is a different question every night.
+    coach: coachReport(scores, progress, {
+      verifiedToday: stats.verifiedToday,
+      excusedToday: stats.excusedToday,
+      scoresToday,
+      hours,
+      atRisk: stats.atRisk,
+    }),
     gamesToday: (scores[today] || []).length,
-    scoresToday: (scores[today] || []).filter((n) => typeof n === "number"),
+    scoresToday,
     calendar,
-    hours: hoursStatus(hoursFromEnv(env), tz, today, new Date(), lastCallFromEnv(env)),
+    hours,
     timezone: tz,
     yesterday: addDays(today, -1),
     msUntilMidnight: msUntilMidnight(tz),

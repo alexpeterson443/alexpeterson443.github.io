@@ -21,7 +21,8 @@ const T95 = [
   2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042,
 ];
 
-function tCritical(df) {
+/** Two sided 95% critical value of t for `df` degrees of freedom. */
+export function tCritical(df) {
   if (df < 1) return null;
   return df <= 30 ? T95[df] : 1.96;
 }

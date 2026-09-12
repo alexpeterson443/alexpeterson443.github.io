@@ -15,7 +15,40 @@
   --sick: #c9a3ff;
   --injured: #ff9f5a;
   --radius: 22px;
+  /* Named so the adaptive layer can swap them per form. The hero glow, the
+     streak gradient, the rolling average line and the page wash all read from
+     these, so one attribute on <body> recolours the app. */
+  --glow: rgba(124, 92, 255, 0.32);
+  --wash: rgba(124, 92, 255, 0.30);
+  --big-mid: #d9d0ff;
+  --big-end: #9a79ff;
+  --tint: rgba(124, 92, 255, 0.10);
+  --tint-line: rgba(124, 92, 255, 0.30);
   color-scheme: dark;
+}
+
+/* Bowling three games well above his own scatter should not look identical to
+   bowling three games below it. Nothing here invents a signal: the state comes
+   from a test the server already ran against the spread in his log. */
+body[data-form="hot"] {
+  --accent: #ff9f5a;
+  --accent-2: #ffd166;
+  --glow: rgba(255, 159, 90, 0.34);
+  --wash: rgba(255, 159, 90, 0.26);
+  --big-mid: #ffe6c2;
+  --big-end: #ff9f5a;
+  --tint: rgba(255, 159, 90, 0.11);
+  --tint-line: rgba(255, 159, 90, 0.32);
+}
+body[data-form="cold"] {
+  --accent: #5ea8ff;
+  --accent-2: #8ec5ff;
+  --glow: rgba(94, 168, 255, 0.26);
+  --wash: rgba(94, 168, 255, 0.20);
+  --big-mid: #cfe4ff;
+  --big-end: #6aa9ff;
+  --tint: rgba(94, 168, 255, 0.11);
+  --tint-line: rgba(94, 168, 255, 0.32);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -33,7 +66,7 @@ body {
   padding-bottom: max(24px, env(safe-area-inset-bottom));
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   background:
-    radial-gradient(80rem 46rem at 50% -22%, rgba(124, 92, 255, 0.30), rgba(124, 92, 255, 0) 68%),
+    radial-gradient(80rem 46rem at 50% -22%, var(--wash), rgba(124, 92, 255, 0) 68%),
     radial-gradient(50rem 34rem at 105% 4%, rgba(46, 230, 168, 0.07), rgba(46, 230, 168, 0) 60%),
     var(--bg);
   background-attachment: fixed;
@@ -65,7 +98,22 @@ body {
   to { opacity: 1; transform: none; }
 }
 
-.col { display: contents; }
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Panel order is data driven: the app leads with whatever matters tonight.
+   Applied through an attribute against fixed rules, since the CSP blocks the
+   inline style an order property would otherwise need. */
+.col > [data-rank="1"] { order: 1; }
+.col > [data-rank="2"] { order: 2; }
+.col > [data-rank="3"] { order: 3; }
+.col > [data-rank="4"] { order: 4; }
+.col > [data-rank="5"] { order: 5; }
+.col > [data-rank="6"] { order: 6; }
 
 /* Tablets and laptops: a roomier single column, centred in the viewport so a
    short card does not leave a void beneath it. */
@@ -89,12 +137,6 @@ body {
     align-items: start;
     gap: 22px 26px;
     padding: 34px 32px 38px;
-  }
-  .col {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    min-width: 0;
   }
   .hero { padding-top: 20px; }
   .hero::before { width: 320px; height: 320px; }
@@ -168,7 +210,7 @@ h1 {
   height: 270px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(124, 92, 255, 0.32), rgba(124, 92, 255, 0) 66%);
+  background: radial-gradient(circle, var(--glow), rgba(124, 92, 255, 0) 66%);
   pointer-events: none;
 }
 .hero > * { position: relative; }
@@ -178,11 +220,11 @@ h1 {
   font-weight: 800;
   line-height: 0.92;
   letter-spacing: -0.045em;
-  background: linear-gradient(168deg, #ffffff 6%, #d9d0ff 40%, #9a79ff 98%);
+  background: linear-gradient(168deg, #ffffff 6%, var(--big-mid) 40%, var(--big-end) 98%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 10px 26px rgba(124, 92, 255, 0.35));
+  filter: drop-shadow(0 10px 26px var(--glow));
 }
 .label {
   color: var(--muted);
@@ -643,3 +685,114 @@ button.primary.done {
   padding: 8px 11px;
 }
 .pending[hidden] { display: none; }
+
+/* ---------- tonight ---------- */
+
+.tonight { display: grid; gap: 10px; text-align: left; }
+.tonight[hidden] { display: none; }
+
+.form-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.form-chip[hidden] { display: none; }
+.form-chip.hot { color: var(--injured); border-color: rgba(255, 159, 90, 0.36); background: rgba(255, 159, 90, 0.12); }
+.form-chip.cold { color: var(--excused); border-color: rgba(94, 168, 255, 0.36); background: rgba(94, 168, 255, 0.12); }
+.form-chip.steady { color: var(--accent-2); border-color: rgba(167, 139, 250, 0.32); background: rgba(167, 139, 250, 0.1); }
+
+.read { margin: 0; font-size: 0.86rem; line-height: 1.45; }
+.read.form-read { color: var(--muted); font-size: 0.8rem; }
+.read[hidden] { display: none; }
+
+/* The one thing worth doing, when the log supports naming one. */
+.focus {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border-radius: 13px;
+  border: 1px solid var(--tint-line);
+  background: var(--tint);
+}
+.focus[hidden] { display: none; }
+.focus.bad { border-color: rgba(255, 92, 122, 0.3); background: rgba(255, 92, 122, 0.09); }
+.focus-tag {
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.focus.bad .focus-tag { color: var(--miss); }
+.focus-text { font-size: 0.82rem; line-height: 1.45; color: var(--text); }
+
+/* ---------- observations ---------- */
+
+.insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.insights:empty { display: none; }
+.insight {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--muted);
+}
+.insight strong {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.insight span { font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
+.insight.good { border-left-color: var(--hit); }
+.insight.good strong { color: var(--hit); }
+.insight.bad { border-left-color: var(--miss); }
+.insight.bad strong { color: var(--miss); }
+.insight.act { border-left-color: var(--accent-2); }
+.insight.act strong { color: var(--accent-2); }
+.insight.flat { border-left-color: rgba(144, 150, 180, 0.5); }
+.insight.flat strong { color: var(--muted); }
+
+.targets { display: grid; gap: 9px; }
+.targets[hidden] { display: none; }
+.targets .panel-head { margin-bottom: 0; }
+.targets h3 {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+.target-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.target-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.target-list strong {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 750;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+.target-list span { font-size: 0.76rem; line-height: 1.4; color: var(--muted); }
+
+/* Dots read as their own verdict: over the average filled, under it hollow,
+   and the last three ringed so current form needs no reading. */
+.game-dot.over { fill: var(--hit); opacity: 0.85; }
+.game-dot.under { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: 0.8; }
+.game-dot.recent { stroke: var(--accent-2); stroke-width: 1.4; opacity: 1; }
