@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#0a0b12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bowling" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <link rel="icon" href="/icon-180.png" />
+  <link rel="manifest" id="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
+  <title>Bowling Streak</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+
+   <div class="col main">
+    <header class="topbar">
+      <div class="titles">
+        <h1><span class="ball" id="ball">🎳</span>Bowling</h1>
+        <p class="dates" id="subtitle">Loading…</p>
+      </div>
+      <button type="button" class="edit-btn" id="edit-toggle">Edit</button>
+    </header>
+
+    <section class="hero">
+      <div class="streak-row">
+        <div class="big" id="streak">–</div>
+        <div class="label">day<br />streak</div>
+      </div>
+      <p class="status" id="status"></p>
+      <p class="lead" id="lead" hidden></p>
+    </section>
+
+    <section class="action panel">
+      <button type="button" class="add-game" id="add-game" hidden>Add another game</button>
+      <form id="score-form" class="score-form">
+        <input id="score-date" class="field" type="date" aria-label="Day bowled" required />
+        <input id="score" class="field" type="number" inputmode="numeric" min="0" max="300"
+               step="1" placeholder="Score" aria-label="Game score" required />
+        <button type="submit" id="verify" class="primary">I bowled</button>
+      </form>
+      <p class="hint" id="form-hint">Enter a game score to verify today.</p>
+      <p class="hint countdown" id="countdown"></p>
+      <p class="hint hours-now" id="hours-now" hidden></p>
+      <p class="hint warn" id="closure-hint" hidden></p>
+      <p class="hint pending" id="pending" hidden></p>
+
+      <div class="excuses" id="excuses" hidden>
+        <button type="button" class="excuses-toggle" id="excuses-toggle">Can't bowl today?</button>
+        <div class="pills" id="excuse-pills" hidden>
+          <button class="pill excuse" data-reason="closed"><i class="dot excused closed"></i>Alley closed</button>
+          <button class="pill excuse" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+          <button class="pill excuse" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+          <button class="pill excuse" data-reason="away"><i class="dot excused away"></i>Away</button>
+        </div>
+      </div>
+      <div class="undo-row"><button id="unexcuse" class="pill" hidden>Undo</button></div>
+
+      <!-- A trip is known in advance and covers several days, so this stays
+           available whatever today is doing. -->
+      <button type="button" class="excuses-toggle" id="trip-open">Going away? Pause those days</button>
+      <p class="read quiet upcoming" id="upcoming" hidden></p>
+      <div class="range" id="trip" hidden>
+        <div class="range-row">
+          <label class="range-field"><span>First day</span><input id="trip-from" type="date" /></label>
+          <label class="range-field"><span>Last day</span><input id="trip-to" type="date" /></label>
+        </div>
+        <div class="pills" id="trip-reasons">
+          <button type="button" class="pill trip-reason on" data-reason="away"><i class="dot excused away"></i>Away</button>
+          <button type="button" class="pill trip-reason" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
+          <button type="button" class="pill trip-reason" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+          <button type="button" class="pill trip-reason" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+        </div>
+        <button type="button" class="add-game" id="trip-save">Pause these days</button>
+        <p class="read quiet" id="trip-note">These days will not break your streak, and will not count towards it either.</p>
+      </div>
+    </section>
+   </div>
+
+   <div class="col side">
+    <div class="edit-note" id="edit-note" hidden>
+      <p>Drag a card by its handle to move it. Tap a star to pin it to the top.</p>
+      <button type="button" class="pill" id="layout-reset">Back to automatic order</button>
+    </div>
+
+    <div class="zone pinned" id="zone-pinned" data-zone="pinned">
+      <p class="zone-label">Pinned</p>
+      <p class="zone-empty">Drag a card here to keep it at the top.</p>
+    </div>
+
+    <div class="zone rest" id="zone-rest" data-zone="rest">
+      <p class="zone-label">All cards</p>
+    </div>
+   </div>
+
+  </main>
+
+  <!-- Widgets live here until the layout puts them in a zone. Order in the
+       markup is only the fallback for a device that has never loaded a layout. -->
+  <div id="widget-source" hidden>
+
+    <section class="widget panel" data-widget="tonight">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Tonight</h2>
+        <span class="w-meta form-chip" id="form-chip" hidden></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <p class="calendar" id="calendar" hidden></p>
+        <p class="plan" id="session-window" hidden></p>
+        <p class="read" id="session-read"></p>
+        <p class="read quiet" id="form-read" hidden></p>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="better">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Am I getting better?</h2>
+        <span class="w-meta" id="better-games"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <p class="answer" id="better-answer">–</p>
+        <p class="read" id="better-because"></p>
+        <button type="button" class="more" id="better-more" data-target="better-detail" hidden>Why?</button>
+        <p class="read quiet detail" id="better-detail" hidden></p>
+        <ul class="signals" id="better-signals"></ul>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="inside">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>What your games were made of</h2>
+        <span class="w-meta" id="inside-meta"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <p class="answer small" id="inside-answer">–</p>
+        <p class="read" id="inside-worth"></p>
+        <ul class="signals" id="inside-games"></ul>
+        <button type="button" class="more" data-target="inside-detail">How is this worked out?</button>
+        <p class="read quiet detail" id="inside-detail" hidden></p>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="focus">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>What to work on</h2>
+        <span class="w-meta" id="focus-meta"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <p class="answer small" id="focus-title">–</p>
+        <p class="read" id="focus-text"></p>
+        <ul class="insights" id="insights"></ul>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="numbers">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>My numbers</h2>
+        <span class="w-meta" id="numbers-meta"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <ul class="metrics" id="metrics"></ul>
+        <div class="targets" id="targets" hidden>
+          <h3>Next up</h3>
+          <ul class="target-list" id="target-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="chart">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Every game</h2>
+        <span class="w-meta" id="chart-meta"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <div class="form-row">
+          <div class="form-now"><span id="form-avg">–</span><small>last 10 games</small></div>
+          <span class="delta" id="form-delta" hidden></span>
+        </div>
+        <figure class="chart">
+          <svg id="chart" viewBox="0 0 320 132" role="img" aria-labelledby="chart-caption"></svg>
+          <figcaption id="chart-caption">Every game, with the rolling average through it.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="warmup">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Game by game of the night</h2>
+        <span class="w-meta" id="warmup-gap"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <svg id="warmup-chart" viewBox="0 0 320 80" role="img" aria-labelledby="warmup-note"></svg>
+        <p class="read quiet" id="warmup-note"></p>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="games">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Game log</h2>
+        <span class="w-meta" id="score-summary"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <ul class="games" id="games"></ul>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="hours">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Alley hours</h2>
+        <span class="w-meta" id="hours-today"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <ul class="hours-week" id="hours-week"></ul>
+        <p class="read quiet" id="hours-note"></p>
+      </div>
+    </section>
+
+    <section class="widget panel" data-widget="history">
+      <header class="w-head">
+        <button type="button" class="w-pin" aria-label="Pin card"></button>
+        <h2>Streak history</h2>
+        <span class="w-meta" id="history-meta"></span>
+        <button type="button" class="w-fold" aria-label="Fold card"></button>
+        <button type="button" class="w-grip" aria-label="Move card"></button>
+      </header>
+      <div class="w-body">
+        <div class="grid" id="grid"></div>
+        <div class="legend">
+          <span><i class="dot hit"></i>bowled</span>
+          <span><i class="dot miss"></i>missed</span>
+          <span><i class="dot excused closed"></i>closed</span>
+          <span><i class="dot excused sick"></i>sick</span>
+          <span><i class="dot excused injured"></i>injured</span>
+          <span><i class="dot excused away"></i>away</span>
+          <span><i class="dot today"></i>today</span>
+        </div>
+        <div class="yesterday" id="yesterday-hint" hidden>
+          <p class="read quiet">Bowled yesterday but didn't log it?</p>
+          <div class="pills">
+            <button id="verify-yesterday" class="pill">Enter the score</button>
+            <button class="pill excuse-yesterday" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
+            <button class="pill excuse-yesterday" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+            <button class="pill excuse-yesterday" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+            <button class="pill excuse-yesterday" data-reason="away"><i class="dot excused away"></i>Away</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
