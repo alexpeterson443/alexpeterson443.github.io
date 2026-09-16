@@ -268,9 +268,13 @@
           <span><i class="dot today"></i>today</span>
         </div>
         <div class="yesterday" id="yesterday-hint" hidden>
-          <p class="read quiet">Bowled yesterday but didn't log it?</p>
+          <p class="read">Nothing logged for <span id="yesterday-label">yesterday</span>. You can still settle it today.</p>
+          <p class="read quiet">If you bowled:</p>
           <div class="pills">
             <button id="verify-yesterday" class="pill">Enter the score</button>
+          </div>
+          <p class="read quiet">If you could not bowl, mark that day:</p>
+          <div class="pills">
             <button class="pill excuse-yesterday" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
             <button class="pill excuse-yesterday" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
             <button class="pill excuse-yesterday" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
