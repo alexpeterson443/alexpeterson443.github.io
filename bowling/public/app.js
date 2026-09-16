@@ -371,6 +371,7 @@ function render() {
 
   const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
+  $("yesterday-label").textContent = prettyDate(s.yesterday);
   $("history-meta").textContent = `${s.total} day${s.total === 1 ? "" : "s"}`;
 
   // Calendar grid: week rows starting Monday, from the start date to today.
@@ -650,7 +651,7 @@ $("excuses-toggle").addEventListener("click", () => {
 for (const button of document.querySelectorAll(".excuse")) {
   const reason = button.dataset.reason;
   button.addEventListener("click", () => {
-    if (!confirm(`${excuseCopy(reason).confirm} It won't break the streak, and it won't count either.`)) return;
+    if (!confirm(`${excuseCopy(reason).confirm} That is ${prettyDate(state.today)}. It won't break the streak, and it won't count either.`)) return;
     act(button, () => api("/api/excuse", { method: "POST", body: JSON.stringify({ reason }) }));
   });
 }
@@ -662,6 +663,8 @@ $("unexcuse").addEventListener("click", () => {
 for (const button of document.querySelectorAll(".excuse-yesterday")) {
   const reason = button.dataset.reason;
   button.addEventListener("click", () => {
+    const label = `${prettyDate(state.yesterday)} as ${excuseCopy(reason).title}`;
+    if (!confirm(`Mark ${label}? It won't break the streak, and it won't count either.`)) return;
     act(button, () => api("/api/excuse", { method: "POST", body: JSON.stringify({ date: state.yesterday, reason }) }));
   });
 }
