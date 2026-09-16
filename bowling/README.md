@@ -26,6 +26,7 @@ functions/
   api/excuse.js    POST {reason?} pause today, or {from, to?, reason?} pause a run of days; DELETE {date} | {from, to?} undo
   api/score.js     POST {score, date?, id?} log a scored game (verifies that day), DELETE {date, index}
   api/layout.js    GET/PUT the card arrangement, DELETE back to automatic order
+  api/push.js      POST/DELETE {endpoint} turn the evening reminder on or off for this device
   _lib/scores.js   score stats (unit tested)
   _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
   _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
@@ -38,8 +39,11 @@ functions/
   _lib/hours.js    alley opening hours (unit tested)
   _lib/streak.js   pure date + streak math (unit tested)
   _lib/store.js    KV read/write, caching, and first run seeding
+  _lib/nudge.js    whether tonight is worth a notification (unit tested)
+  _lib/push.js     VAPID signing and sending (unit tested)
+nudge/             the cron Worker that sends the evening reminder
 test/              node --test
-public/sw.js       offline shell, so the app opens in the Union basement
+public/sw.js       offline shell and the push handler
 wrangler.toml      Pages config, KV binding, START_DATE, TIMEZONE
 ```
 
@@ -222,6 +226,42 @@ page. `LAST_CALL_MINUTES` sets the cut off (default 15, 0 to 240); it never
 lands before opening on a very short day. Times are wall clock in `TIMEZONE`,
 so DST is handled.
 
+## The evening reminder
+
+One notification, and only one: on a day that still has no game and no pause,
+two hours before the lanes stop taking games. That is 7:45 PM on weekdays and
+Saturday, 5:45 PM on Sunday. No score reminders, no milestones, nothing else.
+
+Turn it on under **Alley hours**, on the device you want it on. The phone and
+the iPad subscribe separately.
+
+The decision is made on the server, before anything is sent, so a day you have
+already settled never produces a notification at all. The push itself carries
+no text: the service worker wakes, asks `/api/state` what the situation is, and
+writes the wording then, which is also why it can say the right thing if you
+logged a game in the meantime.
+
+Pages Functions cannot be put on a timer, so the sending half is a separate
+Worker in `nudge/`, bound to the same KV namespace. It wakes every quarter hour
+and almost always decides to do nothing; the clock is checked before any KV
+read.
+
+```bash
+# A key pair. The public half goes in public/app.js, the private half is a secret.
+npx wrangler deploy -c nudge/wrangler.toml
+npx wrangler secret put VAPID_PRIVATE_JWK -c nudge/wrangler.toml
+npx wrangler secret put VAPID_SUBJECT     -c nudge/wrangler.toml   # mailto: for push services
+npx wrangler secret put ACCESS_KEY        -c nudge/wrangler.toml   # same key as the site
+```
+
+The Worker also answers a GET, gated by the same access key, which reports
+tonight's reasoning without waiting for the evening. `?send=1` on that URL
+actually sends, for proving a device is reachable.
+
+On iPhone this needs iOS 16.4 or newer **and** the app added to the Home
+Screen. Safari in a tab cannot receive push at all; the toggle says so rather
+than pretending to work.
+
 ## Calendar
 
 Set the `CALENDAR_ICS_URL` secret to a private iCal feed and the page shows
@@ -258,6 +298,8 @@ npm test
 | `CALENDAR_KEYWORD` | wrangler.toml | Word that marks a bowling event         |
 | `HOURS`          | wrangler.toml  | Alley opening hours (optional override)  |
 | `LAST_CALL_MINUTES` | wrangler.toml | Minutes before close that games stop  |
+| `VAPID_PRIVATE_JWK` | secret (nudge/) | Signs the evening reminder            |
+| `VAPID_SUBJECT`  | secret (nudge/) | Contact address for push services     |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.

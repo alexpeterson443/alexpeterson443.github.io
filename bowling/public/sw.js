@@ -7,7 +7,7 @@
 //
 // Only the shell is cached. No scores, no state, no API response ever lands here.
 
-const CACHE = "bowl-shell-v7";
+const CACHE = "bowl-shell-v8";
 const SHELL = ["/style.css", "/app.js", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
@@ -78,4 +78,63 @@ self.addEventListener("fetch", (e) => {
       }),
     );
   }
+});
+
+// The evening nudge.
+//
+// The push carries no payload, only the fact that the server thinks tonight is
+// at risk. That is deliberate: a payload would mean implementing RFC 8291
+// encryption, and the worker can simply ask the API what the state is, using
+// the same session cookie the app uses. It also means the wording is decided
+// here, at the moment it is shown, rather than however long ago the push was
+// queued.
+self.addEventListener("push", (e) => {
+  e.waitUntil(nudge());
+});
+
+async function nudge() {
+  let title = "No game logged today";
+  let body = "The lanes stop taking games soon.";
+
+  try {
+    const res = await fetch("/api/state", { credentials: "same-origin", cache: "no-store" });
+    if (res.ok) {
+      const s = await res.json();
+      // He settled the day in the seconds between the server deciding and the
+      // push arriving. Saying nothing risks the browser's own "updated in the
+      // background" placeholder, which is still better than a warning about a
+      // day that is already safe.
+      if (s.verifiedToday || s.excusedToday) return;
+      const n = Number(s.current) || 0;
+      if (n > 0) title = `${n} day${n === 1 ? "" : "s"} on the line`;
+      const last = s.hours && s.hours.lastCallAt;
+      body = last
+        ? `Nothing logged today. Last game goes on by ${last}.`
+        : "Nothing logged today.";
+    }
+  } catch {
+    // No signal, or the session cookie is gone. The generic wording above is
+    // still true and still worth waking him for.
+  }
+
+  await self.registration.showNotification(title, {
+    body,
+    tag: "bowl-nudge",
+    icon: "/icon-180.png",
+    badge: "/icon-180.png",
+    data: { url: "/" },
+  });
+}
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    // Prefer the copy he already has open: it keeps whatever he was doing, and
+    // its URL still carries the private key if that is how it was opened.
+    for (const c of clients) {
+      if (new URL(c.url).origin === self.location.origin) return c.focus();
+    }
+    return self.clients.openWindow("/");
+  })());
 });

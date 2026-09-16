@@ -13,6 +13,7 @@ const SCORES_KEY = "scores";
 const EXCUSED_KEY = "excused";
 const LAYOUT_KEY = "layout";
 const FRAMES_KEY = "frames_v1";
+const PUSH_KEY = "push_subs";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -107,6 +108,28 @@ export async function saveLayout(env, layout) {
 }
 
 /** Forget his arrangement, so the app goes back to leading with what matters. */
+/**
+ * Devices signed up for the evening nudge.
+ *
+ * A list rather than one record, because the phone and the iPad subscribe
+ * separately and a push service hands out a different endpoint to each. They
+ * are keyed by endpoint so re-subscribing the same device replaces it instead
+ * of piling up a second copy that pushes twice.
+ */
+export async function loadSubs(env) {
+  const raw = await env.STREAK_KV.get(PUSH_KEY, "json");
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((s) => s && typeof s.endpoint === "string");
+}
+
+export async function saveSubs(env, subs) {
+  // Two devices is the realistic ceiling; the cap is only here so a loop in a
+  // client can never grow this without bound.
+  const out = subs.slice(-10);
+  await env.STREAK_KV.put(PUSH_KEY, JSON.stringify(out));
+  return out;
+}
+
 export async function clearLayout(env) {
   await env.STREAK_KV.delete(LAYOUT_KEY);
   return normalizeLayout(null);

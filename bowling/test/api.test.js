@@ -4,6 +4,7 @@ import { onRequestPost as excusePost, onRequestDelete as excuseDelete } from "..
 import { onRequestPost as scorePost, onRequestDelete as scoreDelete } from "../functions/api/score.js";
 import { onRequestGet as layoutGet, onRequestPut as layoutPut, onRequestDelete as layoutDelete } from "../functions/api/layout.js";
 import { onRequestGet as stateGet } from "../functions/api/state.js";
+import { onRequestPost as pushPost, onRequestDelete as pushDelete } from "../functions/api/push.js";
 import { todayIn, addDays } from "../functions/_lib/streak.js";
 
 // The endpoints had no coverage at all: everything under them was unit tested
@@ -182,4 +183,40 @@ test("the state read reports a fresh namespace without falling over", async () =
   assert.deepEqual(json.upcoming, []);
   assert.ok(json.coach.session.text);
   assert.ok(json.hours.week.length);
+});
+
+const sub = (endpoint) => new Request("https://bowling.test/api/push", { method: "POST", body: JSON.stringify({ endpoint }) });
+
+test("subscribing twice from one device leaves one device subscribed", async () => {
+  const store = kv();
+  const phone = "https://web.push.apple.com/one";
+  assert.equal((await call(pushPost, store, sub(phone))).json.devices, 1);
+  assert.equal((await call(pushPost, store, sub(phone))).json.devices, 1);
+  // The iPad is a different endpoint and so a different device.
+  assert.equal((await call(pushPost, store, sub("https://web.push.apple.com/two"))).json.devices, 2);
+  assert.deepEqual(store.read("push_subs").map((s) => s.endpoint), [phone, "https://web.push.apple.com/two"]);
+});
+
+test("only the device that asked to stop is forgotten", async () => {
+  const store = kv({ push_subs: [{ endpoint: "https://a.test/1" }, { endpoint: "https://b.test/2" }] });
+  const { json } = await call(pushDelete, store, sub("https://a.test/1"));
+  assert.equal(json.devices, 1);
+  assert.deepEqual(store.read("push_subs").map((s) => s.endpoint), ["https://b.test/2"]);
+});
+
+test("a device that has lost its own endpoint can still turn everything off", async () => {
+  const store = kv({ push_subs: [{ endpoint: "https://a.test/1" }, { endpoint: "https://b.test/2" }] });
+  const { json } = await call(pushDelete, store, raw("not json"));
+  assert.equal(json.devices, 0);
+  assert.deepEqual(store.read("push_subs"), []);
+});
+
+test("the push endpoint refuses anything a push service would not accept", async () => {
+  const store = kv();
+  for (const input of [sub("http://insecure.test/1"), sub(""), body({}), raw("{")]) {
+    const { status, json } = await call(pushPost, store, input);
+    assert.equal(status, 400);
+    assert.match(json.error, /https endpoint/);
+  }
+  assert.equal(store.read("push_subs"), null);
 });

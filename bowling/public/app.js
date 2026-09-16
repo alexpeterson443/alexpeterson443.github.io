@@ -1422,12 +1422,132 @@ window.addEventListener("online", () => {
   flushOutbox().then((sent) => { if (!sent) load({ quiet: true }); });
 });
 
+// ---------- the evening reminder ----------
+//
+// One push, on a day that still has no game and no pause, two hours before the
+// lanes stop taking games. The server decides whether to send it at all, so
+// every push he receives is one that was worth receiving.
+
+// The public half of the VAPID key pair. Public by definition: it travels with
+// every push request so the push service can check the signature.
+const VAPID_PUBLIC = "BAKGsmFSZ7k9_ur2K_Z8v3-VE5UA_xjxz5od-h56dBZimYVPiY1IqXSMh_e27CJ8k3BoRun7S_1yzhiGprPIxAE";
+const PUSH_SENT = "bowl_push_endpoint";
+
+const pushState = {
+  supported: "serviceWorker" in navigator && "PushManager" in window && "Notification" in window,
+  sub: null,
+  busy: false,
+  error: "",
+};
+
+/** A base64url key as the raw bytes pushManager.subscribe insists on. */
+function keyBytes(b64) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+/** iOS only offers push to a web app that has been added to the Home Screen. */
+function homeScreenOnly() {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  return ios && !installed;
+}
+
+function paintRemind() {
+  const row = $("remind");
+  if (!row) return;
+  const btn = $("remind-toggle");
+  const note = $("remind-note");
+  row.hidden = false;
+
+  if (!pushState.supported) {
+    btn.hidden = true;
+    note.textContent = homeScreenOnly()
+      ? "Add this to your Home Screen, then a reminder can be turned on here."
+      : "This browser cannot send notifications.";
+    return;
+  }
+  if (Notification.permission === "denied") {
+    btn.hidden = true;
+    note.textContent = "Notifications are blocked for this site. Allow them in settings to use this.";
+    return;
+  }
+
+  btn.hidden = false;
+  btn.classList.toggle("on", !!pushState.sub);
+  btn.textContent = pushState.sub ? "Reminder is on" : "Remind me if the day is at risk";
+  note.textContent = pushState.error
+    || (pushState.sub
+      ? "Two hours before last call, only on a day with no game and no pause. Tap to turn it off."
+      : "One push, two hours before last call, only if the day still has no game and no pause.");
+}
+
+/** Whatever this device has already agreed to, read back from the browser. */
+async function loadRemind() {
+  if (!pushState.supported) { paintRemind(); return; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    pushState.sub = await reg.pushManager.getSubscription();
+    // A push service can hand out a new endpoint without being asked. When it
+    // does, the server is still pushing at an address nobody is listening to,
+    // so re-register rather than going quiet for a month before anyone notices.
+    if (pushState.sub && localStorage.getItem(PUSH_SENT) !== pushState.sub.endpoint) {
+      await api("/api/push", { method: "POST", body: JSON.stringify({ endpoint: pushState.sub.endpoint }) });
+      try { localStorage.setItem(PUSH_SENT, pushState.sub.endpoint); } catch {}
+    }
+  } catch {
+    pushState.sub = null;
+  }
+  paintRemind();
+}
+
+async function toggleRemind() {
+  if (pushState.busy || !pushState.supported) return;
+  pushState.busy = true;
+  pushState.error = "";
+  const wasOn = !!pushState.sub;
+  try {
+    if (wasOn) {
+      const { endpoint } = pushState.sub;
+      await api("/api/push", { method: "DELETE", body: JSON.stringify({ endpoint }) });
+      await pushState.sub.unsubscribe().catch(() => {});
+      pushState.sub = null;
+      try { localStorage.removeItem(PUSH_SENT); } catch {}
+    } else {
+      // Safari only honours this while the tap is still live, so it has to be
+      // the first thing awaited in here.
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      pushState.sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: keyBytes(VAPID_PUBLIC),
+      });
+      await api("/api/push", { method: "POST", body: JSON.stringify({ endpoint: pushState.sub.endpoint }) });
+      try { localStorage.setItem(PUSH_SENT, pushState.sub.endpoint); } catch {}
+    }
+  } catch (e) {
+    pushState.error = wasOn
+      ? "Could not turn the reminder off. Try again."
+      : `Could not turn the reminder on. ${e.message || ""}`.trim();
+  } finally {
+    pushState.busy = false;
+    paintRemind();
+  }
+}
+
+$("remind-toggle").addEventListener("click", toggleRemind);
+
 // Keep a copy of the shell so the app opens in the basement, where there is no
 // signal and the gated HTML cannot be re-fetched.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js").then(loadRemind).catch(() => paintRemind());
   });
+} else {
+  paintRemind();
 }
 
 renderPending();
