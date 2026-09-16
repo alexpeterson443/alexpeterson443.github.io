@@ -133,6 +133,7 @@ function fmtCountdown(ms) {
 // Copy for each excuse reason: status line, confirm prompt, undo label, grid title.
 const EXCUSES = {
   closed: { status: (n) => `Alley closed today. Streak paused at ${n}.`, confirm: "Mark today as closed?", undo: "Undo closed day", title: "alley closed" },
+  lanes: { status: (n) => `No lanes free. Streak paused at ${n}.`, confirm: "Mark today as no lanes free?", undo: "Undo no lanes day", title: "no lanes free" },
   sick: { status: (n) => `Sick day. Rest up, streak paused at ${n}.`, confirm: "Mark today as a sick day?", undo: "Undo sick day", title: "sick" },
   injured: { status: (n) => `Injured. Heal up, streak paused at ${n}.`, confirm: "Mark today as an injured day?", undo: "Undo injured day", title: "injured" },
   away: { status: (n) => `Away from your alley. Streak paused at ${n}.`, confirm: "Mark today as a day away?", undo: "Undo day away", title: "away" },

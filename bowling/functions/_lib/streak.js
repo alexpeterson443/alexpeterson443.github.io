@@ -56,7 +56,7 @@ export function dateRange(start, end) {
  * his alley. Those days are known in advance and usually come in runs, which is
  * why the pause below takes a range and accepts dates that have not happened.
  */
-export const EXCUSE_REASONS = ["closed", "sick", "injured", "away"];
+export const EXCUSE_REASONS = ["closed", "lanes", "sick", "injured", "away"];
 
 /** Longest run of days one pause may cover. A semester is not a pause. */
 export const MAX_PAUSE_DAYS = 60;

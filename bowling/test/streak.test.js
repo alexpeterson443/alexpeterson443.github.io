@@ -115,8 +115,16 @@ test("a bowled day is never excused, and a real miss still breaks the streak", (
   assert.equal(s.current, 0);
 });
 
+test("a full alley is its own reason, not a closed one", () => {
+  // "Alley closed" said the wrong thing about a night the lanes were simply
+  // all taken, and the grid could not tell the two apart afterwards.
+  const s = computeStats(seed, "2026-09-06", START, { "2026-09-05": "lanes" });
+  assert.equal(s.excuseReasons["2026-09-05"], "lanes");
+  assert.equal(pauseRange({ from: "2026-09-05", reason: "lanes" }, "2026-09-06", START).reason, "lanes");
+});
+
 test("a day away pauses the streak like any other reason", () => {
-  assert.deepEqual(EXCUSE_REASONS, ["closed", "sick", "injured", "away"]);
+  assert.deepEqual(EXCUSE_REASONS, ["closed", "lanes", "sick", "injured", "away"]);
   // Home to see family: the run neither breaks the streak nor extends it.
   const stats = computeStats(
     ["2026-09-01", "2026-09-02", "2026-09-06", "2026-09-07"],
