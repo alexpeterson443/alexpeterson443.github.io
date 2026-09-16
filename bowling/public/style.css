@@ -572,6 +572,20 @@ button.primary.done {
 }
 .hours-week li.now .days { color: var(--accent-2); }
 
+/* The evening reminder lives with the hours because that is what it is about:
+   the deadline the alley sets, not one the app invented. */
+.remind {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+  justify-items: start;
+}
+.remind[hidden] { display: none; }
+.remind-toggle[hidden] { display: none; }
+.remind .read { margin: 0; }
+
 /* ---------- history ---------- */
 
 .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
