@@ -1,6 +1,9 @@
-import { loadDays, loadScores, buildState } from "../_lib/store.js";
+import { loadDays, loadScores, buildState, configFor } from "../_lib/store.js";
 
 export async function onRequestGet({ env }) {
-  const [days, scores] = await Promise.all([loadDays(env), loadScores(env)]);
-  return Response.json(await buildState(env, days, scores));
+  // Everything downstream reads the config, not the bare env, so a setting he
+  // changed on the settings screen is in force here too.
+  const cfg = await configFor(env);
+  const [days, scores] = await Promise.all([loadDays(cfg), loadScores(cfg)]);
+  return Response.json(await buildState(cfg, days, scores));
 }

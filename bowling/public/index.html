@@ -26,7 +26,78 @@
         <p class="dates" id="subtitle">Loading…</p>
       </div>
       <button type="button" class="edit-btn" id="edit-toggle">Edit</button>
+      <button type="button" class="gear" id="settings-open" aria-label="Settings" title="Settings"></button>
     </header>
+
+    <section class="settings panel" id="settings" hidden>
+      <header class="set-head">
+        <h2>Settings</h2>
+        <button type="button" class="pill" id="settings-close">Done</button>
+      </header>
+      <p class="read quiet">These were all fixed at deploy time until now. Anything you leave alone keeps coming from the deploy config.</p>
+
+      <form id="settings-form" novalidate>
+        <fieldset class="set-group">
+          <legend>The streak</legend>
+          <label class="set-field">
+            <span>First day</span>
+            <input id="set-start" class="field" type="date" />
+          </label>
+          <label class="set-field">
+            <span>Timezone</span>
+            <select id="set-tz" class="field"></select>
+          </label>
+          <p class="read quiet">Every day boundary, deadline and countdown is worked out in this zone.</p>
+        </fieldset>
+
+        <fieldset class="set-group">
+          <legend>Alley hours</legend>
+          <div class="set-days" id="set-days"></div>
+          <label class="set-field">
+            <span>Last game goes on</span>
+            <input id="set-lastcall" class="field narrow" type="number" inputmode="numeric" min="0" max="240" step="1" />
+            <small>minutes before close</small>
+          </label>
+          <p class="read quiet">That cut off, not the posted close, is the deadline the app counts down to.</p>
+        </fieldset>
+
+        <fieldset class="set-group">
+          <legend>Calendar</legend>
+          <label class="set-field">
+            <span>Private iCal feed</span>
+            <input id="set-ics" class="field" type="url" placeholder="https://…" autocomplete="off" spellcheck="false" />
+          </label>
+          <p class="read quiet" id="set-ics-state"></p>
+          <label class="set-field">
+            <span>Word that marks a session</span>
+            <input id="set-keyword" class="field" type="text" maxlength="40" autocapitalize="none" spellcheck="false" />
+          </label>
+        </fieldset>
+
+        <fieldset class="set-group">
+          <legend>Evening reminder</legend>
+          <div class="remind" id="remind" hidden>
+            <button type="button" class="pill remind-toggle" id="remind-toggle" hidden></button>
+            <p class="read quiet" id="remind-note"></p>
+          </div>
+        </fieldset>
+
+        <fieldset class="set-group">
+          <legend>This device</legend>
+          <p class="read quiet" id="set-device"></p>
+          <div class="pills">
+            <button type="button" class="pill" id="set-layout-reset">Back to automatic card order</button>
+          </div>
+        </fieldset>
+
+        <p class="read warn set-error" id="set-error" hidden></p>
+        <p class="read quiet" id="set-changed"></p>
+        <div class="set-actions">
+          <button type="submit" class="primary" id="set-save">Save</button>
+          <button type="button" class="pill" id="set-revert">Put everything back</button>
+        </div>
+      </form>
+    </section>
 
     <section class="hero">
       <div class="streak-row">
@@ -247,10 +318,6 @@
       <div class="w-body">
         <ul class="hours-week" id="hours-week"></ul>
         <p class="read quiet" id="hours-note"></p>
-        <div class="remind" id="remind" hidden>
-          <button type="button" class="pill remind-toggle" id="remind-toggle" hidden></button>
-          <p class="read quiet" id="remind-note"></p>
-        </div>
       </div>
     </section>
 

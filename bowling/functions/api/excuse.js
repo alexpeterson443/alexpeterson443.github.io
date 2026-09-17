@@ -1,4 +1,4 @@
-import { loadDays, loadScores, loadExcused, saveExcused, buildState } from "../_lib/store.js";
+import { loadDays, loadScores, loadExcused, saveExcused, buildState, configFor } from "../_lib/store.js";
 import { todayIn, addDays, isValidIsoDate, pauseRange } from "../_lib/streak.js";
 
 // POST   /api/excuse {reason?}                 -> pause today
@@ -10,7 +10,8 @@ import { todayIn, addDays, isValidIsoDate, pauseRange } from "../_lib/streak.js"
 // injured, away. A day with a scored game on it always wins over a pause, so
 // marking a trip that he ends up bowling through costs him nothing.
 export async function onRequestPost({ request, env }) {
-  const tz = env.TIMEZONE || "America/Chicago";
+  const cfg = await configFor(env);
+  const tz = cfg.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   const body = await request.json().catch(() => ({}));
 
@@ -29,18 +30,19 @@ export async function onRequestPost({ request, env }) {
   const range = pauseRange(
     ranged ? body : { from: body.date === undefined ? today : body.date, reason: body.reason },
     today,
-    env.START_DATE,
+    cfg.START_DATE,
   );
   if (range.error) return Response.json({ error: range.error }, { status: 400 });
 
-  const excused = { ...(await loadExcused(env)) };
+  const excused = { ...(await loadExcused(cfg)) };
   for (const d of range.dates) excused[d] = range.reason;
-  const saved = await saveExcused(env, excused);
-  return Response.json(await buildState(env, await loadDays(env), await loadScores(env), saved));
+  const saved = await saveExcused(cfg, excused);
+  return Response.json(await buildState(cfg, await loadDays(cfg), await loadScores(cfg), saved));
 }
 
 export async function onRequestDelete({ request, env }) {
-  const tz = env.TIMEZONE || "America/Chicago";
+  const cfg = await configFor(env);
+  const tz = cfg.TIMEZONE || "America/Chicago";
   const body = await request.json().catch(() => ({}));
   const from = body.from === undefined ? body.date : body.from;
   // allowBefore: a day on file from before the current start date still has to
@@ -48,13 +50,13 @@ export async function onRequestDelete({ request, env }) {
   const range = pauseRange(
     { from, to: body.to, reason: "closed" },
     todayIn(tz),
-    env.START_DATE,
+    cfg.START_DATE,
     { allowBefore: true },
   );
   if (range.error) return Response.json({ error: range.error }, { status: 400 });
 
-  const excused = { ...(await loadExcused(env)) };
+  const excused = { ...(await loadExcused(cfg)) };
   for (const d of range.dates) delete excused[d];
-  const saved = await saveExcused(env, excused);
-  return Response.json(await buildState(env, await loadDays(env), await loadScores(env), saved));
+  const saved = await saveExcused(cfg, excused);
+  return Response.json(await buildState(cfg, await loadDays(cfg), await loadScores(cfg), saved));
 }

@@ -7,6 +7,7 @@ import { planWindow, windowSentence, windowShort } from "./window.js";
 import { frameReport } from "./frames.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
+import { cleanRecord, mergeEnv } from "./settings.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -14,6 +15,7 @@ const EXCUSED_KEY = "excused";
 const LAYOUT_KEY = "layout";
 const FRAMES_KEY = "frames_v1";
 const PUSH_KEY = "push_subs";
+const SETTINGS_KEY = "settings";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -21,6 +23,34 @@ const PUSH_KEY = "push_subs";
  * as verified. Only applied when KV is completely empty.
  */
 const SEED_THROUGH = "2026-09-03";
+
+/**
+ * The settings he has changed, as a record keyed by env name. Empty means he
+ * has changed nothing and everything still comes from wrangler.toml.
+ */
+export async function loadSettings(env) {
+  return cleanRecord(await env.STREAK_KV.get(SETTINGS_KEY, "json"));
+}
+
+export async function saveSettings(env, record) {
+  const clean = cleanRecord(record);
+  if (Object.keys(clean).length === 0) {
+    await env.STREAK_KV.delete(SETTINGS_KEY);
+    return {};
+  }
+  await env.STREAK_KV.put(SETTINGS_KEY, JSON.stringify(clean));
+  return clean;
+}
+
+/**
+ * The config actually in force: wrangler.toml with his saved settings laid
+ * over it, bindings and all. Handlers take this instead of `env` so a change
+ * made on the settings screen reaches every day boundary and every deadline
+ * at once, rather than the half of them that happened to be rewritten.
+ */
+export async function configFor(env) {
+  return mergeEnv(env, await loadSettings(env));
+}
 
 export async function loadDays(env) {
   const raw = await env.STREAK_KV.get(KEY, "json");

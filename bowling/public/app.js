@@ -1422,6 +1422,172 @@ window.addEventListener("online", () => {
   flushOutbox().then((sent) => { if (!sent) load({ quiet: true }); });
 });
 
+// ---------- settings ----------
+//
+// These were vars in wrangler.toml, which meant that moving the alley's
+// closing time by half an hour needed a laptop. The server lays what is saved
+// here over the deploy time config, so a field he never touches keeps coming
+// from the deploy and keeps behaving exactly as it did.
+
+const DAY_NAMES = [["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"], ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"]];
+const ZONES = [
+  "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles",
+  "America/Phoenix", "America/Anchorage", "Pacific/Honolulu", "Europe/London", "UTC",
+];
+
+let settings = null;
+
+/** One row per day: a closed switch and the two times it is open between. */
+function buildDayRows() {
+  const wrap = $("set-days");
+  if (wrap.dataset.built) return;
+  for (const [key, label] of DAY_NAMES) {
+    const row = document.createElement("div");
+    row.className = "set-day";
+    row.innerHTML = `
+      <span class="set-day-name">${label}</span>
+      <input class="field time" type="time" step="60" data-day="${key}" data-part="open" aria-label="${label} opens" />
+      <span class="set-dash">to</span>
+      <input class="field time" type="time" step="60" data-day="${key}" data-part="close" aria-label="${label} closes" />
+      <label class="set-shut"><input type="checkbox" data-day="${key}" data-part="closed" /><span>Closed</span></label>`;
+    wrap.appendChild(row);
+  }
+  wrap.dataset.built = "1";
+  wrap.addEventListener("change", (e) => {
+    const box = e.target.closest('input[data-part="closed"]');
+    if (box) setDayShut(box.dataset.day, box.checked);
+  });
+}
+
+function setDayShut(day, shut) {
+  for (const part of ["open", "close"]) {
+    const el = $("set-days").querySelector(`input[data-day="${day}"][data-part="${part}"]`);
+    el.disabled = shut;
+    el.closest(".set-day").classList.toggle("shut", shut);
+  }
+}
+
+/** Put the values in force into the form. */
+function paintSettings(view) {
+  settings = view;
+  const e = view.effective;
+
+  $("set-start").value = e.startDate;
+  $("set-start").max = todayLocal();
+
+  const tz = $("set-tz");
+  tz.innerHTML = "";
+  for (const z of [...new Set([e.timezone, ...ZONES])]) {
+    const o = document.createElement("option");
+    o.value = z;
+    o.textContent = z.replace(/_/g, " ");
+    tz.appendChild(o);
+  }
+  tz.value = e.timezone;
+
+  buildDayRows();
+  for (const [key] of DAY_NAMES) {
+    const hours = e.hours[key];
+    const shut = hours === null;
+    const box = $("set-days").querySelector(`input[data-day="${key}"][data-part="closed"]`);
+    box.checked = shut;
+    $("set-days").querySelector(`input[data-day="${key}"][data-part="open"]`).value = shut ? "10:00" : hours[0];
+    $("set-days").querySelector(`input[data-day="${key}"][data-part="close"]`).value = shut ? "22:00" : hours[1];
+    setDayShut(key, shut);
+  }
+
+  $("set-lastcall").value = e.lastCallMinutes;
+  $("set-keyword").value = e.calendarKeyword;
+  $("set-ics").value = "";
+  // The feed URL grants read access to his calendar, so the server never sends
+  // it back. All the screen can honestly say is whether one is set.
+  $("set-ics-state").textContent = e.calendar.configured
+    ? `A feed from ${e.calendar.host || "somewhere"} is set. The URL itself is never sent back to this screen. Typing a new one replaces it.`
+    : "No feed set. The calendar card stays empty without one.";
+
+  const n = view.overridden.length;
+  $("set-changed").textContent = n
+    ? `${n} setting${n === 1 ? "" : "s"} changed from the deploy config: ${view.overridden.join(", ")}.`
+    : "Nothing changed from the deploy config yet.";
+  $("set-revert").hidden = n === 0;
+}
+
+/** Read the form back out, as the partial the API expects. */
+function readSettings() {
+  const hours = {};
+  for (const [key] of DAY_NAMES) {
+    const q = (part) => $("set-days").querySelector(`input[data-day="${key}"][data-part="${part}"]`);
+    hours[key] = q("closed").checked ? null : [q("open").value, q("close").value];
+  }
+  const patch = {
+    startDate: $("set-start").value,
+    timezone: $("set-tz").value,
+    hours,
+    lastCallMinutes: $("set-lastcall").value,
+    calendarKeyword: $("set-keyword").value,
+  };
+  // Only sent when he has actually typed one, so saving anything else does not
+  // wipe the feed he set months ago.
+  const ics = $("set-ics").value.trim();
+  if (ics) patch.calendarIcsUrl = ics;
+  return patch;
+}
+
+function showSettings(on) {
+  document.body.classList.toggle("settings-open", on);
+  $("settings").hidden = !on;
+  $("set-error").hidden = true;
+  if (!on) return;
+  window.scrollTo(0, 0);
+  const pending = readOutbox().length;
+  $("set-device").textContent = storedKey()
+    ? `This device is linked.${pending ? ` ${pending} game${pending === 1 ? "" : "s"} still waiting to send.` : ""}`
+    : "This device has no key saved and is running on its cookie alone.";
+  api("/api/settings").then(paintSettings).catch(() => {
+    $("set-error").hidden = false;
+    $("set-error").textContent = "Could not load the settings. Check your connection.";
+  });
+}
+
+$("settings-open").addEventListener("click", () => showSettings(true));
+$("settings-close").addEventListener("click", () => showSettings(false));
+
+$("settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const save = $("set-save");
+  if (save.disabled) return;
+  save.disabled = true;
+  save.textContent = "Saving…";
+  $("set-error").hidden = true;
+  try {
+    const res = await api("/api/settings", { method: "PUT", body: JSON.stringify(readSettings()) });
+    paintSettings(res);
+    if (res.state) { state = res.state; render(); }
+    save.textContent = "Saved";
+    setTimeout(() => { save.textContent = "Save"; }, 1400);
+  } catch (err) {
+    $("set-error").hidden = false;
+    $("set-error").textContent = err.message || "Could not save.";
+    save.textContent = "Save";
+  } finally {
+    save.disabled = false;
+  }
+});
+
+$("set-revert").addEventListener("click", async () => {
+  if (!confirm("Put every setting back to the deploy config? Your games, pauses and card order are not touched.")) return;
+  try {
+    const res = await api("/api/settings", { method: "DELETE" });
+    paintSettings(res);
+    if (res.state) { state = res.state; render(); }
+  } catch {
+    $("set-error").hidden = false;
+    $("set-error").textContent = "Could not put the settings back.";
+  }
+});
+
+$("set-layout-reset").addEventListener("click", () => $("layout-reset").click());
+
 // ---------- the evening reminder ----------
 //
 // One push, on a day that still has no game and no pause, two hours before the
