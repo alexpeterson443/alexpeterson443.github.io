@@ -1,0 +1,60 @@
+# The bowling streak's evening reminder, on a timer.
+#
+# The reminder itself lives in the app: /api/nudge works out whether tonight is
+# at risk and sends the push if it is. All this does is knock on that door every
+# quarter hour during the evening.
+#
+# The better home for the timer is the Worker in bowling/nudge/, on Cloudflare's
+# own cron: no third party, no extra hop, and it fires on the minute rather than
+# whenever GitHub gets to it. Deploying it needs an API token with Workers
+# permissions and a VAPID secret set on it. Until that exists, this is enough,
+# and the two call exactly the same code.
+#
+# Needs a BOWL_ACCESS_KEY secret: the key from the app's private link. Without
+# it this skips cleanly and says so rather than failing red every quarter hour.
+
+name: Bowling streak reminder
+
+on:
+  schedule:
+    # Every quarter hour from 22:00 to 04:45 UTC, which covers the two hours
+    # before last call whether Milwaukee is on CDT or CST. GitHub runs these
+    # late and sometimes skips one; the window is two hours wide, so it takes a
+    # lot of lateness to miss it.
+    - cron: "*/15 22-23 * * *"
+    - cron: "*/15 0-4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: bowl-nudge
+  cancel-in-progress: false
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    env:
+      # Surfaced as env so the step can test for it; `secrets` is not a valid
+      # context inside a step-level `if`.
+      BOWL_ACCESS_KEY: ${{ secrets.BOWL_ACCESS_KEY }}
+    steps:
+      - name: Ask the app whether tonight needs a reminder
+        if: env.BOWL_ACCESS_KEY != ''
+        run: |
+          set -o pipefail
+          code=$(curl -sS -X POST \
+            -H "X-Access-Key: $BOWL_ACCESS_KEY" \
+            -o response.json -w '%{http_code}' \
+            https://bowling-streak.pages.dev/api/nudge)
+          # The reply is the reasoning, not the notification: a date, a
+          # deadline, and why it did or did not send. Nothing private in it.
+          cat response.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::/api/nudge answered $code"
+            exit 1
+          fi
+
+      - name: Note the missing key
+        if: env.BOWL_ACCESS_KEY == ''
+        run: |
+          echo "::warning::BOWL_ACCESS_KEY is not set, so the evening reminder cannot be triggered. Add it under Settings > Secrets and variables > Actions."
