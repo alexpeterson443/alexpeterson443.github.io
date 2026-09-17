@@ -42,6 +42,7 @@ functions/
   _lib/nudge.js    whether tonight is worth a notification (unit tested)
   _lib/push.js     VAPID signing and sending (unit tested)
 nudge/             the cron Worker that sends the evening reminder
+icon/icon.svg      the app icon, drawn; the two PNGs are rendered from it
 test/              node --test
 public/sw.js       offline shell and the push handler
 wrangler.toml      Pages config, KV binding, START_DATE, TIMEZONE

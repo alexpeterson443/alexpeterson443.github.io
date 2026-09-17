@@ -1,0 +1,89 @@
+<!--
+  The app icon, drawn rather than typed.
+
+  It used to be the bowling emoji on a bright lavender gradient, which was the
+  one light thing on a phone full of this app's very dark screens. This is the
+  same palette as the app: near black, the accent purple as a glow behind the
+  pins and as the bands on them, and a ball dark enough to belong on that
+  background but rimmed so it does not disappear into it.
+
+  Everything sits inside the maskable safe circle (centre 256, radius 205), so
+  Android can crop this to a circle and lose only background.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7c5cff" stop-opacity="0.55" />
+      <stop offset="0.55" stop-color="#7c5cff" stop-opacity="0.16" />
+      <stop offset="1" stop-color="#7c5cff" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.55" stop-color="#eceefb" />
+      <stop offset="1" stop-color="#b9bed8" />
+    </linearGradient>
+    <linearGradient id="ball" x1="0.25" y1="0.1" x2="0.8" y2="0.95">
+      <stop offset="0" stop-color="#4a3a95" />
+      <stop offset="0.5" stop-color="#2a2150" />
+      <stop offset="1" stop-color="#14111f" />
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.32" cy="0.28" r="0.42">
+      <stop offset="0" stop-color="#c4b5fd" stop-opacity="0.5" />
+      <stop offset="1" stop-color="#c4b5fd" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- One pin, head at the origin, 190 tall. -->
+    <path id="pin-shape" d="M 0 0
+      C 14 0 24 10 24 24 C 24 36 16 44 14 52 C 12 62 12 66 16 74
+      C 26 96 34 120 34 146 C 34 173 20 190 0 190
+      C -20 190 -34 173 -34 146 C -34 120 -26 96 -16 74
+      C -12 66 -12 62 -14 52 C -16 44 -24 36 -24 24 C -24 10 -14 0 0 0 Z" />
+    <clipPath id="pin-clip"><use href="#pin-shape" /></clipPath>
+  </defs>
+
+  <rect width="512" height="512" fill="#0a0b12" />
+  <circle cx="300" cy="200" r="250" fill="url(#glow)" />
+
+  <!-- Optically centred: the art is heavier on the left, so it sits a touch
+       right of true centre and slightly larger than the safe circle demands. -->
+  <g transform="translate(20 0) translate(256 256) scale(1.05) translate(-256 -256)">
+
+  <!-- Back pins first, so the front one overlaps them. -->
+  <g>
+    <g transform="translate(268 118) scale(0.88)">
+      <use href="#pin-shape" fill="url(#pin)" />
+      <g clip-path="url(#pin-clip)">
+        <rect x="-40" y="60" width="80" height="13" fill="#7c5cff" />
+        <rect x="-40" y="80" width="80" height="13" fill="#a78bfa" />
+      </g>
+    </g>
+    <g transform="translate(360 140) scale(0.88)">
+      <use href="#pin-shape" fill="url(#pin)" />
+      <g clip-path="url(#pin-clip)">
+        <rect x="-40" y="60" width="80" height="13" fill="#7c5cff" />
+        <rect x="-40" y="80" width="80" height="13" fill="#a78bfa" />
+      </g>
+    </g>
+    <g transform="translate(312 158)">
+      <use href="#pin-shape" fill="url(#pin)" />
+      <g clip-path="url(#pin-clip)">
+        <rect x="-40" y="60" width="80" height="13" fill="#7c5cff" />
+        <rect x="-40" y="80" width="80" height="13" fill="#a78bfa" />
+      </g>
+    </g>
+  </g>
+
+  <!-- The ball. Dark enough for the background, rimmed so it still has an edge. -->
+  <g transform="translate(172 302)">
+    <circle r="94" fill="url(#ball)" />
+    <circle r="94" fill="url(#sheen)" />
+    <circle r="92.5" fill="none" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="3" />
+    <g fill="#0a0b12" fill-opacity="0.92">
+      <circle cx="-26" cy="-34" r="14" />
+      <circle cx="10" cy="-42" r="14" />
+      <circle cx="-8" cy="-2" r="15" />
+    </g>
+  </g>
+
+  </g>
+</svg>
