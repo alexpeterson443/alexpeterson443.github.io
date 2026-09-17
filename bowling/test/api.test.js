@@ -5,6 +5,7 @@ import { onRequestPost as scorePost, onRequestDelete as scoreDelete } from "../f
 import { onRequestGet as layoutGet, onRequestPut as layoutPut, onRequestDelete as layoutDelete } from "../functions/api/layout.js";
 import { onRequestGet as stateGet } from "../functions/api/state.js";
 import { onRequestPost as pushPost, onRequestDelete as pushDelete } from "../functions/api/push.js";
+import { onRequestGet as settingsGet, onRequestPut as settingsPut, onRequestDelete as settingsDelete } from "../functions/api/settings.js";
 import { todayIn, addDays } from "../functions/_lib/streak.js";
 
 // The endpoints had no coverage at all: everything under them was unit tested
@@ -219,4 +220,85 @@ test("the push endpoint refuses anything a push service would not accept", async
     assert.match(json.error, /https endpoint/);
   }
   assert.equal(store.read("push_subs"), null);
+});
+
+const put = (o) => new Request("https://bowling.test/api/settings", { method: "PUT", body: JSON.stringify(o) });
+
+test("a saved setting is in force everywhere, not just on the settings screen", async () => {
+  const store = kv();
+  const { json } = await call(settingsPut, store, put({ lastCallMinutes: 60, hours: { sun: null } }));
+  assert.equal(json.effective.lastCallMinutes, 60);
+  // The stored table is filled out to all seven days, so editing Sunday later
+  // cannot reset the rest of the week to the built in defaults.
+  const record = store.read("settings");
+  assert.equal(record.LAST_CALL_MINUTES, "60");
+  assert.equal(record.HOURS.sun, null);
+  assert.deepEqual(record.HOURS.mon, ["10:00", "22:00"]);
+  assert.deepEqual(Object.keys(record.HOURS).sort(), ["fri", "mon", "sat", "sun", "thu", "tue", "wed"]);
+  // The state that comes back with it already reflects the change, so the app
+  // never shows a deadline the server has stopped believing in.
+  assert.equal(json.state.hours.lastCallMinutes, 60);
+
+  // And a plain read of the state agrees.
+  const state = await call(stateGet, store);
+  assert.equal(state.json.hours.lastCallMinutes, 60);
+});
+
+test("a refused setting changes nothing at all", async () => {
+  const store = kv({ settings: { TIMEZONE: "UTC" } });
+  const { status, json } = await call(settingsPut, store, put({ timezone: "Mars/Olympus", lastCallMinutes: 30 }));
+  assert.equal(status, 400);
+  assert.match(json.error, /not a timezone/);
+  // The valid half of the same request is not quietly kept.
+  assert.deepEqual(store.read("settings"), { TIMEZONE: "UTC" });
+});
+
+test("putting everything back leaves no record behind", async () => {
+  const store = kv({ settings: { TIMEZONE: "UTC", LAST_CALL_MINUTES: "60" } });
+  const before = await call(settingsGet, store);
+  assert.deepEqual(before.json.overridden, ["lastCallMinutes", "timezone"]);
+
+  const { json } = await call(settingsDelete, store);
+  assert.deepEqual(json.overridden, []);
+  assert.equal(json.effective.timezone, "America/Chicago");
+  assert.equal(store.read("settings"), null);
+});
+
+test("the settings endpoint never hands back the calendar feed", async () => {
+  const url = "https://calendar.google.com/calendar/ical/secret-token-abc123/basic.ics";
+  const store = kv();
+  await call(settingsPut, store, put({ calendarIcsUrl: url }));
+  assert.equal(store.read("settings").CALENDAR_ICS_URL, url);
+  const { json } = await call(settingsGet, store);
+  assert.equal(json.effective.calendar.configured, true);
+  assert.equal(JSON.stringify(json).includes("secret-token-abc123"), false);
+});
+
+test("a setting saved back to its deploy value stops counting as changed", async () => {
+  const store = kv({ settings: { TIMEZONE: "UTC" } });
+  // The screen sends every field on every save, so most of what arrives is
+  // identical to the deploy config and must not be recorded as a change.
+  const { json } = await call(settingsPut, store, put({
+    startDate: "2026-08-28", timezone: "America/Chicago", lastCallMinutes: 30, calendarKeyword: "bowl",
+  }));
+  assert.deepEqual(json.overridden, ["lastCallMinutes"]);
+  assert.deepEqual(store.read("settings"), { LAST_CALL_MINUTES: "30" });
+});
+
+test("editing one day does not reset the rest of the week", async () => {
+  const store = kv();
+  await call(settingsPut, store, put({ hours: { wed: null } }));
+  const { json } = await call(settingsPut, store, put({ hours: { fri: ["09:00", "23:00"] } }));
+  assert.equal(json.effective.hours.wed, null);
+  assert.deepEqual(json.effective.hours.fri, ["09:00", "23:00"]);
+  assert.deepEqual(json.effective.hours.mon, ["10:00", "22:00"]);
+});
+
+test("putting the hours back to the deploy table drops the override entirely", async () => {
+  const store = kv();
+  await call(settingsPut, store, put({ hours: { wed: null } }));
+  assert.equal(store.read("settings").HOURS.wed, null);
+  const { json } = await call(settingsPut, store, put({ hours: { wed: ["10:00", "22:00"] } }));
+  assert.deepEqual(json.overridden, []);
+  assert.equal(store.read("settings"), null);
 });

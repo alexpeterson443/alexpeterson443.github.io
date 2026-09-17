@@ -27,6 +27,7 @@ functions/
   api/score.js     POST {score, date?, id?} log a scored game (verifies that day), DELETE {date, index}
   api/layout.js    GET/PUT the card arrangement, DELETE back to automatic order
   api/push.js      POST/DELETE {endpoint} turn the evening reminder on or off for this device
+  api/settings.js  GET/PUT the settings he can change without a deploy, DELETE back to wrangler.toml
   _lib/scores.js   score stats (unit tested)
   _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
   _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
@@ -40,6 +41,7 @@ functions/
   _lib/streak.js   pure date + streak math (unit tested)
   _lib/store.js    KV read/write, caching, and first run seeding
   _lib/nudge.js    whether tonight is worth a notification (unit tested)
+  _lib/settings.js validates them and lays them over the deploy config (unit tested)
   _lib/push.js     VAPID signing and sending (unit tested)
 nudge/             the cron Worker that sends the evening reminder
 icon/icon.svg      the app icon, drawn; the two PNGs are rendered from it
@@ -226,6 +228,29 @@ default, and anything that does not parse falls back rather than breaking the
 page. `LAST_CALL_MINUTES` sets the cut off (default 15, 0 to 240); it never
 lands before opening on a very short day. Times are wall clock in `TIMEZONE`,
 so DST is handled.
+
+## Settings
+
+The gear in the header opens a screen for the things that used to need a
+laptop: the first day of the streak, the timezone, the alley's hours day by
+day, how long before close the last game goes on, the calendar feed and the
+word that marks a session in it.
+
+They are stored as one KV record laid over the deploy time config rather than
+replacing it. A field you never touch keeps coming from wrangler.toml and keeps
+following it when you change it there. A field you set back to the deploy value
+stops being an override, so the screen's count of what you have changed is
+honest and a later deploy is not silently frozen out by a copy of its own old
+value. **Put everything back** clears the record; it touches no games, pauses
+or card order.
+
+Everything in the app reads the merged config, including the reminder Worker,
+so a change lands on every deadline, countdown and day boundary at once rather
+than on the half of them that happened to be rewritten.
+
+The calendar feed is the exception to reading settings back: it grants read
+access to your calendar, so the API stores it but never returns it. The screen
+is told only that one is set and which host it points at.
 
 ## The evening reminder
 

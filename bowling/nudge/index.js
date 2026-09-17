@@ -13,7 +13,7 @@
 import { todayIn } from "../functions/_lib/streak.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "../functions/_lib/hours.js";
 import { inNudgeWindow, nudgeDecision } from "../functions/_lib/nudge.js";
-import { loadScores, loadExcused, loadSubs, saveSubs } from "../functions/_lib/store.js";
+import { loadScores, loadExcused, loadSubs, saveSubs, configFor } from "../functions/_lib/store.js";
 import { sendPush } from "../functions/_lib/push.js";
 import { keyMatches } from "../functions/_lib/auth.js";
 
@@ -35,7 +35,11 @@ function clock(env, nowMs) {
  * still refuses to send when the day is settled, because a reminder that lies
  * is worse than no reminder.
  */
-export async function run(env, nowMs = Date.now(), { force = false } = {}) {
+export async function run(rawEnv, nowMs = Date.now(), { force = false } = {}) {
+  // His saved settings decide the timezone and the alley's hours, so the
+  // Worker has to read them too or it will be reasoning about a different
+  // evening than the app is showing him.
+  const env = await configFor(rawEnv);
   const { today, hours } = clock(env, nowMs);
 
   if (!force && !inNudgeWindow(hours, nowMs)) {
