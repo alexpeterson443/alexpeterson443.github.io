@@ -588,7 +588,10 @@ button.primary.done {
 
 /* ---------- history ---------- */
 
-.grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+/* minmax(0, 1fr) rather than 1fr: the day numbers give each cell a minimum
+   width of their own, and on a 320 point screen seven of those are wider
+   than the card. The squares shrink instead of the page growing. */
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
 .cell {
   aspect-ratio: 1;
   border-radius: 9px;
@@ -940,7 +943,10 @@ body.dragging-now .widget { transition: none; }
 .target-list span { font-size: 0.77rem; line-height: 1.45; color: var(--muted); }
 
 /* Recent form, above the chart. */
-.form-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+/* The delta chip keeps its text on one line, which together with the big
+   average is wider than a 320 point card. Wrapping drops the chip to its own
+   line there rather than widening the whole page. */
+.form-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .form-now span {
   display: block;
   font-size: 2.4rem;
@@ -1066,6 +1072,9 @@ body.settings-open .action,
 body.settings-open .zone,
 body.settings-open .edit-note,
 body.settings-open .edit-btn { display: none; }
+/* The side column holds nothing but cards, and the cards are gone. Left in
+   place it would sit there as an empty half of the screen. */
+body.settings-open .col.side { display: none; }
 
 .settings { text-align: left; margin-top: 14px; }
 .settings[hidden] { display: none; }
@@ -1162,3 +1171,32 @@ select.field:focus {
 .set-actions .pill[hidden] { display: none; }
 .set-error { color: var(--miss); margin-top: 13px; }
 .set-error[hidden] { display: none; }
+
+/* One column of form on every screen. A settings form stretched across a
+   desktop is harder to read, not easier, so the card narrows instead of the
+   fields growing. */
+@media (min-width: 1100px) {
+  body.settings-open .app {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 680px;
+  }
+}
+
+/* Once there is room, a day fits on one line, which takes seven rows out of
+   the scroll. Below this the Closed switch drops under the times instead. */
+@media (min-width: 700px) {
+  .set-days { gap: 8px; }
+  .set-day { grid-template-columns: 38px 1fr auto 1fr auto; }
+  .set-shut { grid-column: auto; justify-content: flex-start; padding-left: 4px; }
+}
+
+/* 320 points: an iPhone SE, and an iPad Slide Over panel. A date input has an
+   intrinsic width of its own that no amount of min-width: 0 will shrink, so at
+   this size the two fields stop sharing a row rather than pushing the page
+   sideways. */
+@media (max-width: 359px) {
+  .score-form { grid-template-columns: 1fr; }
+  .range-row { grid-template-columns: 1fr; }
+  .set-day { grid-template-columns: 30px 1fr auto 1fr; gap: 3px 4px; }
+  .set-day input.time { padding: 8px 2px; font-size: 0.74rem; }
+}
