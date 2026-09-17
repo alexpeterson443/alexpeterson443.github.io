@@ -28,6 +28,7 @@ functions/
   api/layout.js    GET/PUT the card arrangement, DELETE back to automatic order
   api/push.js      POST/DELETE {endpoint} turn the evening reminder on or off for this device
   api/settings.js  GET/PUT the settings he can change without a deploy, DELETE back to wrangler.toml
+  api/nudge.js     GET the evening reminder's reasoning, POST to act on it; the timer hook
   _lib/scores.js   score stats (unit tested)
   _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
   _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
@@ -42,6 +43,7 @@ functions/
   _lib/store.js    KV read/write, caching, and first run seeding
   _lib/nudge.js    whether tonight is worth a notification (unit tested)
   _lib/settings.js validates them and lays them over the deploy config (unit tested)
+  _lib/nudge-run.js decides and sends; shared by the Worker and /api/nudge
   _lib/push.js     VAPID signing and sending (unit tested)
 nudge/             the cron Worker that sends the evening reminder
 icon/icon.svg      the app icon, drawn; the two PNGs are rendered from it
@@ -267,10 +269,21 @@ no text: the service worker wakes, asks `/api/state` what the situation is, and
 writes the wording then, which is also why it can say the right thing if you
 logged a game in the meantime.
 
-Pages Functions cannot be put on a timer, so the sending half is a separate
-Worker in `nudge/`, bound to the same KV namespace. It wakes every quarter hour
-and almost always decides to do nothing; the clock is checked before any KV
-read.
+Pages Functions cannot be put on a timer, so something else has to knock every
+quarter hour. Two things can, and both call the same code in
+`_lib/nudge-run.js`, so they cannot drift apart:
+
+- **`nudge/`**, a Worker on Cloudflare's own cron. The right answer: no third
+  party, no extra hop, fires on the minute. Deploying it needs an API token
+  with Workers permissions, and `VAPID_PRIVATE_JWK` set on the Worker.
+- **`.github/workflows/bowl-nudge.yml`**, which POSTs to `/api/nudge` on a
+  schedule. Needs only a `BOWL_ACCESS_KEY` repository secret, since the Pages
+  project already holds the VAPID key. GitHub runs scheduled workflows late and
+  occasionally skips one; the window is two hours wide, so that is survivable
+  rather than ideal.
+
+Either way the decision is made server side and the clock is checked before any
+KV read, so the ticks that fall outside the window cost one pure function call.
 
 ```bash
 # A key pair. The public half goes in public/app.js, the private half is a secret.
