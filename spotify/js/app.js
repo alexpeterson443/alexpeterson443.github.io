@@ -1148,12 +1148,13 @@
 
   function renderSetup(view) {
     var id = auth.clientId();
+    var own = auth.ownClientId();
     var uri = auth.redirectUri();
 
     view.appendChild(card("Connection", null, [
       el("p", { class: state.connected ? "banner is-good" : "banner", text: state.connected
         ? "Connected" + (state.me ? " as " + (state.me.display_name || state.me.id) : "") + "."
-        : (id ? "Client ID saved. Not connected yet." : "Not set up yet.") }),
+        : (own ? "Client ID saved. Not connected yet." : (id ? "Ready — tap Connect Spotify." : "Not set up yet.")) }),
       el("div", { class: "row" }, [
         state.connected
           ? el("button", { class: "btn btn-danger", type: "button", text: "Disconnect", onclick: disconnect })
@@ -1161,8 +1162,8 @@
       ])
     ]));
 
-    var input = el("input", { type: "text", value: id, placeholder: "e.g. 3a9f0c2e5b7d4f1a8c6e2b4d9f7a1c3e", "aria-label": "Spotify client ID", spellcheck: "false" });
-    view.appendChild(card("Your own Spotify app", "Two minutes, once. Spotify requires every app to have its own ID, and a static page like this one can't hide a shared secret — so you bring your own.", [
+    var input = el("input", { type: "text", value: own, placeholder: "e.g. 3a9f0c2e5b7d4f1a8c6e2b4d9f7a1c3e", "aria-label": "Spotify client ID", spellcheck: "false" });
+    view.appendChild(card("Your own Spotify app", "Optional. This site already has a Spotify app built in, so its owner can just connect. It's in development mode, though, so any other account needs its own app — two minutes, once.", [
       el("ol", { class: "steps" }, [
         el("li", { html: 'Open the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify developer dashboard</a> and click <b>Create app</b>. Any name will do.' }),
         el("li", {}, [
@@ -1188,7 +1189,7 @@
         input,
         el("button", { class: "btn", type: "button", text: "Save", onclick: function () {
           auth.setClientId(input.value);
-          banner(auth.clientId() ? "Client ID saved." : "Client ID cleared.", "good");
+          banner(auth.ownClientId() ? "Client ID saved." : "Client ID cleared — back to the built-in one.", "good");
           refresh();
         } })
       ]),
