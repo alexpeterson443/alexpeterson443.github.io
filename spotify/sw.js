@@ -3,7 +3,7 @@
    Worth having beyond the usual reasons: the play log and any imported
    history live in IndexedDB, so with the shell cached the whole Full history
    tab works with no network at all. */
-var CACHE = "listening-stats-v1";
+var CACHE = "listening-stats-v2";
 /* Derived from where this worker sits, so the app still behaves if the folder
    is ever served from a different path or its own domain. */
 var SCOPE = new URL("./", self.location).pathname;

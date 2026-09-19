@@ -42,8 +42,13 @@ re-renders every PNG from the same source artwork as `icon.svg`.
 ## Setting it up (once, about two minutes)
 
 Spotify requires every app to have its own client ID, and a static page can't
-keep a secret — so this uses **Authorization Code with PKCE**, where you bring
-your own ID and no client secret exists at all.
+keep a secret — so this uses **Authorization Code with PKCE**, where no client
+secret exists at all.
+
+The site owner's client ID is built in (`DEFAULT_CLIENT_ID` in `js/auth.js` — a
+PKCE client ID is public by design), so on this site the owner just presses
+Connect. Anyone else, or a fork served from another address, brings their own
+ID, which overrides the built-in one:
 
 1. Open the [Spotify developer dashboard](https://developer.spotify.com/dashboard)
    and click **Create app**.

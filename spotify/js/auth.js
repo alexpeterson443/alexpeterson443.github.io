@@ -31,8 +31,19 @@ SP.auth = (function () {
     return location.origin + path;
   }
 
-  function clientId() {
+  /* The Spotify app this site is registered as. A PKCE client ID is public
+     by design — it is in every authorize URL — so shipping it costs nothing
+     and saves pasting it on each device. While that app is in development
+     mode only accounts on its User Management list can connect; anyone else
+     can still save their own ID in Setup, which wins over this one. */
+  var DEFAULT_CLIENT_ID = "1bab9979c98b4a7b8f238c6d0fd6814e";
+
+  function ownClientId() {
     return util.load("clientId", "") || "";
+  }
+
+  function clientId() {
+    return ownClientId() || DEFAULT_CLIENT_ID;
   }
 
   function setClientId(id) {
@@ -201,6 +212,7 @@ SP.auth = (function () {
     SCOPES: SCOPES,
     redirectUri: redirectUri,
     clientId: clientId,
+    ownClientId: ownClientId,
     setClientId: setClientId,
     login: login,
     logout: logout,
