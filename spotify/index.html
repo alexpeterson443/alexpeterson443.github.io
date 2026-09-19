@@ -8,6 +8,13 @@
   <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Listening" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Listening Stats · your Spotify numbers</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -63,5 +70,14 @@
   <script src="js/history.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    /* Registered here rather than in app.js so a failed registration (http://,
+       an old browser, a private window) can't take the page down with it. */
+    if ("serviceWorker" in navigator) {
+      addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () { /* runs fine without it */ });
+      });
+    }
+  </script>
 </body>
 </html>

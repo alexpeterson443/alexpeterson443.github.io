@@ -99,6 +99,13 @@
   function render() {
     buildHeader();
     var view = util.clear($("view-" + state.tab));
+    if (!navigator.onLine) {
+      view.appendChild(el("p", { class: "banner", text:
+        "Offline. Your play log and imported history are on this device, so they " +
+        "still work \u2014 anything that needs Spotify will fill in when you're back." }));
+    }
+    var invite = installCard();
+    if (invite) view.appendChild(invite);
     ({
       overview: renderOverview, top: renderTop, recent: renderRecent,
       library: renderLibrary, history: renderHistory, setup: renderSetup
@@ -1321,7 +1328,7 @@
 
   /* One poll of the 50-play feed. Everything new goes into the log. */
   function poll(force) {
-    if (!state.connected) return Promise.resolve(0);
+    if (!state.connected || !navigator.onLine) return Promise.resolve(0);
     var last = util.load("lastPoll", 0);
     if (!force && Date.now() - last < 60000) return Promise.resolve(0);
     util.save("lastPoll", Date.now());
@@ -1360,6 +1367,55 @@
     } else {
       who.hidden = true;
     }
+  }
+
+  /* ---- add to home screen ---- */
+
+  var install = { prompt: null, dismissed: util.load("installDismissed", false) };
+
+  function standalone() {
+    return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) ||
+      navigator.standalone === true;
+  }
+
+  function isApple() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  /* Chrome and Edge hand us a real install prompt; Safari never will, so iOS
+     gets the Share-sheet instructions instead. Either way it only shows on the
+     two tabs where it isn't in the way, and never once installed. */
+  function installCard() {
+    if (standalone() || install.dismissed) return null;
+    if (state.tab !== "overview" && state.tab !== "setup") return null;
+    var canPrompt = !!install.prompt;
+    if (!canPrompt && !isApple()) return null;
+
+    return el("div", { class: "install" }, [
+      el("img", { src: "icon-192.png", alt: "", width: 40, height: 40 }),
+      el("div", { class: "install-body" }, [
+        el("div", { class: "install-title", text: "Keep this on your home screen" }),
+        el("div", { class: "install-note", html: canPrompt
+          ? "It opens full screen, and your history works with no signal."
+          : "Tap <b>Share</b>, then <kbd>Add to Home Screen</kbd>. It opens full " +
+            "screen, and your history works with no signal." })
+      ]),
+      canPrompt ? el("button", { class: "btn btn-primary btn-sm", type: "button", text: "Install", onclick: function () {
+        var prompt = install.prompt;
+        install.prompt = null;
+        prompt.prompt();
+        prompt.userChoice.then(function (choice) {
+          if (choice.outcome !== "accepted") install.prompt = prompt;
+          refresh();
+        });
+      } }) : null,
+      el("button", { class: "btn btn-sm btn-ghost", type: "button", text: "Not now", onclick: function () {
+        install.dismissed = true;
+        util.save("installDismissed", true);
+        refresh();
+      } })
+    ]);
   }
 
   /* ---- theme ---- */
@@ -1449,6 +1505,25 @@
     if (!state._lifetime) state._lifetime = past.aggregate(state.imported);
     return state._lifetime;
   }
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    install.prompt = event;
+    install.dismissed = false;
+    refresh();
+  });
+
+  window.addEventListener("appinstalled", function () {
+    install.prompt = null;
+    banner("Added to your home screen.", "good");
+    refresh();
+  });
+
+  window.addEventListener("online", function () {
+    refresh();
+    poll(true).then(function (added) { if (added) refresh(); }).catch(function () { /* quiet */ });
+  });
+  window.addEventListener("offline", refresh);
 
   window.addEventListener("hashchange", function () {
     var wanted = location.hash.replace("#", "");

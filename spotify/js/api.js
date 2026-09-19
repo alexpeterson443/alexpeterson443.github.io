@@ -35,7 +35,12 @@ SP.api = (function () {
   function request(path, query, attempt) {
     attempt = attempt || 0;
     return auth.accessToken().then(function (token) {
-      return fetch(url(path, query), { headers: { Authorization: "Bearer " + token } });
+      return fetch(url(path, query), { headers: { Authorization: "Bearer " + token } })
+        .catch(function () {
+          throw ApiError(navigator.onLine
+            ? "Couldn't reach Spotify. Check the connection and try again."
+            : "You're offline \u2014 your play log and imported history still work.", 0);
+        });
     }).then(function (res) {
       if (res.status === 204) return null;
 

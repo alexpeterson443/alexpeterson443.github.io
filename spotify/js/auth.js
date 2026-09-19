@@ -87,16 +87,19 @@ SP.auth = (function () {
 
   /* ---- the flow ---- */
 
+  var PENDING_MS = 15 * 60 * 1000;
+
   function login() {
     var id = clientId();
     if (!id) return Promise.reject(new Error("Add your Spotify client ID first."));
     var verifier = randomString(64);
     var state = randomString(16);
     return challenge(verifier).then(function (code_challenge) {
-      /* sessionStorage survives the redirect in the same tab and is gone
-         afterwards, which is what a one-shot verifier wants. */
-      sessionStorage.setItem("spotify:verifier", verifier);
-      sessionStorage.setItem("spotify:state", state);
+      /* localStorage, not sessionStorage: installed to a home screen, the trip
+         through Spotify can come back in a different browsing context, and a
+         session-scoped verifier would be gone by then. It is one-shot and
+         short-lived either way — cleared the moment it is used. */
+      util.save("pending", { verifier: verifier, state: state, at: Date.now() });
       var params = new URLSearchParams({
         client_id: id,
         response_type: "code",
@@ -135,10 +138,11 @@ SP.auth = (function () {
     var state = params.get("state");
     if (!code && !error) return Promise.resolve("none");
 
-    var expected = sessionStorage.getItem("spotify:state");
-    var verifier = sessionStorage.getItem("spotify:verifier");
-    sessionStorage.removeItem("spotify:state");
-    sessionStorage.removeItem("spotify:verifier");
+    var waiting = util.load("pending", null) || {};
+    util.drop("pending");
+    var expected = waiting.state;
+    var verifier = waiting.verifier;
+    var fresh = waiting.at && Date.now() - waiting.at < PENDING_MS;
     history.replaceState({}, "", redirectUri());
 
     if (error) {
@@ -146,8 +150,8 @@ SP.auth = (function () {
         ? "Spotify access was declined."
         : "Spotify returned: " + error));
     }
-    if (!verifier || state !== expected) {
-      return Promise.reject(new Error("That login link was stale — try connecting again."));
+    if (!verifier || !fresh || state !== expected) {
+      return Promise.reject(new Error("That login didn't come back to the same app — tap Connect again from here."));
     }
     return postToken({
       grant_type: "authorization_code",

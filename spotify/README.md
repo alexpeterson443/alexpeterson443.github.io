@@ -17,6 +17,28 @@ Live at **/spotify/** on this site.
 | **Full history** | Your entire listening life from a Spotify data export: lifetime hours, streaks, top artists/tracks/albums, year-by-year and month-by-month, a listening clock, a calendar per year, skip and shuffle rates, platforms, countries, and search over every stream |
 | **Setup** | Client ID, connection, what's stored on this device, and how to wipe it |
 
+## Add it to your home screen
+
+It's a progressive web app, so it installs like an app without being one.
+
+- **iPhone / iPad:** open it in Safari, tap **Share**, then **Add to Home Screen**.
+- **Android / desktop Chrome:** an **Install** button appears on the Overview tab
+  (or use the browser's own install item).
+
+Installed, it opens full screen with its own icon, and the shell is cached by a
+service worker — so the Full history tab works with **no signal at all**, since
+the play log and the imported history live in IndexedDB on the device. Anything
+that needs Spotify says so and fills in when you're back online.
+
+One thing worth knowing: **connect Spotify from inside the installed app**. A
+home-screen app can keep its own storage jar, so a login started in the browser
+may leave the connection in the browser. The login itself survives coming back
+in a different tab or window — the PKCE verifier is kept for the round trip
+rather than tied to one browsing context — but it lands wherever it started.
+
+The icons are generated, not hand-drawn: `node spotify/tools/make-icons.mjs`
+re-renders every PNG from the same source artwork as `icon.svg`.
+
 ## Setting it up (once, about two minutes)
 
 Spotify requires every app to have its own client ID, and a static page can't
@@ -81,6 +103,9 @@ data removes all of it, and the Setup tab has buttons for each piece.
 spotify/
   index.html          page shell
   style.css           tokens, layout, chart styling
+  manifest.webmanifest  home-screen identity: name, icons, standalone display
+  sw.js               service worker: caches the shell so it opens offline
+  tools/make-icons.mjs  regenerates the PNG icons from the SVG artwork
   js/util.js          formatting, storage, DOM helpers
   js/auth.js          PKCE login, token refresh
   js/api.js           Web API client: retries, 429 backoff, pagination
