@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Listening Stats">
+  <rect width="64" height="64" rx="14" fill="#121211"/>
+  <g fill="none" stroke="#3fc48f" stroke-width="6" stroke-linecap="round">
+    <path d="M14 48V30"/><path d="M28 48V16"/><path d="M42 48V36"/><path d="M56 48V24" stroke="#3987e5"/>
+  </g>
+</svg>
