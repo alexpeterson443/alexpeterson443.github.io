@@ -29,6 +29,10 @@ functions/
   api/push.js      POST/DELETE {endpoint} turn the evening reminder on or off for this device
   api/settings.js  GET/PUT the settings he can change without a deploy, DELETE back to wrangler.toml
   api/nudge.js     GET the evening reminder's reasoning, POST to act on it; the timer hook
+  api/claude.js    GET the streak and scores as plain text, for Claude in a chat
+  api/readkey.js   GET the read only link for Claude, POST to replace it
+  _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
+  _lib/summary.js  the state written out as text (unit tested)
   _lib/scores.js   score stats (unit tested)
   _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
   _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
@@ -83,6 +87,22 @@ In the Cloudflare dashboard: Workers & Pages > bowling-streak > Custom domains.
 To require your email login before the page loads, go to Zero Trust > Access >
 Applications, add a self hosted app for the `pages.dev` domain, and allow only your
 email. Free for up to 50 users.
+
+## Letting Claude see it
+
+Settings > **Claude** shows a read only link:
+`https://bowling-streak.pages.dev/api/claude?key=<read key>`. Paste it into any
+Claude chat, or into a project's instructions or Claude's memory so every chat
+has it, and ask how the streak is going. It returns the streak, today's status,
+missed and paused days, average, high game, form, today's alley hours, and the
+last 30 days of games as plain text. `/api/state` with the same key returns the
+full JSON the app itself uses.
+
+The read key is not the private link. It can only GET those two endpoints: it
+cannot log a game, pause a day, read or change settings, open the page, or get
+a session cookie. It is derived from `ACCESS_KEY`, so there is nothing extra to
+set at deploy time. **New link** retires it and mints another without touching
+the private link.
 
 ## Days you can't bowl
 

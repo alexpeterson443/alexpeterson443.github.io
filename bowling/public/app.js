@@ -1543,6 +1543,7 @@ function showSettings(on) {
   $("set-device").textContent = storedKey()
     ? `This device is linked.${pending ? ` ${pending} game${pending === 1 ? "" : "s"} still waiting to send.` : ""}`
     : "This device has no key saved and is running on its cookie alone.";
+  api("/api/readkey").then((r) => { $("set-claude-url").value = r.url; }).catch(() => {});
   api("/api/settings").then(paintSettings).catch(() => {
     $("set-error").hidden = false;
     $("set-error").textContent = "Could not load the settings. Check your connection.";
@@ -1587,6 +1588,30 @@ $("set-revert").addEventListener("click", async () => {
 });
 
 $("set-layout-reset").addEventListener("click", () => $("layout-reset").click());
+
+// The read only link for Claude. Copying falls back to selecting it, since
+// older iPadOS has no clipboard API outside a secure gesture.
+$("set-claude-copy").addEventListener("click", async () => {
+  const field = $("set-claude-url");
+  if (!field.value) return;
+  try {
+    await navigator.clipboard.writeText(field.value);
+    $("set-claude-copy").textContent = "Copied";
+    setTimeout(() => { $("set-claude-copy").textContent = "Copy link"; }, 1400);
+  } catch {
+    field.select();
+  }
+});
+
+$("set-claude-rotate").addEventListener("click", async () => {
+  if (!confirm("Make a new link for Claude? The old one stops working, so any chat or project that has it will need the new one.")) return;
+  try {
+    $("set-claude-url").value = (await api("/api/readkey", { method: "POST" })).url;
+  } catch {
+    $("set-error").hidden = false;
+    $("set-error").textContent = "Could not make a new link.";
+  }
+});
 
 // ---------- the evening reminder ----------
 //

@@ -83,6 +83,16 @@
         </fieldset>
 
         <fieldset class="set-group">
+          <legend>Claude</legend>
+          <p class="read quiet">A read only link for Claude in any chat. It shows your streak and scores and cannot log, pause or change anything.</p>
+          <input id="set-claude-url" class="field" type="text" readonly spellcheck="false" aria-label="Link for Claude" />
+          <div class="pills">
+            <button type="button" class="pill" id="set-claude-copy">Copy link</button>
+            <button type="button" class="pill" id="set-claude-rotate">New link</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="set-group">
           <legend>This device</legend>
           <p class="read quiet" id="set-device"></p>
           <div class="pills">

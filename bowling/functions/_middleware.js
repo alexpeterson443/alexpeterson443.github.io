@@ -1,4 +1,5 @@
 import { keyMatches, hasValidSession, makeSessionCookie } from "./_lib/auth.js";
+import { READ_PATHS, readKeyMatches } from "./_lib/readkey.js";
 
 // Assets that reveal nothing are public so installs and icons always work.
 // The HTML page, the API, and the manifest stay gated.
@@ -23,7 +24,8 @@ function withHeaders(res, extra) {
 // X-Access-Key header from the app's own fetches) is allowed and receives a
 // one year cookie. The key is deliberately left in the page URL so bookmarks
 // and iPhone home screen icons keep working even with a separate cookie jar.
-// Everyone else gets a plain 404.
+// The read only key (see _lib/readkey.js) opens GET on the read endpoints and
+// nothing more. Everyone else gets a plain 404.
 export async function onRequest({ request, env, next }) {
   const url = new URL(request.url);
 
@@ -41,6 +43,12 @@ export async function onRequest({ request, env, next }) {
     if (await keyMatches(env, key)) {
       authed = true;
       setCookie = await makeSessionCookie(env, request);
+    } else if (
+      !authed && request.method === "GET" && READ_PATHS.has(url.pathname) && (await readKeyMatches(env, key))
+    ) {
+      // The read only key, for Claude in a chat: those two reads and nothing
+      // else, and no cookie, so it can never become a session that writes.
+      authed = true;
     } else if (!authed) {
       await new Promise((r) => setTimeout(r, 800));
     }
