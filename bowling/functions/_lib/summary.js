@@ -43,6 +43,8 @@ export function summaryText(state, now = new Date()) {
 
   out.push("## Scores");
   out.push(`- Games logged: ${sc.games ?? 0}`);
+  const latest = (sc.days || [])[0];
+  if (latest && latest.scores.length) out.push(`- Latest game: ${latest.scores[latest.scores.length - 1]} on ${latest.date}`);
   if (sc.average !== null && sc.average !== undefined) out.push(`- Average: ${sc.average}`);
   if (sc.high !== null && sc.high !== undefined) out.push(`- High game: ${sc.high}${sc.highDate ? ` on ${sc.highDate}` : ""}`);
   if (s.progress && s.progress.recentAverage !== null && s.progress.recentAverage !== undefined) {
