@@ -9,6 +9,13 @@ compatibility_date = "2026-08-01"
 binding = "STREAK_KV"
 id = "5a22857ff2534e83a8ea89871c179cd2"
 
+# A strongly consistent copy of the streak's records, so the read only link
+# for Claude shows a game the moment it is logged. KV stays the app's store.
+[[d1_databases]]
+binding = "LIVE_DB"
+database_name = "bowling-streak-live"
+database_id = "5331af23-ef72-4dbf-9298-8573e3e3f87f"
+
 [vars]
 # First day of the streak.
 START_DATE = "2026-08-28"
