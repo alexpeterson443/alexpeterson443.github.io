@@ -17,8 +17,10 @@ function env(seed = {}) {
     START_DATE: "2026-08-28",
     TIMEZONE: "America/Chicago",
     STREAK_KV: {
-      get: async (k, type) => {
+      // Real KV takes either get(key, "json") or get(key, { type, cacheTtl }).
+      get: async (k, opts) => {
         if (!store.has(k)) return null;
+        const type = typeof opts === "string" ? opts : opts && opts.type;
         return type === "json" ? JSON.parse(store.get(k)) : store.get(k);
       },
       put: async (k, v) => { store.set(k, v); },
@@ -34,7 +36,7 @@ async function gate(e, path, method = "GET") {
     env: e,
     next: async () => { reached = true; return new Response("ok"); },
   });
-  return { status: res.status, reached, cookie: res.headers.get("Set-Cookie") };
+  return { status: res.status, reached, cookie: res.headers.get("Set-Cookie"), cache: res.headers.get("Cache-Control") };
 }
 
 test("the read key opens the two reads, with no cookie", async () => {
@@ -46,6 +48,8 @@ test("the read key opens the two reads, with no cookie", async () => {
     assert.equal(r.status, 200, path);
     assert.ok(r.reached, path);
     assert.equal(r.cookie, null, `${path} must not hand out a session`);
+    // A chat asking again after a new game must get the new game.
+    assert.match(r.cache, /no-store/, `${path} must never be cached`);
   }
 });
 
@@ -96,8 +100,20 @@ test("the summary reads as text and carries the numbers", async () => {
   assert.match(text, /High game: 131/);
   assert.match(text, /Today: bowled \(131\)/);
   assert.match(text, /2026-09-01: 120, 98/);
+  assert.match(text, new RegExp(`Latest game: 131 on ${today}`));
 });
 
 test("the summary survives an empty state", () => {
   assert.match(summaryText({}), /Current streak: 0 days/);
+});
+
+test("a game logged after one read shows up in the next", async () => {
+  const e = env();
+  const first = await (await claudeGet({ env: e })).text();
+  assert.match(first, /Games logged: 0/);
+  const today = todayIn("America/Chicago");
+  await e.STREAK_KV.put("scores", JSON.stringify({ games: { [today]: [150] }, ids: [] }));
+  const second = await (await claudeGet({ env: e })).text();
+  assert.match(second, /Games logged: 1/);
+  assert.match(second, /Latest game: 150/);
 });
