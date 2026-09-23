@@ -39,7 +39,12 @@ jobs:
 
       - name: Deploy to Cloudflare Pages
         if: env.CLOUDFLARE_API_TOKEN != ''
-        run: npx --yes wrangler@4 pages deploy --project-name bowling-streak --branch main
+        # Wrangler looks for wrangler.jsonc before wrangler.toml all the way up
+        # the tree, so the menu site's config at the repo root would win over
+        # bowling/wrangler.toml and its KV binding. Only this runner's copy goes.
+        run: |
+          rm -f ../wrangler.jsonc
+          npx --yes wrangler@4 pages deploy --project-name bowling-streak --branch main
 
       - name: Note missing Cloudflare token
         if: env.CLOUDFLARE_API_TOKEN == ''
