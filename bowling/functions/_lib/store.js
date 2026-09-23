@@ -8,6 +8,7 @@ import { frameReport } from "./frames.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 import { cleanRecord, mergeEnv } from "./settings.js";
+import { mirror } from "./live.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -36,9 +37,11 @@ export async function saveSettings(env, record) {
   const clean = cleanRecord(record);
   if (Object.keys(clean).length === 0) {
     await env.STREAK_KV.delete(SETTINGS_KEY);
+    await mirror(env, SETTINGS_KEY, null);
     return {};
   }
   await env.STREAK_KV.put(SETTINGS_KEY, JSON.stringify(clean));
+  await mirror(env, SETTINGS_KEY, JSON.stringify(clean));
   return clean;
 }
 
@@ -63,6 +66,7 @@ export async function loadDays(env) {
 export async function saveDays(env, days) {
   const clean = [...new Set(days)].sort();
   await env.STREAK_KV.put(KEY, JSON.stringify(clean));
+  await mirror(env, KEY, JSON.stringify(clean));
   return clean;
 }
 
@@ -78,6 +82,7 @@ export async function saveExcused(env, excused) {
   const map = excuseMap(excused);
   const clean = Object.fromEntries(Object.keys(map).sort().map((d) => [d, map[d]]));
   await env.STREAK_KV.put(EXCUSED_KEY, JSON.stringify(clean));
+  await mirror(env, EXCUSED_KEY, JSON.stringify(clean));
   return clean;
 }
 
@@ -109,6 +114,7 @@ export async function saveLedger(env, games, ids = []) {
   for (const d of Object.keys(games)) if (!games[d].length) delete games[d];
   const trimmed = ids.slice(-MAX_IDS);
   await env.STREAK_KV.put(SCORES_KEY, JSON.stringify({ games, ids: trimmed }));
+  await mirror(env, SCORES_KEY, JSON.stringify({ games, ids: trimmed }));
   return { games, ids: trimmed };
 }
 

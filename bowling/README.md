@@ -33,6 +33,7 @@ functions/
   api/readkey.js   GET the read only link for Claude, POST to replace it
   _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
   _lib/summary.js  the state written out as text (unit tested)
+  _lib/live.js     the D1 copy that keeps Claude's link current (unit tested)
   _lib/scores.js   score stats (unit tested)
   _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
   _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
@@ -97,6 +98,13 @@ has it, and ask how the streak is going. It returns the streak, today's status,
 missed and paused days, average, high game, form, today's alley hours, and the
 last 30 days of games as plain text. `/api/state` with the same key returns the
 full JSON the app itself uses.
+
+It is live. Every save of games, pauses, check ins and settings is also copied
+to a D1 database (`bowling-streak-live`, binding `LIVE_DB`) with read replication
+off, and the link reads from there. KV alone can serve a value up to 30 seconds
+old to another data centre; D1 answers from its primary, so a game logged on the
+phone is in Claude's very next fetch. KV stays the app's store, and a failed copy
+never fails a save.
 
 The read key is not the private link. It can only GET those two endpoints: it
 cannot log a game, pause a day, read or change settings, open the page, or get
