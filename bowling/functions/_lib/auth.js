@@ -6,7 +6,7 @@ const SESSION_DAYS = 365;
 
 const enc = new TextEncoder();
 
-async function hmac(secret, data) {
+export async function hmac(secret, data) {
   const key = await crypto.subtle.importKey(
     "raw",
     enc.encode(secret),
@@ -18,7 +18,7 @@ async function hmac(secret, data) {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function timingSafeEqual(a, b) {
+export function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
