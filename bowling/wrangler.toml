@@ -15,6 +15,8 @@ id = "5a22857ff2534e83a8ea89871c179cd2"
 binding = "LIVE_DB"
 database_name = "bowling-streak-live"
 database_id = "5331af23-ef72-4dbf-9298-8573e3e3f87f"
+# Games, frames and per night notes live here too; see migrations/.
+migrations_dir = "migrations"
 
 [vars]
 # First day of the streak.
