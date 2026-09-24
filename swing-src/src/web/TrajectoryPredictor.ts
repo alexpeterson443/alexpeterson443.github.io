@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import { T } from '../core/tuning';
 import { WebRope } from './WebRope';
-import { accumulateSwingForces, updateRopeTarget } from './SwingModel';
+import { accumulateSwingForces, arcPhase, assistLevel, makeSwingContext, updateRopeTarget } from './SwingModel';
 import type { CollisionWorld } from '../world/CollisionWorld';
 
 export interface Prediction {
@@ -30,13 +30,17 @@ const p = new Vector3();
 const v = new Vector3();
 const F = new Vector3();
 const hold = new Vector3();
+const ctx = makeSwingContext();
+const arc = { phase: 0, end: 90, omega: 0 };
 
 /**
  * Forward-simulates the player using the same force model and integrator as gameplay, at a
  * coarser step. Used both for anchor scoring and for the debug trajectory overlay.
  * If `anchor` is null the flight is ballistic (gravity + drag).
- * A null `desired` mirrors the swing state with no stick: it keeps steering along the current
- * horizontal heading at 0.65 strength.
+ * A null `desired` mirrors the swing state with no stick: it holds the heading the swing started
+ * with (`refDir`, else the current travel direction) at the no-stick pump strength.
+ * With `releaseAtApex` the swing lets go where a held swing would (level with the anchor, or the
+ * end of its arc) and continues ballistically.
  */
 export function predict(
   pos: Vector3, vel: Vector3,
@@ -62,16 +66,22 @@ export function predict(
   if (anchor) {
     rope.attach(anchor, pos, -1, length);
   }
+  // the swing context the state would build: held heading, assist, no facade sensing
+  const stick = !!desired && Math.hypot(desired.x, desired.z) > 0.1;
+  const hs0 = Math.hypot(vel.x, vel.z);
+  if (stick) ctx.heading.set(desired!.x, 0, desired!.z).normalize();
+  else if (refDir && Math.hypot(refDir.x, refDir.z) > 1e-3) ctx.heading.set(refDir.x, 0, refDir.z).normalize();
+  else if (hs0 > 2) ctx.heading.set(vel.x / hs0, 0, vel.z / hs0);
+  else ctx.heading.set(0, 0, -1);
+  ctx.stick = stick;
+  ctx.assist = assistLevel();
+  ctx.wallLeft = ctx.wallRight = Infinity;
+  const d = stick ? desired! : hold.copy(ctx.heading).multiplyScalar(T.web.noStickPump);
   const start = pos;
   for (let i = 0; i < steps; i++) {
     if (swinging) {
-      updateRopeTarget(rope, p, 0, false);
-      let d = desired;
-      if (!d) {
-        const hs = Math.hypot(v.x, v.z);
-        d = hs > 2 ? hold.set(v.x / hs, 0, v.z / hs).multiplyScalar(0.65) : hold.set(0, 0, 0);
-      }
-      accumulateSwingForces(p, v, rope, d, 0, null, F);
+      updateRopeTarget(rope, p, 0, false, ctx.assist);
+      accumulateSwingForces(p, v, rope, d, 0, null, F, undefined, ctx);
       p.addScaledVector(v, dt).addScaledVector(F, (0.5 * dt * dt) / m);
       v.addScaledVector(F, dt / m);
       rope.age += dt;
@@ -79,7 +89,13 @@ export function predict(
       rope.constrain(p, v, dt, m, sT);
       rope.reel(dt, T.web.reelRate);
       rope.takeUpSlack(p);
-      if (releaseAtApex && p.y > rope.anchor.y - T.web.detachAboveAnchor && v.y > 0) swinging = false;
+      if (releaseAtApex) {
+        if (p.y > rope.anchor.y - T.web.detachAboveAnchor && v.y > 0) swinging = false;
+        else if (rope.age > 0.3 && rope.swingAngle > 8) {
+          arcPhase(rope, arc);
+          if (arc.phase >= T.web.autoReleasePhase || v.y <= 0) swinging = false;
+        }
+      }
     } else {
       const s = v.length();
       F.copy(v).multiplyScalar(-T.physics.airDrag * s);

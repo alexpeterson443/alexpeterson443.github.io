@@ -4,7 +4,7 @@ import { hlen } from '../core/math';
 import { Kind, makeHit, type Contact, type CollisionWorld } from '../world/CollisionWorld';
 import { WebRope } from '../web/WebRope';
 import { AnchorSelector } from '../web/AnchorSelector';
-import { makeSwingDebug } from '../web/SwingModel';
+import { makeSwingContext, makeSwingDebug } from '../web/SwingModel';
 import type { Intent } from '../input/Intent';
 import type { CityLayout, PerchPoint } from '../city/CityGenerator';
 import { StateMachine, type StateId } from './StateMachine';
@@ -13,7 +13,11 @@ import './states';
 export type GameEventType =
   | 'jump' | 'superJump' | 'land' | 'roll' | 'hardLand' | 'webFire' | 'webAttach' | 'webRelease'
   | 'webFail' | 'zip' | 'pointLaunch' | 'perch' | 'wallRun' | 'wallJump' | 'vault' | 'mantle'
-  | 'trick' | 'footstep' | 'wallStep' | 'cornerWrap' | 'state';
+  | 'trick' | 'footstep' | 'wallStep' | 'cornerWrap' | 'state'
+  /** a = timing quality 0..1 (1 = inside the perfect window at the leg tuck) */
+  | 'swingJump'
+  /** a = speed into the wall (m/s); only with low Swing Assist */
+  | 'wallSlam';
 
 export interface GameEvent {
   type: GameEventType;
@@ -41,6 +45,28 @@ export class Player {
   readonly rope = new WebRope();
   readonly anchors: AnchorSelector;
   readonly swingDbg = makeSwingDebug();
+  /** Heading the current swing holds, assist strength and facade distances (see SwingContext). */
+  readonly swingCtx = makeSwingContext();
+  /** Arc phase −1..1 (−1 start of the down-swing, 0 bottom, +1 end of the up-swing). */
+  swingPhase = 0;
+  /** End-of-arc angle (deg) and angular speed (deg/s) of the current swing. */
+  swingArcEnd = 90;
+  swingOmega = 0;
+  /** 0..1, peaks at the leg-tuck point of the up-swing (the ideal jump moment); for animation/HUD. */
+  swingTuck = 0;
+  /** Last swing jump: timing quality (1 = perfect) and the arc phase it was pressed at. */
+  swingJumpQuality = 0;
+  swingJumpPhase = 0;
+  /** The web let go on its own at the end of a held arc: fire the next one while swing is held. */
+  chainPending = false;
+  /** Forward zips used since the last swing, landing or wall contact. */
+  airZips = 0;
+  /** Point-launch timing: when jump was pressed during the zip, and the resulting grade. */
+  launchPressT = -10;
+  /** Speed (m/s along the aim) a forward zip's burst heads for. */
+  zipBurstSpeed = 0;
+  pointLaunchQuality = 0;
+  wallProbeT = 0;
   prevAnchor: Vector3 | null = null;
   webCooldown = 0;
   timeSinceRelease = 10;
@@ -148,6 +174,9 @@ export class Player {
       this.perchTarget = st === 'Perching' || st === 'WebZip' ? this.perchTarget : this.findPerchTarget(input);
     }
     this.fsm.step(dt, input);
+    const st2 = this.fsm.current.id;
+    if (this.onGround || st2 === 'Swinging' || st2 === 'Grounded' || st2 === 'WallRunning' || st2 === 'WallCrawling' || st2 === 'Perching') this.airZips = 0;
+    if (!input.traverse || st2 === 'Grounded') this.chainPending = false;
     // derived kinematics
     this.acc.subVectors(this.vel, v0).multiplyScalar(1 / dt);
     const k = 1 - Math.exp(-10 * dt);
@@ -278,14 +307,20 @@ export class Player {
   // shared behaviours
   // ---------------------------------------------------------------------
 
-  /** Soft speed cap: excess speed bleeds off exponentially rather than a hard clamp. */
-  limitSpeed(dt: number, diving: boolean): void {
+  /**
+   * Soft speed cap: excess speed bleeds off exponentially rather than a hard clamp. `gentle` (swings
+   * and the flight just after one) bleeds slowly, so a dive's speed carries into the next few arcs;
+   * otherwise the rate grows fast with the excess so the cap holds against gravity and dive thrust.
+   */
+  limitSpeed(dt: number, diving: boolean, gentle = false): void {
     const cap = diving ? T.physics.maxDiveSpeed : T.physics.maxNormalSpeed;
     const s = this.vel.length();
     if (s > cap) {
       const excess = s - cap;
-      // rate grows with the excess so the cap holds against strong thrust (dive) yet feels soft
-      const ns = cap + excess * Math.exp(-T.physics.speedLimitSoftness * (1 + excess * 0.5) * dt);
+      const rate = gentle
+        ? T.physics.swingSpeedSoftness * (0.4 + excess * 0.12)
+        : T.physics.speedLimitSoftness * (1 + excess * 0.5);
+      const ns = cap + excess * Math.exp(-rate * dt);
       this.vel.multiplyScalar(ns / s);
     }
   }
@@ -295,7 +330,7 @@ export class Player {
     if (this.webCooldown > 0) return false;
     this.webCooldown = T.web.fireCooldown;
     const best = this.anchors.select({
-      pos: this.pos, vel: this.vel, input: desired, camForward: input.camForward, prevAnchor: this.prevAnchor,
+      pos: this.pos, vel: this.vel, input: desired, camForward: input.camForward, prevAnchor: this.prevAnchor, stick: input.moveMag > 0.1,
     });
     if (!best) {
       // nothing to attach to (e.g. above the skyline): keep trying quietly, cue the player once

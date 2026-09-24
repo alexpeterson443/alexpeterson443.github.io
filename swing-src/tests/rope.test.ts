@@ -7,7 +7,7 @@ import { resetTuning, T } from '../src/core/tuning';
 
 /** Plain pendulum using the production force model + constraint, assists/drag off. */
 function simulate(L: number, startAngleDeg: number, seconds: number, rigid = true, dt = 1 / 120) {
-  T.assist.enabled = 0;
+  T.assist.strength = 0;
   T.web.swingSpeedPreservation = 1; // no drag
   if (rigid) T.web.elasticity = 0;
   T.web.catchRedirect = 0;
@@ -108,7 +108,7 @@ describe('web rope constraint', () => {
   });
 
   it('reeling in raises tangential speed (angular momentum)', () => {
-    T.assist.enabled = 0;
+    T.assist.strength = 0;
     T.web.swingSpeedPreservation = 1;
     T.web.elasticity = 0;
     T.web.swingGravityScale = 0.0001; // isolate the effect from gravity
@@ -134,10 +134,12 @@ describe('web rope constraint', () => {
 
 describe('release timing', () => {
   beforeEach(() => resetTuning());
-  it('grades the arc: early = poor, just past bottom = best, too late = poor', () => {
-    expect(releaseQuality(-20, -5)).toBe(0); // still falling
-    expect(releaseQuality(30, 5)).toBe(1);
-    expect(releaseQuality(5, 5)).toBeLessThan(0.5);
-    expect(releaseQuality(95, 1)).toBeLessThan(0.3);
+  it('grades the arc by phase: down-swing = nothing, bottom = little, late up-swing = best', () => {
+    // phase: −1..0 down-swing, 0 = bottom, 0..1 up-swing toward the end of the arc
+    expect(releaseQuality(-0.5, -5)).toBe(0); // still dropping in: you just fall
+    expect(releaseQuality(0.05, 3)).toBeLessThan(0.1); // at the bottom: no throw yet
+    expect(releaseQuality(0.4, 6)).toBeGreaterThan(0.3);
+    expect(releaseQuality(0.7, 4)).toBe(1); // last third of the up-swing: full forward throw
+    expect(releaseQuality(0.9, -3)).toBe(0); // already falling back
   });
 });

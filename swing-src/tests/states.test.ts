@@ -191,11 +191,15 @@ describe('movement state machine', () => {
       input.traverse = true;
       input.moveX = mx;
       input.moveY = 0.7;
-      stepN(p, input, 150);
-      return { pos: p.pos.clone(), vel: p.vel.clone() };
+      // heading is compared while still on the web (steering hard into the canyon walls ends in a
+      // wall run, whose velocity is vertical)
+      const swingVel = p.vel.clone();
+      stepN(p, input, 150, 1 / 120, () => { if (p.state === 'Swinging') swingVel.copy(p.vel); });
+      return { pos: p.pos.clone(), vel: swingVel };
     };
     const a = run(-0.7), b = run(0.7);
     expect(a.pos.distanceTo(b.pos)).toBeGreaterThan(3);
+    expect(a.pos.x).toBeLessThan(b.pos.x - 3); // each went the way it steered
     const ang = Math.acos(a.vel.clone().setY(0).normalize().dot(b.vel.clone().setY(0).normalize()));
     expect(ang).toBeGreaterThan(0.25);
   });

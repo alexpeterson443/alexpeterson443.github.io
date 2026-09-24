@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { T } from '../core/tuning';
-import { smoothstep } from '../core/math';
+import { clamp, smoothstep } from '../core/math';
 import type { WebRope } from './WebRope';
 import type { CollisionWorld, RayHit } from '../world/CollisionWorld';
 import { makeHit } from '../world/CollisionWorld';
@@ -17,6 +17,46 @@ export interface SwingForceDebug {
 
 export function makeSwingDebug(): SwingForceDebug {
   return { gravity: new Vector3(), drag: new Vector3(), pump: new Vector3(), steer: new Vector3(), assist: new Vector3(), spring: 0 };
+}
+
+/**
+ * What the swing knows beyond the body and the rope. Gameplay always passes one; calling
+ * `accumulateSwingForces` without it gives the plain pendulum used by the physics tests.
+ */
+export interface SwingContext {
+  /** Unit horizontal direction the swing holds: the stick when pushed, else the heading at attach. */
+  heading: Vector3;
+  /** Whether `heading` comes from the stick this step. */
+  stick: boolean;
+  /** Swing Assist 0..1 (tuning strength / 10). */
+  assist: number;
+  /** Horizontal distance to a facade on the left / right of the heading (Infinity = none close). */
+  wallLeft: number;
+  wallRight: number;
+}
+
+export function makeSwingContext(): SwingContext {
+  return { heading: new Vector3(0, 0, -1), stick: false, assist: 1, wallLeft: Infinity, wallRight: Infinity };
+}
+
+/** Swing Assist as 0..1 from the single 0–10 tuning value. */
+export function assistLevel(): number {
+  return clamp(T.assist.strength / 10, 0, 1);
+}
+
+/**
+ * Gravity felt on the rope this step. The arc is stylised to feel like a pull rather than a float:
+ * dropping forward into the swing is heavier than g, the climb out of it slightly lighter, so the
+ * bottom of every forward arc is fast and the web visibly yanks you through it. Without a context
+ * (the physics tests) it is the plain symmetric pendulum.
+ */
+export function swingGravity(vel: Vector3, ctx?: SwingContext | null): number {
+  const g = T.physics.gravity * T.web.swingGravityScale;
+  if (!ctx) return g;
+  const fwd = vel.x * ctx.heading.x + vel.z * ctx.heading.z;
+  if (vel.y < 0 && fwd > 0) return g * (1 + T.web.downswingPull);
+  if (vel.y > 0 && fwd > 0) return g * (1 - T.web.upswingLift);
+  return g;
 }
 
 const _t = new Vector3();
@@ -41,11 +81,13 @@ export function accumulateSwingForces(
   world: CollisionWorld | null,
   F: Vector3,
   dbg?: SwingForceDebug,
+  ctx?: SwingContext | null,
 ): void {
   const m = T.physics.mass;
-  const g = T.physics.gravity * T.web.swingGravityScale;
+  const g = swingGravity(vel, ctx);
   rope.measure(pos, vel, g);
   const rHat = rope.dir;
+  const a = ctx ? ctx.assist : assistLevel();
 
   // gravity
   F.set(0, -m * g, 0);
@@ -57,93 +99,103 @@ export function accumulateSwingForces(
   F.addScaledVector(vel, -k * speed);
   dbg?.drag.copy(vel).multiplyScalar(-k * speed);
 
-  // player input: tangential pump + out-of-plane steering
+  // player input: tangential pump + out-of-plane steering. Pushing along the motion on the
+  // down-swing adds energy like a pumping swinger; pulling against it brakes; turning costs a
+  // share of the turn force.
   const inMag = desired.length();
   dbg?.pump.set(0, 0, 0);
   dbg?.steer.set(0, 0, 0);
+  let turnForce = 0;
+  const vt = _vh.copy(vel).addScaledVector(rHat, -vel.dot(rHat));
+  const vtl = vt.length();
+  if (vtl > 1e-6) vt.multiplyScalar(1 / vtl);
   if (inMag > 0.05 && rope.taut) {
     // project desired onto tangent plane of the sphere
     const t = _t.copy(desired).addScaledVector(rHat, -desired.dot(rHat));
     const tl = t.length();
     if (tl > 1e-4) {
       t.multiplyScalar(1 / tl);
-      // swing direction = tangential velocity direction
-      const vt = _vh.copy(vel).addScaledVector(rHat, -vel.dot(rHat));
-      const vtl = vt.length();
-      const down = vel.y < 0; // down-swing: pushing adds energy like a pumping swinger
+      const down = vel.y < 0;
       const phase = down ? 1 : T.web.upswingPumpScale;
       if (vtl > 1.5) {
-        vt.multiplyScalar(1 / vtl);
         const along = t.dot(vt);
-        // pump along motion
         const pump = Math.max(0, along) * T.web.pumpForce * phase * inMag;
-        F.addScaledVector(vt, pump);
-        dbg?.pump.copy(vt).multiplyScalar(pump);
+        const brake = Math.max(0, -along) * T.web.steerBrakeForce * inMag;
+        F.addScaledVector(vt, pump - brake);
+        dbg?.pump.copy(vt).multiplyScalar(pump - brake);
         // steer: component of desired perpendicular to motion within tangent plane
         const lat = _lat.copy(t).addScaledVector(vt, -along);
         const steer = T.web.swingSteerForce * inMag;
         F.addScaledVector(lat, steer);
         dbg?.steer.copy(lat).multiplyScalar(steer);
-        // turn assist: lateral force m·|v|·ω toward desired when heading differs a lot
-        if (T.assist.enabled && along < 0.5) {
-          const w = T.assist.turnAssist * 1.4 * (0.5 - along);
-          const hl = Math.hypot(lat.x, lat.z);
-          if (hl > 1e-3) {
-            const fl = m * Math.min(vtl, 40) * w;
-            F.x += (lat.x / hl) * fl;
-            F.z += (lat.z / hl) * fl;
-            dbg?.steer.addScaledVector(_lat.set(lat.x / hl, 0, lat.z / hl), fl);
-          }
-        }
+        turnForce += lat.length() * steer;
       } else {
         // nearly stationary: push to start swinging
-        F.addScaledVector(t, T.web.pumpForce * inMag);
-        dbg?.pump.copy(t).multiplyScalar(T.web.pumpForce * inMag);
+        F.addScaledVector(t, T.web.pumpForce * 2 * inMag);
+        dbg?.pump.copy(t).multiplyScalar(T.web.pumpForce * 2 * inMag);
       }
     }
   }
 
-  // --- assistance forces (never position overrides) ---
+  // --- assistance forces (never position overrides), all scaled by Swing Assist ---
   const assistStart = _assistStart.copy(F);
-  if (T.assist.enabled) {
+  if (a > 0) {
     // forward momentum assistance
     if (inMag > 0.1) {
-      F.x += desired.x * T.assist.forwardAssistForce;
-      F.z += desired.z * T.assist.forwardAssistForce;
+      F.x += desired.x * T.assist.forwardAssistForce * a;
+      F.z += desired.z * T.assist.forwardAssistForce * a;
     }
     // predictive ground avoidance: lift grows as predicted clearance shrinks
     const feet = pos.y - 0.9 - groundY;
-    const tHorizon = 0.45;
-    const predicted = feet + Math.min(0, vel.y) * tHorizon;
-    const want = T.assist.groundClearance;
+    const predicted = feet + Math.min(0, vel.y) * 0.45;
+    const want = T.assist.groundClearance * a;
     if (predicted < want) {
-      const u = smoothstep(want, T.assist.minSwingAltitude * 0.3, predicted);
-      F.y += T.assist.groundAvoidForce * u;
-      // bleed some downward speed into forward speed rather than losing it
+      const u = smoothstep(want, T.assist.minSwingAltitude * 0.3 * a, predicted);
+      F.y += T.assist.groundAvoidForce * u * a;
     }
-    // swing-plane assist: cancel part of the rope's sideways pull (relative to where the player
-    // wants to go) so swings follow the street instead of arcing into the facade
-    const pa = T.assist.swingPlaneAssist;
-    if (pa > 0 && rope.taut && rope.tension > 0) {
+    // reference heading for arc correction: the held heading, else stick, else travel
+    let fx = 0, fz = 0;
+    if (ctx) { fx = ctx.heading.x; fz = ctx.heading.z; }
+    else {
       const dl = Math.hypot(desired.x, desired.z);
-      let fx: number, fz: number;
       if (dl > 0.05) { fx = desired.x / dl; fz = desired.z / dl; }
       else {
         const hs = Math.hypot(vel.x, vel.z);
-        if (hs < 2) { fx = 0; fz = 0; } else { fx = vel.x / hs; fz = vel.z / hs; }
+        if (hs >= 2) { fx = vel.x / hs; fz = vel.z / hs; }
       }
-      if (fx !== 0 || fz !== 0) {
-        // tension force = −r̂·T ; its horizontal part across the travel direction
+    }
+    if (fx !== 0 || fz !== 0) {
+      const lx = -fz, lz = fx; // left perpendicular of the heading
+      // swing-plane assist: cancel part of the rope's sideways pull so the arc follows the
+      // street instead of pendulum-ing into the facade the anchor is on
+      const pa = T.assist.swingPlaneAssist * a;
+      if (pa > 0 && rope.taut && rope.tension > 0) {
         const tx = -rHat.x * rope.tension, tz = -rHat.z * rope.tension;
-        const lx = -fz, lz = fx; // left perpendicular
         const across = tx * lx + tz * lz;
         const cap = m * 45;
-        const c = Math.max(-cap, Math.min(cap, across)) * pa;
+        const c = clamp(across, -cap, cap) * pa;
         F.x -= lx * c;
         F.z -= lz * c;
       }
+      // arc correction: damp sideways drift relative to the heading (no stick = keep going
+      // straight). Correction is a turn, so it pays the same speed cost as steering.
+      if (ctx && rope.taut) {
+        const vLat = vel.x * lx + vel.z * lz;
+        const acc = clamp(-vLat * T.assist.arcCorrection * a, -T.assist.arcCorrectionMaxAccel * a, T.assist.arcCorrectionMaxAccel * a);
+        F.x += lx * acc * m;
+        F.z += lz * acc * m;
+        turnForce += Math.abs(acc) * m * (ctx.stick ? 1 : 0.25);
+      }
+      // street centring: a facade close beside the swing pushes you back over the street
+      if (ctx && (ctx.wallLeft < T.assist.streetCenterRange || ctx.wallRight < T.assist.streetCenterRange)) {
+        const r0 = T.assist.streetCenterRange;
+        const wl = smoothstep(r0, 1.5, ctx.wallLeft), wr = smoothstep(r0, 1.5, ctx.wallRight);
+        const push = (wl - wr) * T.assist.streetCentering * m * a; // + = push right (away from the left wall)
+        F.x -= lx * push;
+        F.z -= lz * push;
+      }
     }
-    // corner avoidance: probe along velocity, push sideways off the obstacle
+    // wall-slam protection: probe along velocity, push sideways off the obstacle
     if (world && speed > 6) {
       const look = Math.min(26, speed * 0.4);
       _probe.copy(vel).multiplyScalar(1 / speed);
@@ -152,11 +204,17 @@ export function accumulateSwingForces(
         // lateral direction: the wall normal minus its component along velocity
         const n = _lat.copy(_hit.normal).addScaledVector(_probe, -_hit.normal.dot(_probe));
         const nl = n.length();
-        if (nl > 1e-3) F.addScaledVector(n, (T.assist.cornerAvoidForce * urgency) / nl);
-        else F.addScaledVector(_hit.normal, T.assist.cornerAvoidForce * urgency * 0.5);
+        // steering into the wall on purpose means "take me there": the swing becomes a wall run
+        let into = 0;
+        if (ctx?.stick && inMag > 0.05) into = Math.max(0, -(desired.x * _hit.normal.x + desired.z * _hit.normal.z) / inMag);
+        const f = T.assist.cornerAvoidForce * urgency * a * (1 - smoothstep(0.35, 0.75, into));
+        if (nl > 1e-3) F.addScaledVector(n, f / nl);
+        else F.addScaledVector(_hit.normal, f * 0.5);
       }
     }
   }
+  // turning is not free: part of the sideways force comes out of the speed along the arc
+  if (turnForce > 0 && vtl > 3) F.addScaledVector(vt, -turnForce * T.web.turnSpeedCost);
   dbg?.assist.copy(F).sub(assistStart);
 
   // elastic web spring (after measure)
@@ -164,10 +222,13 @@ export function accumulateSwingForces(
   if (dbg) dbg.spring = s;
 }
 
-/** Auto-shorten/extend the rope target so the arc bottom keeps ground clearance. */
-export function updateRopeTarget(rope: WebRope, pos: Vector3, groundY: number, wantLow: boolean): void {
-  if (!T.assist.enabled) return;
-  const clearance = T.assist.groundClearance;
+/**
+ * Auto-shorten/extend the rope target so the arc bottom keeps ground clearance. Part of Swing
+ * Assist: at 0 the rope keeps whatever length it was fired with and the street is fair game.
+ */
+export function updateRopeTarget(rope: WebRope, pos: Vector3, groundY: number, wantLow: boolean, assist = assistLevel()): void {
+  if (assist <= 0) return;
+  const clearance = T.assist.groundClearance * assist;
   // bottom of the arc is directly below the anchor at distance L
   const maxSafe = rope.anchor.y - groundY - clearance - 0.9;
   let target = rope.targetLength;
@@ -177,4 +238,56 @@ export function updateRopeTarget(rope: WebRope, pos: Vector3, groundY: number, w
     target = Math.min(maxSafe - 2, T.web.maxLength, rope.length + 8);
   }
   rope.targetLength = target;
+}
+
+/**
+ * Where in its arc a swing is, from the rope geometry and the energy it carries.
+ * Returns the arc phase in −1..1: −1 = the far end of the down-swing, 0 = the bottom, +1 = the end
+ * of the up-swing (its apex, or level with the anchor where the web goes slack). `out.end` is the
+ * end-of-arc angle (deg) and `out.omega` the angular speed (deg/s).
+ */
+export function arcPhase(rope: WebRope, out: { phase: number; end: number; omega: number }): void {
+  const L = Math.max(1, rope.length);
+  const a = Math.abs(rope.swingAngle) * (Math.PI / 180);
+  const g = T.physics.gravity * T.web.swingGravityScale;
+  const h = L * (1 - Math.cos(Math.min(a, Math.PI)));
+  const hMax = h + (rope.tangentialSpeed * rope.tangentialSpeed) / (2 * g);
+  const c = 1 - hMax / L;
+  const amp = c <= 0 ? 90 : Math.min(90, Math.acos(Math.min(1, c)) * (180 / Math.PI));
+  out.end = Math.max(12, amp);
+  out.phase = clamp(rope.swingAngle / out.end, -1, 1);
+  out.omega = (rope.tangentialSpeed / L) * (180 / Math.PI);
+}
+
+/** Swing-jump launch (m/s, horizontal-forward and up) for a jump at arc phase `phase`. */
+export function swingJumpImpulse(phase: number, perfect: number, out: { fwd: number; up: number }): { fwd: number; up: number } {
+  const W = T.web;
+  if (phase < -0.15) {
+    // still dropping into the arc: the web lets go and you only get a small hop
+    out.fwd = 0;
+    out.up = W.swingJumpHop;
+    return out;
+  }
+  // bottom → mostly horizontal-forward; late in the up-swing → mostly up
+  const k = smoothstep(-0.1, 0.92, phase);
+  const pitch = (W.swingJumpPitchBottom + (W.swingJumpPitchLate - W.swingJumpPitchBottom) * k) * (Math.PI / 180);
+  // entering the arc (−0.15..0) ramps up from the hop to a full jump
+  const ramp = phase < 0 ? 0.55 + 0.45 * smoothstep(-0.15, 0, phase) : 1;
+  const mag = W.swingJumpSpeed * ramp * (1 + W.swingJumpPerfectBonus * clamp(perfect, 0, 1));
+  out.fwd = mag * Math.cos(pitch);
+  out.up = Math.max(mag * Math.sin(pitch), phase < 0 ? W.swingJumpHop : 0);
+  return out;
+}
+
+/**
+ * Timing grade of a swing jump: 1 inside the perfect window centred on the leg-tuck point of the
+ * up-swing, falling to 0 outside it. The window is in time, so it is the same at any speed.
+ */
+export function swingJumpPerfect(phase: number, end: number, omega: number): number {
+  if (phase <= 0) return 0;
+  const tuck = T.web.swingJumpTuckPhase * end;
+  const dt = (phase * end - tuck) / Math.max(omega, 5); // s from the tuck (+ = late)
+  const half = T.web.swingJumpPerfectWindow * 0.5;
+  if (Math.abs(dt) <= half) return 1;
+  return clamp(1 - (Math.abs(dt) - half) / half, 0, 1) * 0.6; // near miss: partial credit
 }

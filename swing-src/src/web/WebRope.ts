@@ -27,6 +27,8 @@ export class WebRope {
   /** angle between rope and straight down, degrees; + when past bottom (rising) */
   swingAngle = 0;
   taut = false;
+  /** gravity (m/s²) acting on the swinger this step; the constraint's energy bookkeeping uses it */
+  gEff = 0;
   /** rope was already at its limit last step (continuous contact vs. a fresh catch) */
   private inContact = false;
 
@@ -45,6 +47,7 @@ export class WebRope {
     this.inContact = false;
     this.swingAngle = -90;
     this.radialVel = 0;
+    this.gEff = T.physics.gravity * T.web.swingGravityScale;
   }
 
   detach(): void {
@@ -55,6 +58,7 @@ export class WebRope {
 
   /** Update r̂, distance and velocity decomposition. */
   measure(pos: Vector3, vel: Vector3, gEff: number): void {
+    this.gEff = gEff;
     const r = this.rHat.subVectors(pos, this.anchor);
     const d = r.length();
     this.distance = d;
@@ -118,7 +122,7 @@ export class WebRope {
         // artefact). Real inelastic loss is kept for sudden catches (large v_r).
         const reeling = Math.abs(this.targetLength - this.length) > 1e-3;
         if (!reeling && this.inContact) {
-          const g = T.physics.gravity * T.web.swingGravityScale;
+          const g = this.gEff;
           const want = Math.sqrt(Math.max(0, speed0 * speed0 + 2 * g * (y0 - pos.y)));
           const s1 = vel.length();
           if (s1 > 1e-6) vel.multiplyScalar(want / s1);

@@ -22,7 +22,7 @@ describe('trajectory prediction', () => {
   it('swing prediction matches the simulated swing within 2 m after 1 s', () => {
     const world = canyonWorld();
     const p = makePlayer(world);
-    T.assist.enabled = 0;
+    T.assist.strength = 0;
     p.spawn(0, 40, 0);
     p.vel.set(0, 0, -20);
     const anchor = new Vector3(9.9, 70, -25);

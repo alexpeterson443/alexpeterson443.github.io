@@ -101,16 +101,21 @@ registerState({
   enter(p, from) {
     const n = p.wallNormal;
     const S = sideOf(n, _S);
-    const vIn = -(p.vel.x * n.x + p.vel.z * n.z);
-    const vSide = p.vel.dot(S);
+    // coming off a swing the collision has already eaten the speed into the wall: read the
+    // velocity from just before impact so the run keeps the swing's momentum
+    const v = from === 'Swinging' ? p.preImpactVel : p.vel;
+    const vIn = Math.max(0, -(v.x * n.x + v.z * n.z));
+    const vSide = v.dot(S);
     if (from === 'Grounded' || from === 'WallCrawling' || vIn > Math.abs(vSide) * 0.9) {
       p.wallMode = 'vertical';
-      p.vel.set(S.x * vSide * 0.3, Math.max(T.wall.wallRunUpSpeed, p.vel.y, vIn * 0.8), S.z * vSide * 0.3);
+      const up = Math.min(T.wall.wallRunMaxSpeed * 0.75, Math.max(T.wall.wallRunUpSpeed, v.y, vIn * 0.8));
+      p.vel.set(S.x * vSide * 0.3, up, S.z * vSide * 0.3);
     } else {
       p.wallMode = 'horizontal';
       p.wallSide = Math.sign(vSide) || 1;
-      const sp = Math.max(T.wall.wallRunSpeed, Math.abs(vSide));
-      p.vel.set(S.x * p.wallSide * sp, Math.max(p.vel.y * 0.4, 2), S.z * p.wallSide * sp);
+      // run along the wall at the swing's speed: the sideways part plus some of what hit the wall
+      const sp = Math.min(T.wall.wallRunMaxSpeed, Math.max(T.wall.wallRunSpeed, Math.abs(vSide) + vIn * 0.35));
+      p.vel.set(S.x * p.wallSide * sp, Math.max(v.y * 0.4, 2), S.z * p.wallSide * sp);
     }
     p.emit('wallRun', p.wallMode === 'vertical' ? 1 : 0);
   },
@@ -130,7 +135,8 @@ registerState({
     const tired = p.stateTime > T.wall.wallRunDuration;
     if (p.wallMode === 'vertical') {
       vt.copy(S).multiplyScalar(wi.side * 5);
-      vt.y = T.wall.wallRunUpSpeed; // vertical runs don't tire: holding traverse climbs any tower
+      // vertical runs don't tire: holding traverse climbs any tower; entry speed eases off
+      vt.y = Math.max(T.wall.wallRunUpSpeed, p.vel.y - 10 * dt);
     } else {
       if (wi.side * p.wallSide < -0.5) p.wallSide = -p.wallSide;
       const cur = Math.abs(p.vel.dot(S));

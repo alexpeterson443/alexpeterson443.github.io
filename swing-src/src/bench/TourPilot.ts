@@ -144,10 +144,17 @@ export class TourPilot {
     let best = this.yaw, bestScore = -Infinity;
     const o = this._v.set(p.pos.x, Math.max(p.pos.y - 8, 3), p.pos.z);
     const base = Math.round(this.yaw / (Math.PI / 2)) * (Math.PI / 2);
+    const b = p.city?.bounds;
     for (let k = -1; k <= 1; k++) {
       const a = base + (k * Math.PI) / 2;
       const d = new Vector3(-Math.sin(a), 0, -Math.cos(a));
-      const free = p.world.raycast(o, d, 200, p.hit, 8, false) ? p.hit.t : 200;
+      let free = p.world.raycast(o, d, 200, p.hit, 8, false) ? p.hit.t : 200;
+      // open space past the edge of the district is not a street: nothing to swing from there
+      if (b) {
+        const tx = d.x > 1e-3 ? (b.x1 - 40 - o.x) / d.x : d.x < -1e-3 ? (b.x0 + 40 - o.x) / d.x : Infinity;
+        const tz = d.z > 1e-3 ? (b.z1 - 40 - o.z) / d.z : d.z < -1e-3 ? (b.z0 + 40 - o.z) / d.z : Infinity;
+        free = Math.min(free, Math.max(0, tx), Math.max(0, tz));
+      }
       const score = free - Math.abs(k) * 40;
       if (score > bestScore) { bestScore = score; best = a; }
     }

@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { T } from '../../core/tuning';
-import { hlen } from '../../core/math';
+import { hlen, smoothstep } from '../../core/math';
 import type { Intent } from '../../input/Intent';
 import { FEET } from '../body';
 import type { Player } from '../Player';
@@ -72,11 +72,14 @@ export function airStep(p: Player, dt: number, input: Intent, allowSteer = true)
       const hs = hlen(p.vel);
       dir.set(hs > 1 ? (p.vel.x / hs) * 0.35 : 0, -1, hs > 1 ? (p.vel.z / hs) * 0.35 : 0).normalize();
     }
-    const a = p.diveTime > 0.45 ? T.air.fastDiveAccel : T.air.diveAccel;
+    // the dive push fades out toward terminal speed: past it only gravity and drag act
+    const along = p.vel.dot(dir);
+    const a = (p.diveTime > 0.45 ? T.air.fastDiveAccel : T.air.diveAccel) * (1 - smoothstep(T.physics.maxDiveSpeed - 10, T.physics.maxDiveSpeed, along));
     F.addScaledVector(dir, m * a);
   }
   p.vel.addScaledVector(F, dt / m);
-  p.limitSpeed(dt, diving);
+  // just after a swing the cap is gentle too, so letting go never feels like hitting a wall
+  p.limitSpeed(dt, diving, !diving && p.timeSinceRelease < 1);
   p.moveAndCollide(dt);
   if (!p.onGround) p.timeSinceGround += dt;
   // face travel direction (or input when slow)
@@ -118,15 +121,22 @@ export function airTransitions(p: Player, input: Intent, allowWeb = true): State
     if (beginZip(p, input)) return 'WebZip';
   }
   // no web when about to touch down anyway (e.g. stepping off a kerb while sprinting)
-  if (allowWeb && input.traverse && p.webCooldown <= 0 && (p.timeSinceRelease > 0.3 || p.vel.y < -1) && p.feetY - p.surfaceBelow() > 2.5) {
-    const d = desired(input, _m);
-    if (d.lengthSq() < 0.01) {
-      // no stick: keep the line you are already flying (falls back to the camera when slow)
-      const hs = Math.hypot(p.vel.x, p.vel.z);
-      if (hs > 4) d.set(p.vel.x / hs, 0, p.vel.z / hs).multiplyScalar(0.6);
-      else input.camForwardFlat(d).multiplyScalar(0.6);
+  if (allowWeb && input.traverse && p.webCooldown <= 0 && p.feetY - p.surfaceBelow() > 2.5) {
+    // a held swing chains straight into the next web after an automatic end-of-arc release; a fresh
+    // press fires almost at once; a swing held through a manual release waits a moment (or a fall)
+    const ready = p.chainPending ? p.timeSinceRelease >= T.web.chainDelay
+      : input.traversePressed ? p.timeSinceRelease >= 0.1
+      : p.timeSinceRelease > T.web.refireDelay || p.vel.y < -1;
+    if (ready) {
+      const d = desired(input, _m);
+      if (d.lengthSq() < 0.01) {
+        // no stick: keep the line you are already flying (falls back to the camera when slow)
+        const hs = Math.hypot(p.vel.x, p.vel.z);
+        if (hs > 4) d.set(p.vel.x / hs, 0, p.vel.z / hs).multiplyScalar(0.6);
+        else input.camForwardFlat(d).multiplyScalar(0.6);
+      }
+      if (p.tryAttachWeb(input, d)) { p.chainPending = false; return 'Swinging'; }
     }
-    if (p.tryAttachWeb(input, d)) return 'Swinging';
   }
   return null;
 }
@@ -146,12 +156,20 @@ export function airContacts(p: Player, input: Intent): StateId | null {
   return null;
 }
 
-/** Choose zip target: perch point under reticle, else geometry along the camera. */
+/**
+ * Choose zip target: perch point under reticle, else geometry along the camera. Point zips are
+ * always available; forward zips in the air are a limited burst (one per air phase by default).
+ */
 export function beginZip(p: Player, input: Intent): boolean {
   if (p.perchTarget) {
     p.zipPoint = p.perchTarget;
     p.zipTarget.set(p.zipPoint.x, p.zipPoint.y + FEET + 0.05, p.zipPoint.z);
     return true;
+  }
+  const airborne = !p.onGround && p.feetY - p.surfaceBelow() > 1;
+  if (airborne && p.airZips >= T.zip.maxAirZips) {
+    p.emit('webFail');
+    return false;
   }
   const dir = _d.copy(input.camForward);
   dir.y = Math.max(dir.y, 0.08);
@@ -160,6 +178,7 @@ export function beginZip(p: Player, input: Intent): boolean {
   if (p.world.raycast(eye, dir, T.zip.zipForwardDistance, p.hit, Kind.NoWeb, true) && p.hit.t > 6) {
     p.zipPoint = null;
     p.zipTarget.copy(p.hit.point);
+    if (airborne) p.airZips++;
     return true;
   }
   p.emit('webFail');
@@ -177,15 +196,28 @@ export function doJump(p: Player, speed: number, superJump: boolean): StateId {
   return 'Airborne';
 }
 
-/** Kick off a wall: away from the wall, biased toward where the camera looks. */
+/**
+ * Kick off a wall. From a horizontal run the launch keeps the run speed (plus a push off the wall)
+ * so it flows into the next swing: with swing held the next web fires almost at once. Otherwise
+ * it is a kick away from the wall, biased toward where the camera looks.
+ */
 export function wallJump(p: Player, input: Intent): StateId {
   const n = p.wallNormal;
-  const cf = input.camForwardFlat(_d);
-  const dir = _c.copy(n);
-  if (cf.dot(n) > 0.1) dir.add(cf).normalize();
-  p.vel.set(dir.x * T.wall.wallJumpOut, T.wall.wallJumpUp, dir.z * T.wall.wallJumpOut);
+  if (p.state === 'WallRunning' && p.wallMode === 'horizontal') {
+    const sx = n.z * p.wallSide, sz = -n.x * p.wallSide; // run direction along the wall
+    const run = Math.max(Math.abs(p.vel.x * sx + p.vel.z * sz), T.wall.wallRunSpeed) * 0.97;
+    p.vel.set(sx * run + n.x * T.wall.wallLaunchOut, T.wall.wallLaunchUp, sz * run + n.z * T.wall.wallLaunchOut);
+    p.facing = yawOf(p.vel.x, p.vel.z);
+  } else {
+    const cf = input.camForwardFlat(_d);
+    const dir = _c.copy(n);
+    if (cf.dot(n) > 0.1) dir.add(cf).normalize();
+    p.vel.set(dir.x * T.wall.wallJumpOut, T.wall.wallJumpUp, dir.z * T.wall.wallJumpOut);
+    p.facing = yawOf(dir.x, dir.z);
+  }
   p.pos.addScaledVector(n, 0.1);
-  p.facing = yawOf(dir.x, dir.z);
+  p.timeSinceRelease = 0;
+  p.chainPending = true;
   p.emit('wallJump');
   return 'Airborne';
 }
