@@ -163,17 +163,31 @@ export const Tuning = {
     rollTime: 0.5,
   },
   camera: {
-    distance: 5.2,
-    distanceAtSpeed: 7.5,
-    height: 1.4,
-    fov: 62,
-    fovAtSpeed: 84,
-    fovSpeedRef: 60,
-    lag: 9,
-    lookAhead: 0.35,
-    rollAmount: 0.55,
-    shake: 0.4,
-    autoRecenter: 1.6,
+    distance: 4.5, // follow distance at rest (m)
+    distanceAtSpeed: 7.0, // … at fovSpeedRef
+    height: 1.25, // pivot above the body centre (m)
+    shoulder: 0.42, // over-the-shoulder offset to the right (m)
+    fov: 62, // vertical FOV at rest (deg)
+    fovAtSpeed: 84, // … at fovSpeedRef
+    speedMin: 6, // m/s where the speed response starts
+    fovSpeedRef: 52, // m/s (~115 mph) where distance/FOV reach their speed values
+    followFreq: 6.5, // rad/s horizontal follow spring (velocity-matched: lags only on acceleration)
+    followFreqV: 5.0, // rad/s vertical follow spring
+    followDamping: 0.9,
+    maxLag: 2.2, // m, the follow never trails further than this
+    lookAhead: 0.35, // horizontal look-ahead (× speed/10 m, capped)
+    arcFrame: 0.024, // hero's frame height rides the arc: pivot offset per m/s of vertical speed
+    arcPitch: 0.3, // camera pitch follows this fraction of the swing-arc tangent
+    diveTilt: 0.42, // rad of extra downward pitch in high dives/falls
+    attachFovKick: 5, // deg, web-attach heartbeat at speed
+    attachDragBack: 0.7, // m, web-attach drag-back at speed
+    rollAmount: 0.9, // roll per lateral acceleration (× 0.0045 rad per m/s²)
+    rollMax: 0.15, // rad (≈ 8.6°)
+    shake: 0.3,
+    autoRecenter: 1.5, // 1/s auto-follow rate behind the hero
+    autoFollowDelay: 0.9, // s without look input before auto-follow starts
+    yawFollow: 9, // rad/s critically-damped rendered-yaw follow for non-mouse yaw changes
+    pitchRest: -0.16, // rad, pitch the auto-follow returns to
     sensitivity: 0.0022,
   },
 } satisfies Record<string, Record<string, number>>;
@@ -202,6 +216,8 @@ export const TuningMeta: Record<string, ParamMeta> = {
   'assist.wallSlamBelow': { min: 0, max: 10, step: 1 },
   'zip.maxAirZips': { min: 0, max: 5, step: 1 },
   'physics.fixedHz': { min: 30, max: 240, step: 1 },
+  'camera.pitchRest': { min: -0.8, max: 0.4, step: 0.01 },
+  'camera.followDamping': { min: 0.3, max: 1.5, step: 0.01 },
 };
 
 export function metaFor(path: string, value: number): ParamMeta {
