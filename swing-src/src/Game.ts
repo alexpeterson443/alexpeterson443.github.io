@@ -216,21 +216,33 @@ export class Game {
   private drsT = 0;
   private gpuAvg = -1;
 
-  /** Measure GPU time (or frame rate where timer queries are missing) and nudge the resolution. */
+  private drsFrames = 0;
+  private drsMisses = 0;
+  private drsClean = 0;
+  private rawDt = 1 / 60;
+
+  /**
+   * Scale the render resolution on what the player actually sees: missed frames. GPU time alone is
+   * a poor guide (shadow maps and vertex work don't shrink with resolution), so it only vetoes
+   * scaling back up when the GPU is already busy.
+   */
   private dynamicResolution(dt: number): void {
     if (this.gpu.supported && this.gpu.ms >= 0) this.gpuAvg = this.gpuAvg < 0 ? this.gpu.ms : this.gpuAvg + (this.gpu.ms - this.gpuAvg) * 0.1;
+    this.drsFrames++;
+    if (this.rawDt > 1 / 45) this.drsMisses++; // a frame that missed the 60 Hz vsync
     this.drsT += dt;
     if (this.drsT < 0.5) return;
-    this.drsT = 0;
+    const missRate = this.drsMisses / Math.max(1, this.drsFrames);
+    this.drsT = 0; this.drsFrames = 0; this.drsMisses = 0;
+    if (document.hidden) return;
     let s = this.prScale;
-    if (this.gpuAvg >= 0) {
-      // GPU budget at 60 fps is 16.7 ms; keep headroom for spikes (web shots, bloom, far shadow bakes)
-      if (this.gpuAvg > 12.5) s *= Math.max(0.8, 12 / this.gpuAvg);
-      else if (this.gpuAvg < 8.5) s *= 1.06;
-    } else if (this.fps < 50) s *= 0.9;
-    else if (this.fps > 58) s *= 1.03;
-    s = Math.min(1, Math.max(0.45, s));
-    if (Math.abs(s - this.prScale) > 0.02) {
+    if (missRate > 0.12) { s *= 0.85; this.drsClean = 0; }
+    else if (missRate < 0.02) {
+      this.drsClean += 0.5;
+      if (this.drsClean >= 2 && s < 1 && !(this.gpuAvg > 13)) { s *= 1.08; this.drsClean = 0; }
+    } else this.drsClean = 0;
+    s = Math.min(1, Math.max(0.5, s));
+    if (Math.abs(s - this.prScale) > 0.01) {
       this.prScale = s;
       this.renderer.setPixelRatio(this.prMax * s);
       this.resize();
@@ -279,6 +291,7 @@ export class Game {
     const rawDt = (now - this.last) / 1000;
     this.last = now;
     const dt = clamp(rawDt, 0.0005, 0.1);
+    this.rawDt = rawDt;
     this.fps += (1 / Math.max(1e-3, rawDt) - this.fps) * 0.05;
     this.frameMs += (rawDt * 1000 - this.frameMs) * 0.05;
     profiler.begin('frame');

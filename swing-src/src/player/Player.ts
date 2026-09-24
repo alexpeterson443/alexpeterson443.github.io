@@ -185,6 +185,15 @@ export class Player {
     // safety: never leave the world
     if (!Number.isFinite(this.pos.x + this.pos.y + this.pos.z)) this.spawn(0, 60, 0);
     if (this.pos.y < -5) { this.pos.y = FEET; this.vel.y = 0; }
+    // the playable district ends a little past its outer avenues (beyond is harbour and scenery):
+    // a soft edge removes outward velocity and eases the hero back in
+    if (this.city) {
+      const b = this.city.bounds, m = 25;
+      const ox = this.pos.x < b.x0 - m ? b.x0 - m - this.pos.x : this.pos.x > b.x1 + m ? b.x1 + m - this.pos.x : 0;
+      const oz = this.pos.z < b.z0 - m ? b.z0 - m - this.pos.z : this.pos.z > b.z1 + m ? b.z1 + m - this.pos.z : 0;
+      if (ox !== 0) { this.pos.x += ox * Math.min(1, 8 * dt); if (this.vel.x * ox < 0) this.vel.x *= -0.2; }
+      if (oz !== 0) { this.pos.z += oz * Math.min(1, 8 * dt); if (this.vel.z * oz < 0) this.vel.z *= -0.2; }
+    }
   }
 
   // ---------------------------------------------------------------------
