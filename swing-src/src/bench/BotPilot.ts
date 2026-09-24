@@ -55,13 +55,14 @@ export class BotPilot {
       return;
     }
     if (st === 'Swinging') {
-      // release on the up-swing, inside the ideal window
+      // skilled play: keep holding swing, jump off just past the bottom for a forward launch
       const r = p.rope;
-      const late = this.style === 'swingLow' ? 35 : 28;
+      const late = this.style === 'swingLow' ? 25 : 12;
+      input.traverse = true;
       if (r.swingAngle > late && p.vel.y > 0 && r.age > 0.35) {
-        input.traverse = false;
+        input.jump = true;
         this.releaseT = 0.12;
-      } else input.traverse = true;
+      }
     } else if (st === 'Grounded' || st === 'Landing' || st === 'Recovery') {
       input.traverse = true;
       input.jump = this.t % 0.5 < 0.25;

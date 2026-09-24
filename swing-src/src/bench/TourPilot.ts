@@ -52,8 +52,9 @@ export class TourPilot {
         return;
       }
       if (p.state === 'Swinging') {
-        i.traverse = !(p.rope.swingAngle > 30 && p.vel.y > 0 && p.rope.age > 0.35);
-        if (!i.traverse) this.releases++;
+        i.traverse = true;
+        i.jump = p.rope.swingAngle > 12 && p.vel.y > 0 && p.rope.age > 0.35;
+        if (i.jump) this.releases++;
       } else i.traverse = p.vel.y < 1;
     };
     this.goals = [

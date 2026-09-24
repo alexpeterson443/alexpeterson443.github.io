@@ -26,15 +26,36 @@ export function releaseQuality(swingAngleDeg: number, vy: number): number {
   return 1;
 }
 
-/** Let go of the web: keep momentum, add a timing-graded boost (plus a jump if requested). */
-export function releaseWeb(p: Player, jump: boolean): StateId {
+export type ReleaseMode = 'letGo' | 'jump' | 'auto';
+
+/**
+ * Leave the web. Momentum is always kept.
+ *  - letGo: releasing the swing button early gives no boost.
+ *  - jump:  jumping off the web; near the bottom of the arc it throws you forward, near the
+ *           end of the arc it catapults you upward. Better timing = bigger boost.
+ *  - auto:  holding the swing button to the top of the arc detaches with a height boost.
+ */
+export function releaseWeb(p: Player, mode: ReleaseMode): StateId {
   const r = p.rope;
-  // a boost has to be earned by an actual swing: tap-releasing right after attaching gets nothing
-  const q = releaseQuality(r.swingAngle, p.vel.y) * smoothstep(0.12, 0.45, r.age);
+  const a = r.swingAngle; // + past the bottom
+  const earned = smoothstep(0.15, 0.45, r.age); // a boost has to be earned by an actual swing
+  let q = 0;
+  const hs = hlen(p.vel);
+  const fx = hs > 0.5 ? p.vel.x / hs : 0, fz = hs > 0.5 ? p.vel.z / hs : 0;
+  if (mode === 'jump') {
+    q = (a > -10 ? Math.max(0.35, releaseQuality(Math.max(a, 1), Math.max(p.vel.y, 0.01))) : 0.25) * earned;
+    const fwdW = 1 - smoothstep(25, 60, a);
+    const upW = smoothstep(18, 60, a);
+    p.vel.x += fx * T.web.jumpForwardBoost * fwdW * q;
+    p.vel.z += fz * T.web.jumpForwardBoost * fwdW * q;
+    p.vel.y = Math.max(p.vel.y, 0) + T.web.jumpReleaseUpBoost * (0.6 + 0.4 * q) + T.web.jumpUpBoost * upW * q;
+  } else if (mode === 'auto') {
+    q = 0.7 * earned;
+    p.vel.x += fx * T.web.releaseBoost * 0.4 * q;
+    p.vel.z += fz * T.web.releaseBoost * 0.4 * q;
+    p.vel.y = Math.max(p.vel.y, 0) + T.web.autoTopUpBoost * q;
+  }
   p.releaseQuality = q;
-  const s = p.vel.length();
-  if (s > 0.5) p.vel.addScaledVector(_dir.copy(p.vel).multiplyScalar(1 / s), T.web.releaseBoost * q);
-  p.vel.y += T.web.releaseUpBoost * q + (jump ? T.web.jumpReleaseUpBoost : 0);
   r.detach();
   p.timeSinceRelease = 0;
   p.webCooldown = Math.max(p.webCooldown, 0.08);
@@ -73,8 +94,8 @@ registerState({
   step(p, dt, input: Intent) {
     const r = p.rope;
     if (!r.active) return 'Airborne';
-    if (input.jumpPressed) return releaseWeb(p, true);
-    if (!input.traverse) return releaseWeb(p, false);
+    if (input.jumpPressed) return releaseWeb(p, 'jump');
+    if (!input.traverse) return releaseWeb(p, 'letGo');
     if (input.zipPressed) {
       r.detach();
       if (beginZip(p, input)) return 'WebZip';
@@ -82,9 +103,13 @@ registerState({
     }
 
     const m = T.physics.mass;
-    // holding traverse with no stick swings toward the camera direction
+    // no stick: the arc keeps you travelling as straight as possible
     const des = desired(input, _d);
-    if (des.lengthSq() < 0.01) input.camForwardFlat(des).multiplyScalar(0.65);
+    if (des.lengthSq() < 0.01) {
+      const vh = hlen(p.vel);
+      if (vh > 3) des.set(p.vel.x / vh, 0, p.vel.z / vh).multiplyScalar(0.65);
+      else input.camForwardFlat(des).multiplyScalar(0.65);
+    }
     // ground under the player and under the bottom of the arc ahead (roofs in the path count)
     p.arcGroundTimer -= dt;
     if (p.arcGroundTimer <= 0) {
@@ -117,7 +142,9 @@ registerState({
       return 'WallRunning';
     }
     // swung above the anchor: the rope would go slack → auto release with the arc's boost
-    if (p.pos.y > r.anchor.y - T.web.detachAboveAnchor && p.vel.y > 0) return releaseWeb(p, false);
+    if (p.pos.y > r.anchor.y - T.web.detachAboveAnchor && p.vel.y > 0) return releaseWeb(p, 'auto');
+    // held to the end of the arc: the web lets go at the top with a height boost
+    if (r.swingAngle > T.web.autoReleaseAngle && p.vel.y < 3 && r.age > 0.45) return releaseWeb(p, 'auto');
     // line of sight to the anchor lost (rope wrapped a corner) → release
     p.losTimer -= dt;
     if (p.losTimer <= 0) {

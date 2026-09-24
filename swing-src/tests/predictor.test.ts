@@ -23,6 +23,7 @@ describe('trajectory prediction', () => {
     const world = canyonWorld();
     const p = makePlayer(world);
     T.assist.enabled = 0;
+    T.web.autoReleaseAngle = 999; // compare the pendulum itself, not the top-of-arc release
     p.spawn(0, 40, 0);
     p.vel.set(0, 0, -20);
     const anchor = new Vector3(9.9, 70, -25);
@@ -32,7 +33,8 @@ describe('trajectory prediction', () => {
     p.fsm.transition('Swinging', null);
     const input = new Intent();
     input.traverse = true;
-    input.camYaw = Math.PI; // no stick: swing state desires camera-forward × 0.65 = (0,0,0.65)
+    input.camYaw = Math.PI; // stick at 0.65 toward the camera's forward (+Z) = (0,0,0.65), same as `des`
+    input.moveY = 0.65;
     stepN(p, input, 120);
     expect(pr.endPos.distanceTo(p.pos)).toBeLessThan(2);
   });

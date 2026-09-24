@@ -6,9 +6,11 @@ canvas { display: block; }
 .overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .dbg-label { position: absolute; left: 0; top: 0; font: 11px/1 ui-monospace, monospace; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .hud { position: absolute; inset: 0; pointer-events: none; }
-.hud-stats { position: absolute; left: 10px; top: 10px; margin: 0; padding: 8px 10px; background: rgba(0,0,0,.55); border-radius: 6px; font: 11px/1.45 ui-monospace, monospace; color: #cfe; max-width: calc(100vw - 20px); white-space: pre-wrap; }
-.hud-help { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 14px; background: rgba(5,8,12,.72); border: 1px solid rgba(63,224,240,.3); border-radius: 8px; line-height: 1.7; text-align: center; max-width: calc(100vw - 32px); }
-.hud-help.hidden { display: none; }
+.hud-stats { position: absolute; right: 10px; top: 10px; margin: 0; padding: 8px 10px; background: rgba(0,0,0,.55); border-radius: 6px; font: 11px/1.45 ui-monospace, monospace; color: #cfe; max-width: calc(100vw - 20px); white-space: pre-wrap; }
+.hud-help { position: absolute; left: 12px; top: 12px; padding: 8px 12px; background: rgba(5,8,12,.62); border: 1px solid rgba(63,224,240,.25); border-radius: 8px; line-height: 1.65; font-size: 12px; max-width: min(430px, calc(100vw - 24px)); pointer-events: none; transition: opacity .6s; }
+.hud-hint { position: absolute; left: 12px; top: 12px; font: 12px ui-monospace, monospace; color: rgba(232,238,243,.55); text-shadow: 0 0 4px #000; }
+.hud-help.hidden { opacity: 0; }
+.hud-help:not(.hidden) ~ .hud-hint { display: none; }
 kbd { display: inline-block; padding: 0 5px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; font: 11px ui-monospace, monospace; background: rgba(255,255,255,.08); }
 .hud-reticle { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border: 2px solid var(--accent); box-shadow: 0 0 8px var(--accent); display: none; }
 .hud-speed { position: absolute; right: 16px; bottom: 14px; font: 600 15px ui-monospace, monospace; color: #fff; text-shadow: 0 0 6px #000; letter-spacing: .04em; }

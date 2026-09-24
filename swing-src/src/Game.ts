@@ -298,8 +298,14 @@ export class Game {
     this.tickBench(dt, simMs, rMs);
   }
 
+  private helpTimer = 0;
   private handleUIKeys(): void {
     const i = this.input;
+    // the controls card gets out of the way once the player starts moving
+    if (this.helpTimer >= 0) {
+      if (this.intent.moveMag > 0.1 || this.intent.traverse || this.intent.jump) this.helpTimer += 1 / 60;
+      if (this.helpTimer > 2.5) { this.hud.hideHelp(); this.helpTimer = -1; }
+    }
     if (i.consume('Backquote') || i.consume('F1')) this.panel.toggle();
     if (i.consume('KeyG')) { this.debug.enabled = !this.debug.enabled; this.flags.stats = this.debug.enabled; this.flags.candidates = this.debug.enabled; this.flags.scores = this.debug.enabled; this.flags.trajectory = this.debug.enabled; this.flags.velocity = this.debug.enabled; }
     if (i.consume('KeyH')) this.hud.toggleHelp();

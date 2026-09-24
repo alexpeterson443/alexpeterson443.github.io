@@ -29,7 +29,10 @@ Gamepad: LS move · RS look · A jump · RT swing · RB zip · LB dive · Y tric
     this.speedo.className = 'hud-speed';
     this.toast = document.createElement('div');
     this.toast.className = 'hud-toast';
-    this.root.append(this.stats, this.help, this.reticle, this.speedo, this.toast);
+    const hint = document.createElement('div');
+    hint.className = 'hud-hint';
+    hint.textContent = 'H · controls';
+    this.root.append(this.help, hint, this.stats, this.reticle, this.speedo, this.toast);
     parent.appendChild(this.root);
   }
 

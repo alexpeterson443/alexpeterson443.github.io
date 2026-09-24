@@ -62,7 +62,11 @@ export const Tuning = {
     reelRate: 14, // m/s manual/auto retraction
     releaseBoost: 5.5, // m/s along velocity, scaled by timing quality
     releaseUpBoost: 4.5,
-    jumpReleaseUpBoost: 7,
+    jumpReleaseUpBoost: 6,
+    jumpForwardBoost: 11, // jump off near the bottom of the arc
+    jumpUpBoost: 11, // jump off near the end of the arc
+    autoTopUpBoost: 7, // swing held to the top
+    autoReleaseAngle: 62,
     idealReleaseAngleMin: 12, // degrees past bottom of arc
     idealReleaseAngleMax: 55,
     swingSpeedPreservation: 0.75, // 0..1 fraction of air drag removed while swinging

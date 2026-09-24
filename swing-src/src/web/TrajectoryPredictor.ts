@@ -36,6 +36,14 @@ const zero = new Vector3();
  * coarser step. Used both for anchor scoring and for the debug trajectory overlay.
  * If `anchor` is null the flight is ballistic (gravity + drag).
  */
+/** Degrees past the bottom of the arc (+ = rising on the far side), matching WebRope.swingAngle. */
+function swingPastBottom(p: Vector3, v: Vector3, a: Vector3): number {
+  const rx = p.x - a.x, ry = p.y - a.y, rz = p.z - a.z;
+  const d = Math.hypot(rx, ry, rz) || 1;
+  const ang = (Math.acos(Math.max(-1, Math.min(1, -ry / d))) * 180) / Math.PI;
+  return rx * v.x + rz * v.z >= 0 ? ang : -ang;
+}
+
 export function predict(
   pos: Vector3, vel: Vector3,
   anchor: Vector3 | null, length: number,
@@ -72,7 +80,7 @@ export function predict(
       rope.constrain(p, v, dt, m, sT);
       rope.reel(dt, T.web.reelRate);
       rope.takeUpSlack(p);
-      if (releaseAtApex && p.y > rope.anchor.y - T.web.detachAboveAnchor && v.y > 0) swinging = false;
+      if (releaseAtApex && ((p.y > rope.anchor.y - T.web.detachAboveAnchor && v.y > 0) || (rope.age > 0.45 && v.y < 3 && swingPastBottom(p, v, rope.anchor) > T.web.autoReleaseAngle))) swinging = false;
     } else {
       const s = v.length();
       F.copy(v).multiplyScalar(-T.physics.airDrag * s);

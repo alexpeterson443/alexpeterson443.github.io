@@ -43,8 +43,9 @@ export class InputManager {
     on(el, 'contextmenu', (e) => e.preventDefault());
     on(document, 'pointerlockchange', () => { this.locked = document.pointerLockElement === el; });
     on(window, 'mousemove', (e) => {
-      if (!this.locked) return;
       const me = e as MouseEvent;
+      // without pointer lock (some embedded views refuse it) the cursor over the game still turns the camera
+      if (!this.locked && me.target !== el) return;
       this.lookDX += me.movementX;
       this.lookDY += me.movementY;
     });

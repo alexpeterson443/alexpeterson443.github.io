@@ -117,7 +117,7 @@ export function airTransitions(p: Player, input: Intent, allowWeb = true): State
     if (beginZip(p, input)) return 'WebZip';
   }
   // no web when about to touch down anyway (e.g. stepping off a kerb while sprinting)
-  if (allowWeb && input.traverse && p.webCooldown <= 0 && (p.timeSinceRelease > 0.3 || p.vel.y < -1) && p.feetY - p.surfaceBelow() > 2.5) {
+  if (allowWeb && input.traverse && p.webCooldown <= 0 && (p.timeSinceRelease > 0.3 || p.vel.y < -1) && p.feetY - p.surfaceBelow() > 1.2) {
     const d = desired(input, _m);
     if (d.lengthSq() < 0.01) input.camForwardFlat(d).multiplyScalar(0.6);
     if (p.tryAttachWeb(input, d)) return 'Swinging';

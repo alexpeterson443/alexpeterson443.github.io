@@ -79,10 +79,12 @@ describe('movement state machine', () => {
     let guard = 0;
     while (p.state === 'Swinging' && !(p.rope.swingAngle > 15 && p.vel.y > 0) && guard++ < 600) stepN(p, input, 1);
     const vBefore = p.vel.clone();
-    input.traverse = false;
+    input.jump = true; // jump off near the bottom → forward launch
     stepN(p, input, 1);
+    input.jump = false;
+    input.traverse = false;
     expect(p.state).toBe('Airborne');
-    expect(p.vel.length()).toBeGreaterThanOrEqual(vBefore.length() * 0.95);
+    expect(p.vel.length()).toBeGreaterThan(vBefore.length());
     expect(p.releaseQuality).toBeGreaterThan(0.3);
     stepN(p, input, 1200);
     expect(['Grounded', 'Landing', 'Recovery', 'WallCrawling']).toContain(p.state);
@@ -177,6 +179,23 @@ describe('movement state machine', () => {
     input.jump = true;
     stepN(p, input, 200, 1 / 120, () => { if (p.state === 'PointLaunch') input.jump = false; });
     expect(visited(p).has('PointLaunch')).toBe(true);
+  });
+
+  it('letting go early keeps momentum but earns no boost', () => {
+    const p = makePlayer(canyonWorld());
+    p.spawn(0, 40, 50);
+    p.vel.set(0, 0, -20);
+    p.rope.attach(new Vector3(-9.9, 70, 20), p.pos);
+    p.fsm.transition('Swinging', null);
+    const input = new Intent();
+    input.traverse = true;
+    stepN(p, input, 60);
+    const v = p.vel.length();
+    input.traverse = false;
+    stepN(p, input, 1);
+    expect(p.state).toBe('Airborne');
+    expect(p.releaseQuality).toBe(0);
+    expect(Math.abs(p.vel.length() - v)).toBeLessThan(1);
   });
 
   it('player input materially changes the swing trajectory (not on rails)', () => {
