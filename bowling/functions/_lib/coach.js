@@ -13,6 +13,7 @@
 // Pure functions only, so they can be unit tested with node.
 
 import { gameSeries, spread, trend, tCritical, ROLL_WINDOW, MIN_TREND_GAMES } from "./progress.js";
+import { MIN_BUCKET_SESSIONS, median, quantile } from "./stats.js";
 
 /** Games that count as "right now". Three is a series. */
 export const FORM_WINDOW = 3;
@@ -46,10 +47,13 @@ export function sessions(series) {
  * Current form: are the last few games actually different from what came
  * before, or is this the same bowler having a normal night?
  *
- * The comparison is scaled by his own scatter, so "hot" means the last three
- * games are far enough above the baseline that noise does not explain them.
- * With a spread near 25 pins that takes about 15 pins of improvement, which is
- * the honest bar. Anything less is "steady", and saying so is the point.
+ * Medians on both sides, so one wild game cannot make a night look hot or
+ * cold. The gap is scaled by his own scatter, estimated robustly from the
+ * baseline's interquartile range (IQR / 1.349 is a standard deviation for
+ * normal data, but one outlier cannot inflate it). A median of three games has
+ * a standard error of about 1.16 sd / sqrt(3), so "hot" means the recent median
+ * clears the baseline by more than noise explains. Anything less is "steady",
+ * and saying so is the point.
  */
 export function form(series) {
   const n = series.length;
@@ -58,21 +62,22 @@ export function form(series) {
   const values = series.map((g) => g.score);
   const recent = values.slice(-FORM_WINDOW);
   const base = values.slice(Math.max(0, n - FORM_WINDOW - BASE_WINDOW), n - FORM_WINDOW);
-  const rm = mean(recent);
-  const bm = mean(base);
-  const sd = spread(base);
+  const rm = median(recent);
+  const bm = median(base);
+  const iqrScale = (quantile(base, 0.75) - quantile(base, 0.25)) / 1.349;
+  // A baseline too tight for an IQR falls back to the ordinary spread.
+  const scale = iqrScale > 0 ? iqrScale : spread(base);
   const gap = Math.round(rm - bm);
 
-  if (sd === null || sd === 0) {
+  if (scale === null || scale === 0) {
     return { state: "steady", games: n, gap, z: 0, text: `Last ${FORM_WINDOW} games are level with the ${base.length} before them.` };
   }
 
-  // Standard error of a mean of FORM_WINDOW games drawn from that scatter.
-  const z = (rm - bm) / (sd / Math.sqrt(FORM_WINDOW));
+  const z = (rm - bm) / ((1.16 * scale) / Math.sqrt(FORM_WINDOW));
   const out = { games: n, gap, z: Math.round(z * 100) / 100, window: FORM_WINDOW, baseline: Math.round(bm), recent: Math.round(rm) };
 
-  if (z >= 1) return { ...out, state: "hot", text: `Hot. Last ${FORM_WINDOW} games average ${Math.round(rm)}, ${gap} above the ${base.length} before them.` };
-  if (z <= -1) return { ...out, state: "cold", text: `Cold patch. Last ${FORM_WINDOW} games average ${Math.round(rm)}, ${Math.abs(gap)} below the ${base.length} before them.` };
+  if (z >= 1) return { ...out, state: "hot", text: `Hot. Last ${FORM_WINDOW} games have a median of ${Math.round(rm)}, ${gap} above the ${base.length} before them.` };
+  if (z <= -1) return { ...out, state: "cold", text: `Cold patch. Last ${FORM_WINDOW} games have a median of ${Math.round(rm)}, ${Math.abs(gap)} below the ${base.length} before them.` };
   return { ...out, state: "steady", text: `Steady. Last ${FORM_WINDOW} games are inside your normal spread of the ${base.length} before them.` };
 }
 
@@ -182,7 +187,7 @@ function tailRun(series) {
  * the end of the list: it can invent a cold start he does not have, or hide a
  * real one behind a thin seat that happened to score badly.
  */
-export function warmupGap(rows, minSessions = 3) {
+export function warmupGap(rows, minSessions = MIN_BUCKET_SESSIONS) {
   const solid = rows.filter((r) => r.sessions >= minSessions);
   if (solid.length < 2) return null;
   const from = solid[0];
@@ -190,8 +195,11 @@ export function warmupGap(rows, minSessions = 3) {
   return { gap: to.average - from.average, from, to, seats: solid.length };
 }
 
-/** Average by weekday, for weekdays bowled at least `minSessions` times. */
-export function byWeekday(series, minSessions = 2) {
+/**
+ * Average by weekday, for weekdays bowled at least `minSessions` times. Below
+ * that a weekday is left out entirely, so no comparison can be built on it.
+ */
+export function byWeekday(series, minSessions = MIN_BUCKET_SESSIONS) {
   const groups = new Map();
   for (const s of sessions(series)) {
     const d = weekdayOf(s.date);

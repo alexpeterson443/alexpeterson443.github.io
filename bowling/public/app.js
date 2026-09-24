@@ -1081,7 +1081,7 @@ function renderChartCard(p) {
   card.hidden = empty;
   if (empty) return;
 
-  $("chart-meta").textContent = p.recentAverage === null ? `${p.games} games` : `Last 10: ${p.recentAverage}`;
+  $("chart-meta").textContent = p.recentAverage === null ? `${p.games} games` : `Last 10 median: ${p.recentAverage}`;
   $("form-avg").textContent = p.recentAverage ?? "–";
   card.querySelector(".form-now small").textContent =
     p.window < 10 ? `last ${p.window} games` : "last 10 games";
