@@ -8,6 +8,8 @@
 //
 // Pure functions only, so they can be unit tested with node.
 
+import { MIN_BUCKET_SESSIONS, median } from "./stats.js";
+
 /** Games needed before a trend is worth attempting at all. */
 export const MIN_TREND_GAMES = 12;
 
@@ -123,7 +125,7 @@ export function gamesPerWeek(series) {
  * and so on. A large gap between the first and last seat is a warm up problem,
  * which is worth more pins than anything else a beginner can change.
  */
-export function bySessionPosition(series, minSessions = 2) {
+export function bySessionPosition(series, minSessions = MIN_BUCKET_SESSIONS) {
   const seats = new Map();
   for (const g of series) {
     if (!seats.has(g.seat)) seats.set(g.seat, []);
@@ -248,7 +250,9 @@ export function progressReport(scores) {
   const values = series.map((g) => g.score);
   const recent = values.slice(-ROLL_WINDOW);
   const lifetime = mean(values);
-  const rolling = mean(recent);
+  // A median, so one 159 or one 70 in the last ten does not move "recent" by
+  // five pins the way it moves a mean.
+  const rolling = recent.length ? median(recent) : null;
 
   return {
     games: series.length,
@@ -258,7 +262,8 @@ export function progressReport(scores) {
     recentAverage: rolling === null ? null : Math.floor(rolling),
     // Recent form against the lifetime number. This is the figure that actually
     // moves when he has a good week; the lifetime average is far too slow.
-    delta: lifetime === null || rolling === null ? null : Math.round(rolling - lifetime),
+    // Median against median, so both sides shrug off the same one wild game.
+    delta: rolling === null ? null : Math.round(rolling - median(values)),
     window: Math.min(ROLL_WINDOW, series.length),
     spread: spread(values) === null ? null : Math.round(spread(values)),
     recentSpread: spread(recent) === null ? null : Math.round(spread(recent)),

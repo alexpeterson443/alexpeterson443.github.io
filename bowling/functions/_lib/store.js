@@ -9,6 +9,8 @@ import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 import { cleanRecord, mergeEnv } from "./settings.js";
 import { mirror } from "./live.js";
+import { loadDetail } from "./games.js";
+import { analyze } from "./stats.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -189,7 +191,7 @@ export async function loadFrames(env, scores) {
   return report;
 }
 
-export async function buildState(env, days, scores = {}, excused = null) {
+export async function buildState(env, days, scores = {}, excused = null, opts = {}) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   if (excused === null) excused = await loadExcused(env);
@@ -211,6 +213,11 @@ export async function buildState(env, days, scores = {}, excused = null) {
     timeZone: tz, hour: "numeric", minute: "2-digit",
   });
   const frames = await loadFrames(env, scores).catch(() => null);
+  // What D1 knows beyond the totals: which games have frames, lanes, pain.
+  // The full history only when the analysis is wanted (Claude's link); the
+  // app's refresh reads the last 30 nights, which is all its list shows.
+  const since = opts.analysis ? null : Object.keys(scores).sort().slice(-30)[0] || null;
+  const detail = await loadDetail(env, scores, { since }).catch(() => null);
   const plan = planWindow(calendar.busy || [], hours, nowMs);
   const bowlWindow = plan
     ? { ...plan, sentence: windowSentence(plan, clock), short: windowShort(plan, clock) }
@@ -238,6 +245,11 @@ export async function buildState(env, days, scores = {}, excused = null) {
         .sort()
         .map((d) => ({ date: d, reason: excused[d] })),
     ).slice(0, 40),
+    // Per game flags for the Games list, and tonight's notes for the entry
+    // screen. The analysis built from the same detail is further down.
+    games: detail ? gameFlags(detail, today) : null,
+    // Session weighted, median based, threshold guarded; see _lib/stats.js.
+    analysis: detail && opts.analysis ? analyze(detail, tz) : null,
     gamesToday: (scores[today] || []).length,
     scoresToday,
     calendar,
@@ -245,5 +257,20 @@ export async function buildState(env, days, scores = {}, excused = null) {
     timezone: tz,
     yesterday: addDays(today, -1),
     msUntilMidnight: msUntilMidnight(tz),
+  };
+}
+
+/** Which recent games carry frames, and what tonight already has on file. */
+export function gameFlags(detail, today) {
+  const byDay = {};
+  for (const g of detail.games) (byDay[g.date] ||= []).push(g.framesAvailable);
+  const recent = Object.keys(byDay).sort().slice(-30);
+  const tonight = detail.games.filter((g) => g.date === today && g.lane !== null);
+  return {
+    frames: Object.fromEntries(recent.map((d) => [d, byDay[d]])),
+    framesLogged: detail.games.filter((g) => g.framesAvailable).length,
+    painToday: Object.hasOwn(detail.pain, today) ? detail.pain[today] : null,
+    laneToday: tonight.length ? tonight[tonight.length - 1].lane : null,
+    stored: detail.source === "d1",
   };
 }

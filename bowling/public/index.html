@@ -126,6 +126,45 @@
                step="1" placeholder="Score" aria-label="Game score" required />
         <button type="submit" id="verify" class="primary">I bowled</button>
       </form>
+      <button type="button" class="pill frame-toggle" id="frame-toggle">Enter by frame</button>
+
+      <!-- Frame by frame entry. Inline rather than a dialog: it is used standing
+           at the lane with a ball in one hand, so everything is one big tap. -->
+      <div class="frame-pad" id="frame-pad" hidden>
+        <div class="fp-head">
+          <span class="fp-title" id="fp-title">New game</span>
+          <label class="fp-lane">Lane
+            <input id="fp-lane" class="field narrow" type="number" inputmode="numeric" min="1" max="99" placeholder="–" />
+          </label>
+        </div>
+        <ol class="fp-sheet" id="fp-sheet" aria-label="Scoresheet"></ol>
+        <p class="fp-status" id="fp-status" aria-live="polite"></p>
+        <div class="fp-deck" id="fp-deck" hidden>
+          <p class="fp-deck-hint" id="fp-deck-hint">Pins left standing (optional)</p>
+          <div class="fp-pins" id="fp-pins"></div>
+        </div>
+        <div class="fp-keys" id="fp-keys"></div>
+        <div class="fp-tools">
+          <button type="button" class="fp-tool" id="fp-same">Same as last</button>
+          <button type="button" class="fp-tool" id="fp-undo">Undo</button>
+          <button type="button" class="fp-tool" id="fp-clear">Clear</button>
+        </div>
+        <p class="hint warn" id="fp-error" hidden></p>
+        <button type="button" class="primary fp-log" id="fp-log" disabled>Log game</button>
+        <button type="button" class="pill fp-close" id="fp-close">Back to score only</button>
+      </div>
+
+      <!-- End of the night: how the leg felt. Optional, one tap. -->
+      <div class="pain" id="pain" hidden>
+        <span class="pain-label">Leg tonight</span>
+        <div class="pain-pills" id="pain-pills">
+          <button type="button" class="pill pain-pill" data-pain="0">0<small>none</small></button>
+          <button type="button" class="pill pain-pill" data-pain="1">1<small>mild</small></button>
+          <button type="button" class="pill pain-pill" data-pain="2">2<small>sore</small></button>
+          <button type="button" class="pill pain-pill" data-pain="3">3<small>bad</small></button>
+        </div>
+      </div>
+
       <p class="hint" id="form-hint">Enter a game score to verify today.</p>
       <p class="hint countdown" id="countdown"></p>
       <p class="hint hours-now" id="hours-now" hidden></p>
@@ -280,7 +319,7 @@
       </header>
       <div class="w-body">
         <div class="form-row">
-          <div class="form-now"><span id="form-avg">–</span><small>last 10 games</small></div>
+          <div class="form-now"><span id="form-avg">–</span><small>median, last 10 games</small></div>
           <span class="delta" id="form-delta" hidden></span>
         </div>
         <figure class="chart">
@@ -370,6 +409,7 @@
     </section>
 
   </div>
+  <script src="frames-core.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

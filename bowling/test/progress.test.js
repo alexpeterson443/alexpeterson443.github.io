@@ -72,14 +72,15 @@ test("games per week is measured from the log", () => {
 });
 
 test("session position exposes the warm up gap", () => {
-  const { rows, gap } = bySessionPosition(gameSeries(log([[70, 80, 100], [70, 80, 100]])));
+  const night = [70, 80, 100];
+  const { rows, gap } = bySessionPosition(gameSeries(log([night, night, night, night, night])));
   assert.equal(rows.length, 3);
-  assert.deepEqual(rows[0], { seat: 0, game: 1, sessions: 2, average: 70 });
-  assert.deepEqual(rows[2], { seat: 2, game: 3, sessions: 2, average: 100 });
+  assert.deepEqual(rows[0], { seat: 0, game: 1, sessions: 5, average: 70 });
+  assert.deepEqual(rows[2], { seat: 2, game: 3, sessions: 5, average: 100 });
   assert.equal(gap, 30);
 
-  // A seat bowled only once is not yet evidence of anything.
-  const thin = bySessionPosition(gameSeries(log([[70, 80, 100], [70, 80]])));
+  // A seat bowled on fewer than five nights is not yet evidence of anything.
+  const thin = bySessionPosition(gameSeries(log([night, night, night, night, [70, 80]])));
   assert.equal(thin.rows.length, 2);
   assert.equal(thin.gap, 10);
 });
@@ -141,16 +142,19 @@ test("a genuine climb is reported with a rate, noise is reported as no trend", (
 });
 
 test("the report separates recent form from the lifetime average", () => {
-  // Ten games at 80 then three at 140: the lifetime average barely moves, the
-  // rolling one moves a lot. That gap is the entire point of the panel.
+  // Ten games at 80 then three at 140. Recent form is a median of the last
+  // ten, so three good games are not yet a change of form: it stays 80.
   const r = progressReport(log([
     [80, 80, 80], [80, 80, 80], [80, 80, 80], [80], [140, 140, 140],
   ]));
   assert.equal(r.games, 13);
   assert.equal(r.average, 93);
-  assert.equal(r.recentAverage, 98);
-  // Measured against the true mean of 93.8, not the floored 93 on display.
-  assert.equal(r.delta, 4);
+  assert.equal(r.recentAverage, 80);
+  assert.equal(r.delta, 0);
+  // Six in a row is most of the window, and then it moves the whole way.
+  const moved = progressReport(log([[80, 80, 80], [80, 80, 80], [80, 80, 80], [80], [140, 140, 140], [140, 140, 140]]));
+  assert.equal(moved.recentAverage, 140);
+  assert.equal(moved.delta, 60);
   assert.equal(r.window, 10);
   assert.equal(r.series.length, 13);
   assert.deepEqual(r.series[0], { n: 1, date: "2026-09-04", game: 1, score: 80 });
@@ -183,7 +187,7 @@ test("Alex's real log as of Sept 7 has no readable trend yet", () => {
   assert.equal(r.spread, 28);
   assert.equal(r.verdict.state, "early");
   assert.equal(r.verdict.needed, 1);
-  // The warm up gap is the finding that IS supported at this sample size.
-  assert.equal(r.session.rows[0].average, 98);
-  assert.equal(r.session.rows[2].average, 107);
+  // Four nights is under the five session bar, so no game of the night is
+  // compared yet. (The old two session bar reported a warm up gap here.)
+  assert.deepEqual(r.session.rows, []);
 });

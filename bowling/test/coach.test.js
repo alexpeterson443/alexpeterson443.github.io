@@ -29,8 +29,11 @@ test("form is scaled by his own scatter, not by raw pins", () => {
   const hot = form(series([[80, 90, 100], [80, 90, 100], [80, 90, 100], [140, 140, 140]]));
   assert.equal(hot.state, "hot");
   assert.equal(hot.gap, 50);
-  assert.equal(hot.z, 10);            // 50 pins over a 5 pin standard error
-  assert.match(hot.text, /Hot\. Last 3 games average 140, 50 above the 9 before them\./);
+  // Medians now: 140 against a baseline median of 90. The baseline IQR is 20,
+  // so the robust spread is 20 / 1.349 and the standard error of a median of
+  // three is 1.16 times that over root 3: about 9.9 pins, so z is about 5.
+  assert.equal(hot.z, Math.round((50 / ((1.16 * (20 / 1.349)) / Math.sqrt(3))) * 100) / 100);
+  assert.match(hot.text, /Hot\. Last 3 games have a median of 140, 50 above the 9 before them\./);
 
   const cold = form(series([[120, 130, 140], [120, 130, 140], [120, 130, 140], [80, 80, 80]]));
   assert.equal(cold.state, "cold");
@@ -113,12 +116,24 @@ test("sessions group by date and keep their order", () => {
   assert.deepEqual(sessions([]), []);
 });
 
-test("weekday averages need more than one session on that day", () => {
-  // Fri 2026-09-04 and Fri 2026-09-11, plus a single Saturday.
-  const scores = { "2026-09-04": [100, 110], "2026-09-05": [200], "2026-09-11": [130, 140] };
-  const rows = byWeekday(gameSeries(scores));
-  assert.equal(rows.length, 1, "one Saturday session is not evidence of anything");
-  assert.deepEqual(rows[0], { day: 5, label: "Friday", sessions: 2, games: 4, average: 120 });
+test("weekday averages need five sessions on that day", () => {
+  // Two Fridays and a Saturday: under the old bar of two, Friday was compared.
+  const thin = { "2026-09-04": [100, 110], "2026-09-05": [200], "2026-09-11": [130, 140] };
+  assert.deepEqual(byWeekday(gameSeries(thin)), [], "two sessions is not evidence of anything");
+
+  // Five Fridays is the bar; the single Saturday still does not appear.
+  const fridays = ["2026-09-04", "2026-09-11", "2026-09-18", "2026-09-25", "2026-10-02"];
+  const enough = { ...Object.fromEntries(fridays.map((d) => [d, [100, 110]])), "2026-09-05": [200] };
+  assert.deepEqual(byWeekday(gameSeries(enough)), [{ day: 5, label: "Friday", sessions: 5, games: 10, average: 105 }]);
+});
+
+test("the weekday observation is never built on thin days", () => {
+  // Wednesday twice at 100, Saturday twice at 130: the old app printed this.
+  const scores = {
+    "2026-09-02": [100, 100], "2026-09-09": [100, 100],
+    "2026-09-05": [130, 130], "2026-09-12": [130, 130],
+  };
+  assert.equal(insights(scores, progressReport(scores)).find((i) => i.id === "weekday"), undefined);
 });
 
 test("an empty log produces no observations rather than filler", () => {
@@ -135,12 +150,12 @@ test("a thin log says it is thin and nothing more", () => {
 });
 
 test("a warm up gap outranks everything else he can act on", () => {
-  const scores = log([[70, 90, 110], [70, 90, 110], [70, 90, 110], [70, 90, 110]]);
+  const scores = log([[70, 90, 110], [70, 90, 110], [70, 90, 110], [70, 90, 110], [70, 90, 110]]);
   const found = insights(scores, progressReport(scores));
   const warmup = found.find((i) => i.id === "warmup");
   assert.ok(warmup);
   assert.equal(warmup.tone, "act");
-  assert.match(warmup.text, /Game 1 of the night averages 70 across 4 sessions, game 3 averages 110/);
+  assert.match(warmup.text, /Game 1 of the night averages 70 across 5 sessions, game 3 averages 110/);
   assert.match(warmup.text, /40 pins you are paying for a cold start/);
   // Nothing outweighs it, so it is what the app leads with.
   assert.equal(found[0].id, "warmup");
@@ -173,9 +188,11 @@ test("a real log with thin late positions still reports its warm up gap", () => 
     [99, 93, 107, 120, 140, 150], [99, 93, 107, 120, 140, 150],
   ]);
   const report = progressReport(scores);
+  // Positions bowled twice no longer appear at all, so they cannot inflate the
+  // endpoint gap (it was 54 when they did).
   assert.deepEqual(report.session.rows.map((r) => [r.game, r.average, r.sessions]),
-    [[1, 96, 6], [2, 92, 6], [3, 108, 6], [4, 120, 2], [5, 140, 2], [6, 150, 2]]);
-  assert.equal(report.session.gap, 54, "the endpoint gap is inflated by seats bowled twice");
+    [[1, 96, 6], [2, 92, 6], [3, 108, 6]]);
+  assert.equal(report.session.gap, 12);
 
   const warmup = insights(scores, report).find((i) => i.id === "warmup");
   assert.ok(warmup, "the gap across well bowled positions is what counts");
@@ -200,7 +217,8 @@ test("a rising floor is reported, and so is a falling one", () => {
 });
 
 test("shorter nights are called out hardest when there is a warm up gap", () => {
-  const scores = log([[70, 90, 110, 115], [70, 90, 110, 115], [70, 90, 110, 115], [70], [70], [70]]);
+  const long = [70, 90, 110, 115];
+  const scores = log([long, long, long, long, long, [70], [70], [70]]);
   const found = insights(scores, progressReport(scores));
   const volume = found.find((i) => i.id === "volume");
   assert.ok(volume);
@@ -261,7 +279,7 @@ test("milestones are built from his own numbers", () => {
 });
 
 test("the session prompt changes with the hour, not just the data", () => {
-  const scores = log([[70, 90, 110], [70, 90, 110]]);
+  const scores = log([[70, 90, 110], [70, 90, 110], [70, 90, 110], [70, 90, 110], [70, 90, 110]]);
   const report = progressReport(scores);
 
   const pre = sessionPrompt(report, { hours: { beforeOpen: true, opensAt: "10:00 AM" } });
