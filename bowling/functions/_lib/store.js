@@ -10,6 +10,7 @@ import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 import { cleanRecord, mergeEnv } from "./settings.js";
 import { mirror } from "./live.js";
 import { loadDetail } from "./games.js";
+import { analyze } from "./stats.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -190,7 +191,7 @@ export async function loadFrames(env, scores) {
   return report;
 }
 
-export async function buildState(env, days, scores = {}, excused = null) {
+export async function buildState(env, days, scores = {}, excused = null, opts = {}) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   if (excused === null) excused = await loadExcused(env);
@@ -213,7 +214,10 @@ export async function buildState(env, days, scores = {}, excused = null) {
   });
   const frames = await loadFrames(env, scores).catch(() => null);
   // What D1 knows beyond the totals: which games have frames, lanes, pain.
-  const detail = await loadDetail(env, scores).catch(() => null);
+  // The full history only when the analysis is wanted (Claude's link); the
+  // app's refresh reads the last 30 nights, which is all its list shows.
+  const since = opts.analysis ? null : Object.keys(scores).sort().slice(-30)[0] || null;
+  const detail = await loadDetail(env, scores, { since }).catch(() => null);
   const plan = planWindow(calendar.busy || [], hours, nowMs);
   const bowlWindow = plan
     ? { ...plan, sentence: windowSentence(plan, clock), short: windowShort(plan, clock) }
@@ -244,6 +248,8 @@ export async function buildState(env, days, scores = {}, excused = null) {
     // Per game flags for the Games list, and tonight's notes for the entry
     // screen. The analysis built from the same detail is further down.
     games: detail ? gameFlags(detail, today) : null,
+    // Session weighted, median based, threshold guarded; see _lib/stats.js.
+    analysis: detail && opts.analysis ? analyze(detail, tz) : null,
     gamesToday: (scores[today] || []).length,
     scoresToday,
     calendar,

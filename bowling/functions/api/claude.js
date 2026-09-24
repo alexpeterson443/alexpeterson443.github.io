@@ -15,7 +15,7 @@ export async function onRequestGet({ env: raw }) {
   const env = { ...raw, STREAK_KV: liveKv(raw.STREAK_KV, raw.LIVE_DB) };
   const cfg = await configFor(env);
   const [days, scores] = await Promise.all([loadDays(cfg), loadScores(cfg)]);
-  const state = await buildState(cfg, days, scores);
+  const state = await buildState(cfg, days, scores, null, { analysis: true });
   return new Response(summaryText(state), {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });

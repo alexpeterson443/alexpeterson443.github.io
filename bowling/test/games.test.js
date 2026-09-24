@@ -209,3 +209,27 @@ test("without the tables, or without D1, every game is still there as a total", 
     assert.deepEqual(detail.games.map((g) => [g.position, g.score, g.framesAvailable]), [[1, 101, false], [2, 95, false]]);
   }
 });
+
+// ---------- read cost ----------
+
+import { onRequestGet as stateGet } from "../functions/api/state.js";
+
+test("the app's refresh skips the analysis; asking for it gets it", async () => {
+  const e = env({ scores: { games: { "2026-09-01": [101] }, ids: [] } });
+  const plain = await (await stateGet({ request: new Request("https://bowling.test/api/state"), env: e })).json();
+  assert.equal(plain.analysis, null);
+  assert.equal(plain.games.stored, true);
+  const full = await (await stateGet({ request: new Request("https://bowling.test/api/state?analysis=1"), env: e })).json();
+  assert.equal(full.analysis.games, 1);
+});
+
+test("a limited read leaves older nights as totals and reads none of their frames", async () => {
+  const db = d1();
+  await syncDate(db, "2026-09-01", [90], { id: "old", frames: checkFrames(allNines()).frames });
+  await syncDate(db, "2026-09-20", [90], { id: "new", frames: checkFrames(allNines()).frames });
+  const scores = { "2026-09-01": [90], "2026-09-20": [90] };
+  const recentOnly = await loadDetail({ LIVE_DB: db }, scores, { since: "2026-09-10" });
+  assert.deepEqual(recentOnly.games.map((g) => [g.date, g.framesAvailable]), [["2026-09-01", false], ["2026-09-20", true]]);
+  const all = await loadDetail({ LIVE_DB: db }, scores);
+  assert.deepEqual(all.games.map((g) => g.framesAvailable), [true, true]);
+});

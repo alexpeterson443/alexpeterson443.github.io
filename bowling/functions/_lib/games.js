@@ -139,7 +139,7 @@ export async function setPain(db, date, pain) {
  * is still here, as a total with `framesAvailable` false. Without D1 at all the
  * result is the same shape, totals only, so nothing downstream has to care.
  */
-export async function loadDetail(env, scores) {
+export async function loadDetail(env, scores, { since = null } = {}) {
   const games = [];
   for (const date of Object.keys(scores).sort()) {
     const list = Array.isArray(scores[date]) ? scores[date] : [];
@@ -154,14 +154,21 @@ export async function loadDetail(env, scores) {
   const db = env.LIVE_DB;
   if (!db) return { games, pain, source: "kv" };
 
+  // `since` limits the read to recent nights. The app refreshes every minute
+  // and only needs the recent games' flags; reading every frame each time
+  // would spend the free tier's daily row reads on nothing.
+  const from = since || "0000-00-00";
   let rows;
   let frameRows;
   let sessionRows;
   try {
     [rows, frameRows, sessionRows] = (await db.batch([
-      db.prepare("SELECT id, date, position, score, lane, logged_at FROM games"),
-      db.prepare("SELECT game_id, frame_number, ball1_pins, ball2_pins, ball3_pins, leave FROM frames ORDER BY game_id, frame_number"),
-      db.prepare("SELECT date, pain FROM sessions WHERE pain IS NOT NULL"),
+      db.prepare("SELECT id, date, position, score, lane, logged_at FROM games WHERE date >= ?").bind(from),
+      db.prepare(
+        "SELECT f.game_id, f.frame_number, f.ball1_pins, f.ball2_pins, f.ball3_pins, f.leave FROM frames f " +
+        "JOIN games g ON g.id = f.game_id WHERE g.date >= ? ORDER BY f.game_id, f.frame_number",
+      ).bind(from),
+      db.prepare("SELECT date, pain FROM sessions WHERE pain IS NOT NULL AND date >= ?").bind(from),
     ])).map((r) => r.results || []);
   } catch {
     // Tables not there yet, or D1 unreachable: totals only, never an error.

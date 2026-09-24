@@ -34,6 +34,12 @@ functions/
   _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
   _lib/summary.js  the state written out as text (unit tested)
   _lib/live.js     the D1 copy that keeps Claude's link current (unit tested)
+  _lib/games.js    games, frames, lane and pain in D1, kept in step with KV (unit tested)
+  _lib/stats.js    session weighting, medians, thresholds; what Claude's link reports (unit tested)
+  api/frames.js    PUT frames for a game already logged as a total
+  api/session.js   PUT how the leg felt that night, 0 to 3
+public/frames-core.js  frame scoring, shared by the page and the server
+migrations/        D1 schema (games, frames, sessions); additive
   _lib/scores.js   score stats (unit tested)
   _lib/progress.js rolling form, trend with its interval, warm up gap (unit tested)
   _lib/coach.js    what the numbers mean tonight, in plain words (unit tested)
@@ -111,6 +117,48 @@ cannot log a game, pause a day, read or change settings, open the page, or get
 a session cookie. It is derived from `ACCESS_KEY`, so there is nothing extra to
 set at deploy time. **New link** retires it and mints another without touching
 the private link.
+
+## Frame by frame
+
+**Enter by frame** under the score box opens a pad for bowling a game frame by
+frame: the scoresheet fills in, keys that cannot be right are disabled, X and
+/ have their own keys, the running score updates every ball, and **Same as
+last** repeats the previous frame in one tap. After a first ball that leaves
+pins, an optional pin deck records the leave. Lane is optional and remembered
+for the night. Tap a finished frame to re-enter just that frame.
+
+Any game in the Games list can get frames later (tap it, then **Add frames**).
+They must add up to the total already logged, or the save stays off and says
+why. After a game is in, **Leg tonight** records pain from 0 to 3.
+
+Storage: KV keeps the totals exactly as before, so the streak is untouched.
+D1 keeps games (by position, in step with KV), frames (strike, spare and open
+are generated columns, never stored twice) and sessions (pain). A game is frame
+backed only with ten legal frames that add up to its KV total. Apply the schema
+with `npx wrangler d1 migrations apply bowling-streak-live --remote -c wrangler.toml`;
+it is additive and safe to run twice. Without it the app runs on totals alone.
+
+## What Claude's link reports
+
+`_lib/stats.js` builds it, on three rules:
+
+- **A night is the unit.** The headline average is the mean of nightly means,
+  so an eight game night counts once. The per game average is shown too.
+- **Medians for form.** Recent form is the median of the last 10 games with its
+  interquartile range. The app's form badge and "last 10" use medians as well.
+- **No claims on thin groups.** Any comparison (weekday, time of day, lane,
+  game of the night, pain level) needs `MIN_BUCKET_SESSIONS` (5) sessions in
+  every group. Below that there is no line at all, in the link or the app.
+
+Sections: Scores, Frame stats, Spare conversion (overall, by pins standing, by
+named leave once a leave has 5 attempts), Score by game position (with the
+fade paired within nights), Comparisons (only when something qualifies), Pain
+correlation (Spearman, from 10 nights and 5 per level), then the alley and the
+last 14 days of games. Every stat line carries `n=` and `[totals]` or
+`[frames]`, and the whole response stays under 4000 characters. Games needed
+to detect a trend come from a power calculation (95% confidence, 80% power,
+two halves of the log) on totals, and on marks per game once 5 games have
+frames.
 
 ## Days you can't bowl
 
