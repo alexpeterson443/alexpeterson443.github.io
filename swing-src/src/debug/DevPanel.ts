@@ -1,3 +1,4 @@
+import { atmoScales } from '../render/Environment';
 import GUI from 'lil-gui';
 import { T, Tuning, metaFor, resetTuning } from '../core/tuning';
 
@@ -49,8 +50,15 @@ export class DevPanel {
     for (const k of Object.keys(labels) as (keyof DebugFlags)[]) dbg.add(h.flags, k).name(labels[k]);
 
     const world = this.gui.addFolder('World & rendering');
-    world.add(h.env, 'timeOfDay', 0.2, 0.95, 0.005).name('time of day').onChange(() => h.onTime());
-    world.add(h.env, 'bloom', 0, 2, 0.01).name('bloom').onChange(() => h.onBloom());
+    world.add(h.env, 'timeOfDay', 0, 1, 0.005).name('time of day (full)').onChange(() => h.onTime());
+    world.add(h.env, 'bloom', 0, 2, 0.01).name('bloom (× look)').onChange(() => h.onBloom());
+    const atmo = world.addFolder('atmosphere (× look)');
+    atmo.add(atmoScales, 'fog', 0, 3, 0.01).name('aerial fog').onChange(() => h.onTime());
+    atmo.add(atmoScales, 'heightFog', 0, 4, 0.01).name('ground fog').onChange(() => h.onTime());
+    atmo.add(atmoScales, 'heightFalloff', 0.2, 3, 0.01).name('ground fog falloff').onChange(() => h.onTime());
+    atmo.add(atmoScales, 'sky', 0.3, 2, 0.01).name('sky brightness').onChange(() => h.onTime());
+    atmo.add(atmoScales, 'stars', 0, 3, 0.01).name('stars').onChange(() => h.onTime());
+    atmo.close();
     world.add(h.quality, 'preset', ['low', 'medium', 'high', 'ultra']).name('quality').onChange(() => h.onQuality());
     world.add(h.ai, 'cars').name('traffic').onChange(() => h.onAI());
     world.add(h.ai, 'pedestrians').onChange(() => h.onAI());

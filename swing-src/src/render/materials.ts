@@ -112,7 +112,8 @@ float gRough; float gMetal; vec3 gEmit;`)
     diffuseColor.rgb = mix(wall, glass, mask);
     gRough = mix(0.88, 0.06, mask);
     gMetal = mix(0.0, 0.6, mask);
-    gEmit = warm * intensity * on * mask * (0.06 + uNight * 2.2) * (1.0 - far * 0.35);
+    // rooms only read as lit once the daylight on the glass fades; no glowing mosaic at noon
+    gEmit = warm * intensity * on * mask * (uNight * uNight * 0.55) * (1.0 - far * 0.35);
     if (uFDebug > 0.5) { diffuseColor.rgb = uFDebug < 1.5 ? vec3(mask) : uFDebug < 2.5 ? vec3(rnd) : vec3(far); gEmit = vec3(0.0); gMetal = 0.0; gRough = 1.0; }
   } else if (N.y > 0.5) {
     // roof: tar/gravel with patches

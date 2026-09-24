@@ -1,4 +1,4 @@
-import { ACESFilmicToneMapping, PCFSoftShadowMap, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
+import { AgXToneMapping, PCFSoftShadowMap, SRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
 import { T } from './core/tuning';
 import { clamp, hlen, smoothstep } from './core/math';
 import { profiler } from './core/profiler';
@@ -94,7 +94,7 @@ export class Game {
   constructor(private container: HTMLElement, opts: GameOptions) {
     this.renderer = new WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
     this.renderer.outputColorSpace = SRGBColorSpace;
-    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMapping = AgXToneMapping;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     this.renderer.info.autoReset = false; // composer renders several passes; count the whole frame
@@ -117,13 +117,13 @@ export class Game {
     this.debug.enabled = opts.debug;
     this.hooks = {
       flags: this.flags,
-      env: { timeOfDay: this.env.timeOfDay, bloom: 0.55 },
+      env: { timeOfDay: this.env.timeOfDay, bloom: 1 },
       quality: { preset: this.quality },
       ai: { cars: true, pedestrians: true },
       audio: { volume: 0.8, muted: false },
       sim: { timeScale: 1, paused: false },
       seed: opts.seed,
-      onTime: () => { this.env.timeOfDay = this.hooks.env.timeOfDay; this.env.apply(); this.updateLights(); },
+      onTime: () => { this.env.timeOfDay = this.hooks.env.timeOfDay; this.applyTime(); },
       onQuality: () => this.setQuality(this.hooks.quality.preset as Quality),
       onAI: () => this.ai?.setEnabled(this.hooks.ai.cars, this.hooks.ai.pedestrians),
       onAudio: () => { this.audio.masterVolume = this.hooks.audio.volume; this.audio.muted = this.hooks.audio.muted; },
@@ -140,11 +140,8 @@ export class Game {
     const startAudio = () => this.audio.start();
     window.addEventListener('pointerdown', startAudio);
     window.addEventListener('keydown', startAudio);
-    if (opts.timeOfDay !== undefined) {
-      this.env.timeOfDay = this.hooks.env.timeOfDay = opts.timeOfDay;
-      this.env.apply();
-      this.updateLights();
-    }
+    if (opts.timeOfDay !== undefined) this.env.timeOfDay = this.hooks.env.timeOfDay = opts.timeOfDay;
+    this.applyTime();
     if (opts.bench) this.startBench(opts.bench, opts.benchSeconds);
   }
 
@@ -155,11 +152,19 @@ export class Game {
     this.player = new Player(this.world, this.city);
     this.cityView = new CityRenderer(this.city);
     this.cityView.addTo(this.scene);
+    this.env.setStaticCasters(this.cityView.group);
     this.ai = new AISystem(this.city, this.scene, { seed });
     this.updateLights();
     this.spawn();
     console.info(`[strand] city seed ${seed}: ${this.city.stats.buildings} buildings, ${this.city.stats.tiers} tiers, ${this.city.stats.props} props, ` +
       `${this.world.count} colliders, ${this.cityView.drawCalls} draws, ${this.cityView.instances} instances, built in ${(performance.now() - t0).toFixed(0)} ms`);
+  }
+
+  /** Push the current time of day through sky, lights, post-processing and city lights. */
+  private applyTime(): void {
+    this.env.apply();
+    this.post.setLook(this.env.look);
+    this.updateLights();
   }
 
   private updateLights(): void {
@@ -179,7 +184,7 @@ export class Game {
     this.quality = q;
     const pr = Math.min(window.devicePixelRatio || 1, q === 'ultra' ? 2 : q === 'high' ? 1.5 : q === 'medium' ? 1 : 0.75);
     this.renderer.setPixelRatio(pr);
-    this.env.setShadowQuality(q === 'ultra' ? 4096 : q === 'high' ? 2048 : 1024, q !== 'low');
+    this.env.setShadowQuality(q === 'ultra' ? 4096 : q === 'high' ? 2048 : 1024, q !== 'low', q === 'high' || q === 'ultra');
     this.renderer.shadowMap.enabled = q !== 'low';
     this.post.setQuality(q);
     this.resize();
@@ -297,6 +302,7 @@ export class Game {
     // --- render ---
     profiler.begin('render');
     this.renderer.info.reset();
+    this.env.prepare();
     this.gpu.begin();
     this.post.render(this.scene, this.cam.camera, dt);
     this.gpu.end();
@@ -316,8 +322,7 @@ export class Game {
       const idx = presets.findIndex((x) => x > this.env.timeOfDay + 0.01);
       this.env.timeOfDay = presets[idx < 0 ? 0 : idx];
       this.hooks.env.timeOfDay = this.env.timeOfDay;
-      this.env.apply();
-      this.updateLights();
+      this.applyTime();
     }
     if (i.consume('KeyP')) this.hooks.sim.paused = !this.hooks.sim.paused;
     if (i.consume('Backspace')) this.spawn();

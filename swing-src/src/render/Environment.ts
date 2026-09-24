@@ -1,9 +1,12 @@
 import {
-  Color, DirectionalLight, FogExp2, HemisphereLight, MathUtils, PMREMGenerator, Scene, Vector3,
-  type Texture, type WebGLRenderer, type WebGLRenderTarget,
+  FogExp2, HemisphereLight, MathUtils, PMREMGenerator, Scene, Vector3,
+  type Object3D, type Texture, type WebGLRenderer, type WebGLRenderTarget,
 } from 'three';
-import { Sky } from 'three/examples/jsm/objects/Sky.js';
-import { clamp, lerp, smoothstep } from '../core/math';
+import { clamp, smoothstep } from '../core/math';
+import { installAtmosphere, writeAtmosphere, type AtmoScales } from './Atmosphere';
+import { SkyDome } from './SkyDome';
+import { SunShadows } from './SunShadows';
+import { lookAt, sunAngles, type Look } from './look';
 
 /** Shared uniforms read by city shaders (window lights, street-lamp pools…). */
 export const envUniforms = {
@@ -11,107 +14,111 @@ export const envUniforms = {
   uTime: { value: 0 },
 };
 
+/** Live multipliers on the authored look, exposed in the dev panel. */
+export const atmoScales: AtmoScales = { fog: 1, heightFog: 1, heightFalloff: 1, stars: 1, sky: 1 };
+
 /**
- * Physical sky (atmospheric scattering), sun + sky lighting, height-tinted fog and an image-based
- * lighting environment regenerated when the time of day changes.
+ * Time-of-day environment: an art-directed look (sky, fog, lights, exposure, grade) interpolated from
+ * keyframes, an analytic sky dome sharing its GLSL with the height/aerial-perspective fog, a key light
+ * (sun by day, moon by night) with a near + far shadow cascade, and an image-based lighting
+ * environment captured from the sky whenever the time of day changes.
  */
 export class Environment {
-  readonly sky = new Sky();
-  readonly sun = new DirectionalLight(0xffffff, 3);
+  readonly skyTime = { value: 0 };
+  readonly sky = new SkyDome(this.skyTime);
+  readonly shadows: SunShadows;
   readonly hemi = new HemisphereLight(0xbfd6ff, 0x3a3530, 0.6);
   readonly sunDir = new Vector3();
+  readonly moonDir = new Vector3();
+  /** The look for the current time of day (read by post-processing). */
+  readonly look: Look = lookAt(0.71);
   private pmrem: PMREMGenerator;
   private envRT: WebGLRenderTarget | null = null;
   private skyScene = new Scene();
   private lastEnvTime = -1;
   timeOfDay = 0.71; // 0..1 (0.5 = noon); default golden hour
-  shadowSize = 2048;
-  shadowExtent = 90;
 
   constructor(private scene: Scene, private renderer: WebGLRenderer) {
-    this.sky.scale.setScalar(4500);
-    const u = this.sky.material.uniforms;
-    u.turbidity.value = 2.8;
-    u.rayleigh.value = 1.25;
-    u.mieCoefficient.value = 0.0035;
-    u.mieDirectionalG.value = 0.86;
-    scene.add(this.sky);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
-    this.sun.shadow.bias = -0.0004;
-    this.sun.shadow.normalBias = 0.6;
-    const c = this.sun.shadow.camera;
-    c.left = -this.shadowExtent; c.right = this.shadowExtent; c.top = this.shadowExtent; c.bottom = -this.shadowExtent;
-    c.near = 1; c.far = 1400;
-    scene.add(this.sun, this.sun.target, this.hemi);
-    scene.fog = new FogExp2(0x9fb4c8, 0.0011);
+    installAtmosphere();
+    this.shadows = new SunShadows(scene);
+    scene.add(this.sky.mesh, this.hemi);
+    // three only compiles the fog chunks when a scene has fog; the atmosphere ignores its values
+    scene.fog = new FogExp2(0x000000, 0);
     this.pmrem = new PMREMGenerator(renderer);
     this.apply();
   }
 
-  setShadowQuality(size: number, enabled: boolean): void {
-    this.sun.castShadow = enabled;
-    if (size !== this.shadowSize) {
-      this.shadowSize = size;
-      this.sun.shadow.mapSize.set(size, size);
-      this.sun.shadow.map?.dispose();
-      this.sun.shadow.map = null as never;
-    }
+  /** The key light (sun by day, moon by night). */
+  get sun() { return this.shadows.key; }
+
+  setShadowQuality(size: number, enabled: boolean, far = enabled): void {
+    this.shadows.setQuality(size, size, enabled, far);
   }
 
-  /** Recompute sun, sky, fog and light colours for the current time of day. */
+  /** City meshes that cast into the static far cascade. */
+  setStaticCasters(root: Object3D): void {
+    this.shadows.setStaticCasters(root);
+  }
+
+  /** Recompute sky, fog, lights and exposure for the current time of day. */
   apply(): void {
     const t = this.timeOfDay;
-    // sun path: rises at 0.25, sets at 0.75
-    const elev = Math.sin((t - 0.25) * Math.PI * 2) * 62; // degrees
-    const azim = 200 + (t - 0.5) * 140;
-    const phi = MathUtils.degToRad(90 - elev);
-    const theta = MathUtils.degToRad(azim);
-    this.sunDir.setFromSphericalCoords(1, phi, theta);
-    this.sky.material.uniforms.sunPosition.value.copy(this.sunDir);
-    const day = smoothstep(-6, 12, elev);
-    const golden = smoothstep(35, 5, elev) * day;
-    envUniforms.uNight.value = clamp(1 - smoothstep(-4, 14, elev), 0, 1) * 0.85 + 0.15 * golden;
-    const sunCol = new Color().setRGB(1, lerp(0.95, 0.62, golden), lerp(0.9, 0.38, golden));
-    this.sun.color.copy(sunCol);
-    this.sun.intensity = lerp(0.0, 3.4, day);
-    this.hemi.intensity = lerp(0.12, 0.75, day);
-    this.hemi.color.setRGB(lerp(0.25, 0.72, day), lerp(0.3, 0.8, day), lerp(0.5, 0.95, day));
-    this.hemi.groundColor.setRGB(lerp(0.08, 0.3, day), lerp(0.07, 0.26, day), lerp(0.08, 0.22, day));
-    const fog = this.scene.fog as FogExp2;
-    fog.color.setRGB(lerp(0.04, 0.52, day) * lerp(1, 1.3, golden), lerp(0.06, 0.6, day) * lerp(1, 1.02, golden), lerp(0.11, 0.74, day) * lerp(1, 0.72, golden));
-    fog.density = lerp(0.0013, 0.00075, day);
-    this.renderer.toneMappingExposure = lerp(0.5, 0.42, day);
-    if (Math.abs(this.lastEnvTime - t) > 0.004) this.rebuildEnv();
-  }
+    const L = lookAt(t, this.look);
+    const { elev, azim } = sunAngles(t);
+    this.sunDir.setFromSphericalCoords(1, MathUtils.degToRad(90 - elev), MathUtils.degToRad(azim));
+    // the moon rides roughly opposite the sun, a little higher so it clears the skyline
+    const mElev = Math.max(18, -elev * 0.8 + 12);
+    this.moonDir.setFromSphericalCoords(1, MathUtils.degToRad(90 - mElev), MathUtils.degToRad(azim + 160));
+    writeAtmosphere(L, this.sunDir, this.moonDir, atmoScales);
 
-  private rebuildEnv(): void {
+    // key light: the sun while it is up, handing over to the moon through twilight
+    const sunUp = smoothstep(-3, 4, elev);
+    const key = this.shadows.key;
+    if (sunUp > 0.02) {
+      this.shadows.setDirection(this._dir.copy(this.sunDir).setY(Math.max(0.04, this.sunDir.y)).normalize());
+      key.color.setRGB(L.sunColor[0], L.sunColor[1], L.sunColor[2]);
+      key.intensity = L.sunIntensity * sunUp;
+    } else {
+      this.shadows.setDirection(this.moonDir);
+      key.color.setRGB(L.moonColor[0], L.moonColor[1], L.moonColor[2]);
+      key.intensity = L.moonIntensity;
+    }
+    this.hemi.color.setRGB(L.hemiSky[0], L.hemiSky[1], L.hemiSky[2]);
+    this.hemi.groundColor.setRGB(L.hemiGround[0], L.hemiGround[1], L.hemiGround[2]);
+    this.hemi.intensity = L.hemiIntensity;
+    this.renderer.toneMappingExposure = L.exposure;
+    envUniforms.uNight.value = clamp(1 - smoothstep(-4, 14, elev), 0, 1) * 0.85 + 0.15 * smoothstep(35, 5, elev) * smoothstep(-6, 12, elev);
+    if (Math.abs(this.lastEnvTime - t) > 0.004) this.rebuildEnv(L);
+  }
+  private readonly _dir = new Vector3();
+
+  private rebuildEnv(L: Look): void {
     this.lastEnvTime = this.timeOfDay;
-    this.scene.remove(this.sky);
-    this.skyScene.add(this.sky);
+    this.scene.remove(this.sky.mesh);
+    this.skyScene.add(this.sky.mesh);
+    this.sky.envMode = true;
     const rt = this.pmrem.fromScene(this.skyScene, 0, 0.1, 5000);
-    this.skyScene.remove(this.sky);
-    this.scene.add(this.sky);
+    this.sky.envMode = false;
+    this.skyScene.remove(this.sky.mesh);
+    this.scene.add(this.sky.mesh);
     this.envRT?.dispose();
     this.envRT = rt;
     this.scene.environment = rt.texture as Texture;
-    this.scene.environmentIntensity = 0.9;
+    this.scene.environmentIntensity = L.envIntensity;
   }
 
-  /** Keep the shadow frustum centred on the player, snapped to texels to avoid shimmer. */
+  /** Keep the near shadow frustum centred on the player (texel-snapped in light space). */
   followShadow(focus: Vector3): void {
-    const ext = this.shadowExtent;
-    const texel = (2 * ext) / this.shadowSize;
-    const d = this.sunDir;
-    const cx = Math.round(focus.x / texel) * texel;
-    const cy = Math.round(focus.y / texel) * texel;
-    const cz = Math.round(focus.z / texel) * texel;
-    this.sun.target.position.set(cx, cy, cz);
-    this.sun.position.set(cx + d.x * 600, cy + Math.max(0.05, d.y) * 600, cz + d.z * 600);
-    this.sun.target.updateMatrixWorld();
+    this.shadows.follow(focus);
+  }
+
+  /** Before the frame's main render: re-bake the far cascade if the light moved. */
+  prepare(): void {
+    this.shadows.bake(this.renderer, this.scene);
   }
 
   update(dt: number): void {
     envUniforms.uTime.value += dt;
+    this.skyTime.value += dt;
   }
 }
