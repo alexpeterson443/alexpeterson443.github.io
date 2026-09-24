@@ -31,6 +31,12 @@ export class WebRope {
   gEff = 0;
   /** rope was already at its limit last step (continuous contact vs. a fresh catch) */
   private inContact = false;
+  /** a catch is being absorbed: the web gives (pays out) instead of stopping the body in one step */
+  catching = false;
+  /** the next tightening is a catch (fresh web, or the line went properly slack) */
+  private catchArmed = false;
+  /** metres paid out during the current catch */
+  private payout = 0;
 
   private readonly rHat = new Vector3();
   private readonly tmp = new Vector3();
@@ -45,6 +51,9 @@ export class WebRope {
     this.age = 0;
     this.tension = 0;
     this.inContact = false;
+    this.catching = false;
+    this.catchArmed = true;
+    this.payout = 0;
     this.swingAngle = -90;
     this.radialVel = 0;
     this.gEff = T.physics.gravity * T.web.swingGravityScale;
@@ -103,9 +112,30 @@ export class WebRope {
     let d = r.length();
     if (d < 1e-6) return 0;
     r.multiplyScalar(1 / d);
-    const limit = this.length + T.web.maxStretch * T.web.elasticity;
+    let limit = this.length + T.web.maxStretch * T.web.elasticity;
     let impulseTension = 0;
     const y0 = pos.y;
+    const vr0 = vel.dot(r);
+    // Only a genuine catch is softened: the first time a fresh web tightens, or after the line went
+    // properly slack. The ordinary outward load of a swing is carried by the constraint, exactly.
+    if (T.web.catchMaxG <= 0) { this.catching = false; this.catchArmed = false; }
+    if (d < this.length - 0.3) this.catchArmed = true;
+    if (this.catching && d < limit - 1e-3) this.catching = false;
+    if (this.catchArmed && d >= limit - 1e-3) {
+      this.catchArmed = false;
+      if (vr0 > T.web.catchSoftFrom) { this.catching = true; this.payout = 0; }
+    }
+    // Soft catch: an elastic web gives a little and brakes the body over a few frames rather than
+    // stopping its outward motion in one 1/120 s step (tens of g). The rope pays out up to
+    // catchGive metres; the braking beyond what the arc itself needs is capped at catchMaxG.
+    const soft = this.catching && T.web.catchMaxG > 0 && this.payout < T.web.catchGive;
+    if (soft && d > limit) {
+      const give = Math.min(d - limit, T.web.catchGive - this.payout);
+      this.payout += give;
+      this.length += give;
+      this.targetLength = Math.max(this.targetLength, this.length);
+      limit += give;
+    }
     if (d > limit) {
       pos.copy(this.anchor).addScaledVector(r, limit);
       d = limit;
@@ -114,14 +144,26 @@ export class WebRope {
       const vr = vel.dot(r);
       if (vr > 0) {
         const speed0 = vel.length();
-        const removed = vr * (1 + T.web.restitution * T.web.elasticity);
+        let removed = vr * (1 + T.web.restitution * T.web.elasticity);
+        if (soft) {
+          const vt2 = Math.max(0, speed0 * speed0 - vr * vr);
+          // brake at catchMaxG, or harder if that could not stop the body within the give left:
+          // a violent catch is spread over the whole give instead of ending in a hard stop
+          const left = Math.max(0.05, T.web.catchGive - this.payout);
+          const brake = Math.max(T.web.catchMaxG * T.physics.gravity, (vr * vr) / (2 * left));
+          // plus what the arc needs (centripetal) and what gravity adds outward this step
+          const gOut = Math.max(0, -r.y) * this.gEff;
+          const cap = (vt2 / Math.max(1, d) + gOut + brake) * dt;
+          if (removed > cap) removed = cap;
+          else this.catching = false; // fully arrested: from here on it is an ordinary swing
+        } else this.catching = false; // give used up (or rigid): the rope stops the rest at once
         vel.addScaledVector(r, -removed);
         impulseTension = (mass * removed) / dt;
         // Continuous contact: an ideal rope force is perpendicular to the motion and does no
         // work, so the tiny per-step radial correction must not bleed energy (a discretisation
-        // artefact). Real inelastic loss is kept for sudden catches (large v_r).
+        // artefact). Real inelastic loss is kept for catches (large v_r).
         const reeling = Math.abs(this.targetLength - this.length) > 1e-3;
-        if (!reeling && this.inContact) {
+        if (!reeling && this.inContact && !this.catching) {
           const g = this.gEff;
           const want = Math.sqrt(Math.max(0, speed0 * speed0 + 2 * g * (y0 - pos.y)));
           const s1 = vel.length();
@@ -130,9 +172,9 @@ export class WebRope {
         if (this.age < T.web.catchWindow && T.web.catchRedirect > 0) {
           const vt = vel.length();
           const fade = 1 - this.age / T.web.catchWindow;
-          if (vt > 0.5) vel.multiplyScalar((vt + vr * T.web.catchRedirect * fade) / vt);
+          if (vt > 0.5) vel.multiplyScalar((vt + removed * T.web.catchRedirect * fade) / vt);
         }
-      }
+      } else if (this.catching && this.age > 0.05) this.catching = false;
     }
     // contact persists while the rope stays at its limit; a step of slack makes the next one a catch
     this.inContact = d >= limit - 1e-3;

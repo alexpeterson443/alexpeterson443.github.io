@@ -81,3 +81,31 @@ describe('swing feel', () => {
     expect(raw.touched || raw.minFeet < full.minFeet - 1).toBe(true);
   });
 });
+
+describe('web catch', () => {
+  beforeEach(() => resetTuning());
+
+  /** Fall onto a fresh web at speed; returns peak rope load (g) and the speed kept. */
+  function catchOutOfFall(catchMaxG: number) {
+    const p = makePlayer(canyonWorld());
+    T.web.catchMaxG = catchMaxG;
+    p.spawn(0, 40, 30);
+    p.vel.set(0, -22, -8); // moving away from the anchor at ~13 m/s the moment the web tightens
+    p.rope.attach(new Vector3(0, 75, 5), p.pos);
+    p.fsm.transition('Swinging', null);
+    const input = new Intent();
+    input.traverse = true;
+    const s0 = p.speed;
+    let peak = 0;
+    stepN(p, input, 60, 1 / 120, () => { peak = Math.max(peak, p.rope.tension / (T.physics.mass * T.physics.gravity)); });
+    return { peak, kept: p.speed / s0 };
+  }
+
+  it('a soft catch brakes over a few frames instead of one: a strong pull, not a 20 g jerk', () => {
+    const soft = catchOutOfFall(T.web.catchMaxG);
+    const rigid = catchOutOfFall(0);
+    expect(rigid.peak).toBeGreaterThan(12);
+    expect(soft.peak).toBeLessThan(7);
+    expect(soft.kept).toBeGreaterThan(0.8);
+  });
+});

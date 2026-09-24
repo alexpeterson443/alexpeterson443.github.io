@@ -149,9 +149,12 @@ export function accumulateSwingForces(
     const feet = pos.y - 0.9 - groundY;
     const predicted = feet + Math.min(0, vel.y) * 0.45;
     const want = T.assist.groundClearance * a;
-    if (predicted < want) {
+    if (predicted < want && vel.y < 0.5) {
       const u = smoothstep(want, T.assist.minSwingAltitude * 0.3 * a, predicted);
-      F.y += T.assist.groundAvoidForce * u * a;
+      // it steers a real swing up off the street; it must never hold a slow body in the air (the
+      // lift fades out below a brisk run, so a stalled swing over a roof settles onto it)
+      const moving = smoothstep(5, 14, speed);
+      F.y += T.assist.groundAvoidForce * u * a * moving;
     }
     // reference heading for arc correction: the held heading, else stick, else travel
     let fx = 0, fz = 0;
@@ -169,11 +172,14 @@ export function accumulateSwingForces(
       // swing-plane assist: cancel part of the rope's sideways pull so the arc follows the
       // street instead of pendulum-ing into the facade the anchor is on
       const pa = T.assist.swingPlaneAssist * a;
-      if (pa > 0 && rope.taut && rope.tension > 0) {
-        const tx = -rHat.x * rope.tension, tz = -rHat.z * rope.tension;
+      // uses the analytic tension m(v_t²/L − g·r̂.y): the measured one includes this very
+      // correction's reaction through the constraint and would feed back on itself
+      const Tn = rope.tensionAnalytic;
+      if (pa > 0 && rope.taut && Tn > 0) {
+        const tx = -rHat.x * Tn, tz = -rHat.z * Tn;
         const across = tx * lx + tz * lz;
         const cap = m * 45;
-        const c = clamp(across, -cap, cap) * pa;
+        const c = clamp(across, -cap, cap) * pa * smoothstep(6, 16, speed);
         F.x -= lx * c;
         F.z -= lz * c;
       }

@@ -12,7 +12,8 @@ The design, engine decision and physics model are in [PROJECT_PLAN.md](PROJECT_P
 | Move | WASD / arrows (hold Alt to walk) | Left stick |
 | Camera | Mouse (click to lock pointer) | Right stick |
 | Jump: tap, or hold for a higher jump. Hold while standing still to charge a super jump | Space | A |
-| Swing / sprint / wall-run / auto-parkour (hold) | Shift or right mouse | RT |
+| Swing / sprint / wall-run / auto-parkour (hold) | Enter, Shift or right mouse | RT |
+| Switch suit (Strand / Classic) | K | |
 | Web zip; when a ◇ point is targeted, zip to it and press jump on arrival to point-launch | E or left mouse | RB |
 | Dive (hold); holding longer becomes a fast dive | Q | LB |
 | Aerial trick (stick direction picks it) | F | Y |

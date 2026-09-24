@@ -44,3 +44,20 @@ These come from the 4-core cloud container. Headless Chromium uses SwiftShader, 
 - There is no GPU occlusion culling or HLOD. Buildings are culled per 160 m chunk and AI per instance. At this district size fog and the far plane cover distant detail.
 - GPU timing (`EXT_disjoint_timer_query_webgl2`) is shown in the stats HUD where the browser supports it; SwiftShader's numbers are meaningless.
 - The character is built from primitives (an original placeholder design) rather than a skinned mesh.
+
+## Update: on a real GPU (Apple M5), 24 Sep 2026
+
+Continued on a Mac with a GPU. Measurements below are from installed Chrome on Metal and from the
+desktop app, not SwiftShader.
+
+| Area | What changed |
+|---|---|
+| Swing feel | Arc-phase release and swing jump (bottom → forward, late → up, timed perfect window); heading held with no stick; steering against momentum costs speed; Swing Assist 0–10; cruise ~30 m/s, dive-catch peaks ~58 m/s. Research notes in `docs/TRAVERSAL_REFERENCE.md`. |
+| Web physics | Rigid rope while swinging (the elastic band bottomed out at 8–13 g and its slack take-up ratcheted the rope length); **soft catch**: a fresh web pays out up to 3.5 m and brakes evenly (≈4–5 g) instead of stopping the body in one 1/120 s step (80–120 g). Anchors capped at 75 m and penalised for sideways offset. Two assists that could hold a body in the air (ground avoidance at low speed, a swing-plane correction feeding back through the measured tension) fixed. |
+| Camera / animation | Speed FOV and distance, web-attach FOV heartbeat, arc-following pitch, dive tilt, turn roll, auto-follow; pivot kept out of walls (wall-run camera no longer collapses); leg tuck follows the swing's own jump window. |
+| Look | Keyframed time-of-day looks, analytic sky with stars and moon, aerial + height fog shared by every material, near + static far shadow cascade, AgX + two-stage grade; interior-mapped facades with seven archetypes and storefronts; skyline ring, far streets, harbour water, bridge; new hero suit (plus a red-and-blue "Classic" suit, K), silk web strand, speed streaks, HUD. |
+| Controls | Enter also swings. Controls card sits top-left and fades once you move (H). |
+| Performance | Dynamic resolution driven by missed frames. Desktop app full screen on the M5's 120 Hz display: ~119 fps, 8.3 ms median / 9.3 ms p99 frame time. |
+| Desktop app | `swing-src/desktop`: Electron shell (`npm run build` there builds, ad-hoc signs and installs `/Applications/Strand.app`). |
+
+Tests: 67, all passing (new swing-feel, web-catch and horizon-layout suites).

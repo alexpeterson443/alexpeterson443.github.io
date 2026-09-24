@@ -48,7 +48,17 @@ export class Rig {
   private readonly fx = {
     uTime: { value: 0 },
     uEnergy: { value: 0 },
+    uSkin: { value: 0 },
   };
+
+  /** Suit skins: 0 Strand (midnight, luminous cyan lines), 1 Classic (red and blue, silver piping). */
+  static readonly SKINS = ['Strand', 'Classic'] as const;
+  setSkin(i: number): void {
+    this.fx.uSkin.value = ((i % Rig.SKINS.length) + Rig.SKINS.length) % Rig.SKINS.length;
+  }
+  get skin(): number {
+    return this.fx.uSkin.value;
+  }
   private readonly fireL = { value: 0 };
   private readonly fireR = { value: 0 };
   private readonly _a = new Vector3();
@@ -382,6 +392,7 @@ uniform float uAux;
 uniform float uFire;
 uniform float uTime;
 uniform float uEnergy;
+uniform float uSkin;
 uniform float uNight;
 varying vec3 vLP;
 float gCore; float gHalo; float gPanel; float gSeam; float gGear; float gLens; float gLensE; float gAlong; float gPulse;
@@ -520,7 +531,7 @@ void suitPattern(vec3 p) {
 }
 `;
 
-function makeSuitMaterial(part: number, aux: number, fx: { uTime: { value: number }; uEnergy: { value: number } }, fire: { value: number }): MeshPhysicalMaterial {
+function makeSuitMaterial(part: number, aux: number, fx: { uTime: { value: number }; uEnergy: { value: number }; uSkin: { value: number } }, fire: { value: number }): MeshPhysicalMaterial {
   const m = new MeshPhysicalMaterial({
     color: 0xffffff, roughness: 0.5, metalness: 0.0,
     clearcoat: 1.0, clearcoatRoughness: 0.18,
@@ -528,7 +539,7 @@ function makeSuitMaterial(part: number, aux: number, fx: { uTime: { value: numbe
   });
   const uPart = { value: part }, uAux = { value: aux };
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms) => {
-    Object.assign(sh.uniforms, { uPart, uAux, uFire: fire, uTime: fx.uTime, uEnergy: fx.uEnergy, uNight: envUniforms.uNight });
+    Object.assign(sh.uniforms, { uPart, uAux, uFire: fire, uTime: fx.uTime, uEnergy: fx.uEnergy, uSkin: fx.uSkin, uNight: envUniforms.uNight });
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLP;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLP = position;');
@@ -542,6 +553,24 @@ suitPattern(vLP);
   base = mix(base, vec3(0.0065, 0.0072, 0.009), gGear);
   base = mix(base, vec3(0.001), gSeam * 0.85);
   base = mix(base, vec3(0.0), gLens);
+  if (uSkin > 0.5) {
+    // Classic: red mask, chest, forearms, gloves and boots; blue flanks, upper arms and legs;
+    // the suit's own lines become raised silver piping instead of light
+    int pt = int(uPart + 0.5);
+    vec3 red = vec3(0.42, 0.018, 0.02), blue = vec3(0.012, 0.035, 0.16);
+    float isBlue = (pt == 5 || pt == 8 || pt == 9 || pt == 0) ? 1.0 : 0.0;
+    if (pt == 1 || pt == 2) {
+      // torso: red front and back panel, blue down the sides
+      float side = smoothstep(0.075, 0.1, abs(vLP.x)) * (1.0 - smoothstep(0.03, 0.06, abs(vLP.z)) * 0.0);
+      isBlue = side * (1.0 - smoothstep(0.035, 0.07, abs(vLP.z)));
+    }
+    if (pt == 9) isBlue = 1.0 - smoothstep(0.62, 0.66, -vLP.y / max(uAux, 1e-3)); // red boot tops
+    base = mix(red, blue, isBlue);
+    base *= mix(1.0, 0.85, gPanel);
+    base = mix(base, vec3(0.005), gSeam * 0.9);
+    base = mix(base, vec3(0.55, 0.57, 0.6), gCore);  // silver piping
+    base = mix(base, vec3(0.0), gLens);
+  }
   diffuseColor.rgb = base;
   roughnessFactor = mix(mix(0.58, 0.3, gPanel), 0.26, gGear) + gSeam * 0.3;
   roughnessFactor = mix(roughnessFactor, 0.08, gLens);
@@ -550,9 +579,10 @@ suitPattern(vLP);
       .replace('#include <emissivemap_fragment>', /* glsl */`#include <emissivemap_fragment>
 {
   vec3 cyan = vec3(0.05, 0.745, 0.871);
-  float lineK = mix(2.4, 3.6, uNight) * gPulse;
+  float lineK = mix(2.4, 3.6, uNight) * gPulse * (1.0 - step(0.5, uSkin));
   totalEmissiveRadiance += cyan * (gCore * lineK + gHalo * 0.12 * lineK);
   vec3 lensCol = mix(vec3(0.75, 1.0, 1.0) * 6.0, cyan * 4.0, smoothstep(0.25, 1.0, gLensE));
+  if (uSkin > 0.5) lensCol = vec3(0.85, 0.88, 0.92) * mix(0.9, 1.6, uNight); // white lenses
   totalEmissiveRadiance += lensCol * gLens * mix(1.0, 1.25, uNight);
   vec3 V = normalize(vViewPosition);
   float fres = pow(1.0 - saturate(dot(normal, V)), 3.0);
@@ -563,6 +593,6 @@ suitPattern(vLP);
   material.clearcoat *= mix(mix(0.3, 1.0, gPanel), 0.9, gGear) * (1.0 - gSeam * 0.8);
 #endif`);
   };
-  m.customProgramCacheKey = () => 'strand-suit-1';
+  m.customProgramCacheKey = () => 'strand-suit-2';
   return m;
 }

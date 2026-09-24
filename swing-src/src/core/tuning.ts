@@ -47,15 +47,18 @@ export const Tuning = {
     trickDuration: 0.55,
   },
   web: {
-    maxLength: 95,
+    maxLength: 75,
     minLength: 7,
-    elasticity: 0.6, // 0 = rigid rope, 1 = fully spring-limited
+    elasticity: 0, // 0 = rigid rope (swings), 1 = fully spring-limited; catches are softened separately
     stiffness: 9000, // N/m when stretched
     damping: 900, // N·s/m on outward radial velocity
     maxStretch: 1.2, // m
     restitution: 0.04,
     catchWindow: 0.3, // s after attach where catch redirection applies
     catchRedirect: 0.55, // fraction of outward radial speed redirected tangentially during catch
+    catchMaxG: 2.5, // g of braking a catch may add beyond what the arc needs (0 = rigid, instant catch)
+    catchGive: 3.5, // m the web may pay out while absorbing a catch
+    catchSoftFrom: 2, // m/s outward speed at which a re-tightening web counts as a new catch
     swingGravityScale: 1.2,
     downswingPull: 0.4, // extra gravity fraction while dropping forward into the arc: the swing pulls
     upswingLift: 0.08, // gravity reduction on the up-swing so the arc carries over the top
@@ -110,9 +113,9 @@ export const Tuning = {
     rayCount: 56,
     wAhead: 1.3, // forward distance along the heading near idealAnchorAhead
     wHeight: 1.1, // rise above the player near idealAnchorRise
-    wSide: 1.0, // sideways offset beyond about half a street is penalised
+    wSide: 1.6, // sideways offset beyond about half a street is penalised
     wBottom: 0.8, // arc bottom sweeps low between buildings (keeps chains at a steady altitude)
-    wLength: 1.5, // long webs make slow, floaty arcs
+    wLength: 2.2, // long webs make slow, floaty arcs
     wTall: 0.4, // prefer taller buildings
     wProp: 0.6, // rooftop structures (tanks, billboards) only when no building edge will do
     wDirection: 1.0,
@@ -203,6 +206,8 @@ export const TuningMeta: Record<string, ParamMeta> = {
   'web.elasticity': { min: 0, max: 1, step: 0.01 },
   'web.swingGravityScale': { min: 0.5, max: 2.5, step: 0.01 },
   'web.catchRedirect': { min: 0, max: 1, step: 0.01 },
+  'web.catchMaxG': { min: 0, max: 15, step: 0.1 },
+  'web.catchGive': { min: 0, max: 8, step: 0.1 },
   'web.swingSpeedPreservation': { min: 0, max: 1, step: 0.01 },
   'web.downswingPull': { min: 0, max: 1.5, step: 0.01 },
   'web.upswingLift': { min: 0, max: 0.5, step: 0.01 },

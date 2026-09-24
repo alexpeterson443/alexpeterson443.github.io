@@ -22,13 +22,13 @@ export class Hud {
     const row = (k: string, a: string) => `<dt>${k}</dt><dd>${a}</dd>`;
     this.help.innerHTML = `<header>Controls <span>H to hide</span></header><dl>
 ${row('<kbd>WASD</kbd> <kbd>Mouse</kbd>', 'move · look')}
-${row('<kbd>Shift</kbd> / <kbd>RMB</kbd>', 'hold to swing · sprint · wall-run')}
+${row('<kbd>Enter</kbd> / <kbd>Shift</kbd>', 'hold to swing · sprint · wall-run')}
 ${row('<kbd>Space</kbd>', 'jump · mid-swing: jump off')}
 ${row('<kbd>E</kbd> / <kbd>LMB</kbd>', 'web zip · at ◇ then Space: launch')}
 ${row('<kbd>Q</kbd>', 'dive')}
 ${row('<kbd>F</kbd> <kbd>C</kbd> <kbd>R</kbd>', 'trick · drop · reel in')}
 ${row('<kbd>\`</kbd> <kbd>G</kbd>', 'dev panel · debug draw')}
-${row('<kbd>M</kbd> <kbd>T</kbd>', 'mute · time of day')}
+${row('<kbd>M</kbd> <kbd>T</kbd> <kbd>K</kbd>', 'mute · time of day · suit')}
 </dl><footer>Pad: LS/RS · A jump · RT swing · RB zip · LB dive</footer>`;
     this.hint = document.createElement('div');
     this.hint.className = 'hud-hint hidden';

@@ -1,0 +1,16 @@
+{
+  "name": "strand-desktop",
+  "productName": "Strand",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Strand, a physics-driven web-swinging game, as a native macOS app",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "node build-app.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^44.4.5"
+  }
+}

@@ -5,7 +5,7 @@ import type { Intent } from './Intent';
  *
  * Default bindings
  *   WASD / arrows  move          Mouse / right stick   camera
- *   Space / A      jump          Shift / RMB / RT      swing & parkour (hold)
+ *   Space / A      jump          Enter / Shift / RMB / RT   swing & parkour (hold)
  *   E / LMB / RB   web zip · point launch                Q / LB   dive (hold)
  *   F / Y          trick         C / B                 drop off wall/perch
  *   R              reel in web
@@ -30,7 +30,7 @@ export class InputManager {
       const k = (e as KeyboardEvent).code;
       if (!this.keys.has(k)) this.pressedOnce.add(k);
       this.keys.add(k);
-      if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F1', 'F2', 'F3'].includes(k)) e.preventDefault();
+      if (['Space', 'Enter', 'NumpadEnter', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F1', 'F2', 'F3'].includes(k)) e.preventDefault();
     });
     on(window, 'keyup', (e) => this.keys.delete((e as KeyboardEvent).code));
     on(window, 'blur', () => { this.keys.clear(); this.mouseButtons = 0; });
@@ -68,7 +68,7 @@ export class InputManager {
     const walk = k('AltLeft') || k('KeyX');
     const scale = walk ? 0.35 : 1;
     let jump = k('Space');
-    let traverse = k('ShiftLeft') || k('ShiftRight') || (this.mouseButtons & 4) !== 0;
+    let traverse = k('Enter') || k('NumpadEnter') || k('ShiftLeft') || k('ShiftRight') || (this.mouseButtons & 4) !== 0;
     let zip = k('KeyE') || (this.mouseButtons & 2) !== 0 || (this.locked && (this.mouseButtons & 1) !== 0);
     let dive = k('KeyQ');
     let trick = k('KeyF');

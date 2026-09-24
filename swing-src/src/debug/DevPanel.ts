@@ -18,6 +18,8 @@ export interface DebugFlags {
 export interface PanelHooks {
   flags: DebugFlags;
   env: { timeOfDay: number; bloom: number };
+  suit: { skin: string; options: string[] };
+  onSuit: () => void;
   quality: { preset: string };
   ai: { cars: boolean; pedestrians: boolean };
   audio: { volume: number; muted: boolean };
@@ -59,6 +61,7 @@ export class DevPanel {
     atmo.add(atmoScales, 'sky', 0.3, 2, 0.01).name('sky brightness').onChange(() => h.onTime());
     atmo.add(atmoScales, 'stars', 0, 3, 0.01).name('stars').onChange(() => h.onTime());
     atmo.close();
+    world.add(h.suit, 'skin', h.suit.options).name('suit (K)').onChange(() => h.onSuit()).listen();
     world.add(h.quality, 'preset', ['low', 'medium', 'high', 'ultra']).name('quality').onChange(() => h.onQuality());
     world.add(h.ai, 'cars').name('traffic').onChange(() => h.onAI());
     world.add(h.ai, 'pedestrians').onChange(() => h.onAI());

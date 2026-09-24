@@ -132,6 +132,8 @@ export class Game {
       flags: this.flags,
       env: { timeOfDay: this.env.timeOfDay, bloom: 1 },
       quality: { preset: this.quality },
+      suit: { skin: Rig.SKINS[0] as string, options: [...Rig.SKINS] },
+      onSuit: () => this.setSkin(Rig.SKINS.indexOf(this.hooks.suit.skin as (typeof Rig.SKINS)[number])),
       ai: { cars: true, pedestrians: true },
       audio: { volume: 0.8, muted: false },
       sim: { timeScale: 1, paused: false },
@@ -146,6 +148,9 @@ export class Game {
       bench: (name) => this.startBench(name as PilotStyle, 20),
     };
     this.panel = new DevPanel(this.hooks);
+    let savedSkin = 0;
+    try { savedSkin = Number(localStorage.getItem('strand.skin') ?? 0) || 0; } catch { /* storage unavailable */ }
+    this.setSkin(savedSkin);
     this.buildWorld(opts.seed);
     this.setQuality(this.quality);
     window.addEventListener('resize', () => this.resize());
@@ -180,6 +185,14 @@ export class Game {
       `${this.world.count} colliders, ${this.cityView.drawCalls} draws, ${this.cityView.instances} instances, built in ${(performance.now() - t0).toFixed(0)} ms`);
   }
 
+  /** Switch the hero's suit (remembered in this browser). */
+  setSkin(i: number, announce = false): void {
+    this.rig.setSkin(i);
+    this.hooks.suit.skin = Rig.SKINS[this.rig.skin];
+    try { localStorage.setItem('strand.skin', String(this.rig.skin)); } catch { /* storage unavailable */ }
+    if (announce) this.hud.flash(`suit: ${Rig.SKINS[this.rig.skin]}`);
+  }
+
   /** Push the current time of day through sky, lights, post-processing and city lights. */
   private applyTime(): void {
     this.env.apply();
@@ -204,6 +217,7 @@ export class Game {
     this.quality = q;
     this.prMax = Math.min(window.devicePixelRatio || 1, q === 'ultra' ? 2 : q === 'high' ? 1.5 : q === 'medium' ? 1 : 0.75);
     this.renderer.setPixelRatio(this.prMax * this.prScale);
+    this.drsWarm = 2;
     this.env.setShadowQuality(q === 'ultra' ? 4096 : q === 'high' ? 2048 : 1024, q !== 'low', q === 'high' || q === 'ultra');
     this.renderer.shadowMap.enabled = q !== 'low';
     this.post.setQuality(q);
@@ -219,27 +233,32 @@ export class Game {
   private drsFrames = 0;
   private drsMisses = 0;
   private drsClean = 0;
+  private drsCeil = 1;
+  private drsWarm = 3; // s: ignore the first seconds (shader compiles, texture uploads)
   private rawDt = 1 / 60;
 
   /**
-   * Scale the render resolution on what the player actually sees: missed frames. GPU time alone is
-   * a poor guide (shadow maps and vertex work don't shrink with resolution), so it only vetoes
-   * scaling back up when the GPU is already busy.
+   * Scale the render resolution on what the player actually sees: frames that miss 60 Hz. GPU
+   * timer queries are pipelined across frames and over-report, so they only inform the debug HUD.
+   * After a drop, the scale that missed becomes a ceiling that relaxes over ~30 s, so the
+   * controller settles instead of oscillating.
    */
   private dynamicResolution(dt: number): void {
     if (this.gpu.supported && this.gpu.ms >= 0) this.gpuAvg = this.gpuAvg < 0 ? this.gpu.ms : this.gpuAvg + (this.gpu.ms - this.gpuAvg) * 0.1;
+    if (this.drsWarm > 0) { this.drsWarm -= dt; return; }
     this.drsFrames++;
-    if (this.rawDt > 1 / 45) this.drsMisses++; // a frame that missed the 60 Hz vsync
+    if (this.rawDt > 1 / 45) this.drsMisses++;
     this.drsT += dt;
     if (this.drsT < 0.5) return;
     const missRate = this.drsMisses / Math.max(1, this.drsFrames);
     this.drsT = 0; this.drsFrames = 0; this.drsMisses = 0;
     if (document.hidden) return;
+    this.drsCeil = Math.min(1, this.drsCeil + 0.5 / 30);
     let s = this.prScale;
-    if (missRate > 0.12) { s *= 0.85; this.drsClean = 0; }
+    if (missRate > 0.12) { this.drsCeil = s * 0.98; s *= 0.85; this.drsClean = 0; }
     else if (missRate < 0.02) {
       this.drsClean += 0.5;
-      if (this.drsClean >= 2 && s < 1 && !(this.gpuAvg > 13)) { s *= 1.08; this.drsClean = 0; }
+      if (this.drsClean >= 2 && s < this.drsCeil) { s = Math.min(this.drsCeil, s * 1.08); this.drsClean = 0; }
     } else this.drsClean = 0;
     s = Math.min(1, Math.max(0.5, s));
     if (Math.abs(s - this.prScale) > 0.01) {
@@ -387,6 +406,7 @@ export class Game {
     if (i.consume('Backquote') || i.consume('F1')) this.panel.toggle();
     if (i.consume('KeyG')) { this.debug.enabled = !this.debug.enabled; this.flags.stats = this.debug.enabled; this.flags.candidates = this.debug.enabled; this.flags.scores = this.debug.enabled; this.flags.trajectory = this.debug.enabled; this.flags.velocity = this.debug.enabled; }
     if (i.consume('KeyH')) this.hud.toggleHelp();
+    if (i.consume('KeyK')) this.setSkin(this.rig.skin + 1, true);
     if (i.consume('KeyM')) { this.audio.muted = !this.audio.muted; this.hud.flash(this.audio.muted ? 'muted' : 'sound on'); }
     if (i.consume('KeyT')) {
       const presets = [0.3, 0.5, 0.71, 0.78, 0.9];

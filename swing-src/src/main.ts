@@ -22,6 +22,7 @@ function boot(): void {
       timeOfDay: q.has('tod') ? Number(q.get('tod')) : undefined,
     });
     Object.assign(window as object, { game, tuning: T });
+    if (q.has('skin')) game.setSkin(Math.max(0, ['strand', 'classic'].indexOf((q.get('skin') ?? '').toLowerCase())));
     game.start();
     start.classList.add('hidden');
   } catch (e) {

@@ -210,11 +210,11 @@ export class AnchorSelector {
       const bottom = cand.point.y - dist;
       terms.bottom = clamp(1 - Math.pow((bottom - targetBottom) / 10, 2), -2, 1);
       // long webs make slow, floaty arcs
-      terms.length = -smoothstep(50, 90, dist);
+      terms.length = -smoothstep(45, 75, dist);
       terms.prop = w.kind[cand.box] & Kind.Building ? 0 : -1;
       // a sideways offset of about half a street is free; beyond that the swing gets harder to steer
       const latFree = 6 + 0.2 * Math.max(0, fwd);
-      terms.side = Math.exp(-Math.pow(Math.max(0, lat - latFree) / 10, 2)) * 2 - 1;
+      terms.side = Math.exp(-Math.pow(Math.max(0, lat - latFree) / 8, 2)) * 2 - 1;
       terms.tall = smoothstep(pos.y + 5, pos.y + 90, w.maxY[cand.box]);
       terms.direction = 0.5 + 0.5 * vdir;
       const cdir = (to.x * q.camForward.x + to.y * q.camForward.y + to.z * q.camForward.z) / (dist + 1e-6);

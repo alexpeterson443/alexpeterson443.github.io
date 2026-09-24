@@ -79,6 +79,7 @@ describe('web rope constraint', () => {
   it('removes outward radial velocity without teleporting', () => {
     T.web.elasticity = 0;
     T.web.catchRedirect = 0;
+    T.web.catchMaxG = 0; // the hard constraint itself (catches are softened separately)
     const rope = new WebRope();
     const anchor = new Vector3(0, 50, 0);
     const pos = new Vector3(0, 30, 0);

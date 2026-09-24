@@ -4,11 +4,11 @@ import { BotPilot, type PilotStyle } from '../src/bench/BotPilot';
 import { cityPlayer } from './helpers';
 
 /** Fly a bot down an avenue of the generated city and return the metrics. */
-export function flight(style: PilotStyle, seconds: number, seed = 1337) {
+export function flight(style: PilotStyle, seconds: number, seed = 1337, startY = 45) {
   const { city, p } = cityPlayer(seed);
   const x = city.avenueX[2];
   const z = city.bounds.z1 - 30;
-  p.spawn(x, 45, z);
+  p.spawn(x, startY, z);
   p.vel.set(0, 0, -15);
   const bot = new BotPilot(style, 0); // yaw 0 = looking toward −Z (north up the avenue)
   const input = new Intent();
@@ -34,7 +34,8 @@ describe('bot flights (traversal feel regression)', () => {
   });
 
   it('dive-catch keeps momentum', () => {
-    const { m } = flight('diveCatch', 10);
+    // a real dive: from well above the rooftops, falling until low enough to catch a web
+    const { m } = flight('diveCatch', 10, 1337, 110);
     process.stderr.write(`\ndive: ${JSON.stringify({ ...m, states: undefined })}\n`);
     expect(m.maxSpeed).toBeGreaterThan(40);
     expect(m.groundTouches).toBe(0);
