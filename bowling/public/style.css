@@ -523,6 +523,7 @@ button.primary.done {
 .games:empty { display: none; }
 .games li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   background: rgba(0, 0, 0, 0.22);
@@ -1200,3 +1201,91 @@ select.field:focus {
   .set-day { grid-template-columns: 30px 1fr auto 1fr; gap: 3px 4px; }
   .set-day input.time { padding: 8px 2px; font-size: 0.74rem; }
 }
+
+/* ---------- frame by frame ----------
+   Used standing at the lane, one handed, often with a ball in the other hand.
+   Every key is at least 56px tall and there is nothing modal: the pad sits in
+   the page and the score box comes back when it closes. */
+.frame-toggle { margin-top: 10px; }
+.frame-toggle[hidden], .frame-pad[hidden], .pain[hidden], .fp-deck[hidden], .chip-actions[hidden] { display: none; }
+.frame-pad { margin-top: 4px; text-align: left; }
+.fp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.fp-title { font-weight: 650; font-size: 0.95rem; }
+.fp-lane { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.85rem; }
+.fp-lane .field { width: 64px; min-height: 40px; text-align: center; }
+
+/* Two rows of five on a phone keeps each frame wide enough to read and tap. */
+.fp-sheet {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+}
+@media (min-width: 521px) { .fp-sheet { grid-template-columns: repeat(10, 1fr); } }
+.fp-cell {
+  display: grid; grid-template-rows: auto auto auto; gap: 2px;
+  min-height: 64px; padding: 4px 3px 5px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.fp-cell.now { border-color: var(--tint-line); background: var(--tint); }
+.fp-num { font-size: 0.65rem; color: var(--muted); text-align: center; }
+.fp-balls { display: flex; justify-content: flex-end; gap: 2px; min-height: 20px; }
+.fp-balls i {
+  font-style: normal; min-width: 16px; text-align: center; font-size: 0.85rem; font-weight: 650;
+  border-left: 1px solid var(--line);
+}
+.fp-balls i.mk { color: var(--hit); }
+.fp-total { text-align: center; font-size: 1rem; font-weight: 700; min-height: 20px; }
+
+.fp-status { margin: 10px 0 8px; color: var(--muted); font-size: 0.85rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+.fp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fp-key {
+  min-height: 56px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.fp-key.mark { background: var(--tint); border-color: var(--tint-line); }
+.fp-key:disabled { opacity: 0.25; }
+.fp-key:not(:disabled):active { transform: scale(0.97); }
+
+.fp-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.fp-tool {
+  min-height: 48px; border-radius: 12px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--text);
+  font-size: 0.9rem; font-weight: 600;
+}
+.fp-tool:disabled { opacity: 0.35; }
+.fp-log { width: 100%; margin-top: 12px; min-height: 56px; }
+.fp-close { display: block; margin: 10px auto 0; }
+
+/* The pin deck, back row on top as he sees it from the approach. */
+.fp-deck { margin: 4px 0 10px; }
+.fp-deck-hint { margin: 0 0 6px; text-align: center; color: var(--muted); font-size: 0.8rem; }
+.fp-pins { display: grid; gap: 6px; justify-items: center; }
+.fp-pin-row { display: flex; gap: 8px; }
+.fp-pin {
+  width: 48px; height: 48px; border-radius: 50%;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--muted);
+  font-weight: 700; font-size: 0.95rem;
+}
+.fp-pin.on { background: var(--today); color: #1b1400; border-color: var(--today); }
+.fp-pin:disabled { opacity: 0.3; }
+
+/* Games list: a game entered by frame carries a small dot; tapping any game
+   opens its actions under the day rather than a dialog. */
+.chip.framed { position: relative; }
+.chip.framed::after {
+  content: ""; position: absolute; top: 3px; right: 3px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--hit);
+}
+.chip.picked { outline: 2px solid var(--tint-line); outline-offset: 1px; }
+.chip-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip-actions .pill { min-height: 40px; }
+.pill.danger { color: var(--miss); border-color: rgba(255, 92, 122, 0.35); }
+
+.pain { margin-top: 14px; display: grid; gap: 8px; justify-items: center; }
+.pain-label { color: var(--muted); font-size: 0.85rem; }
+.pain-pills { display: grid; grid-template-columns: repeat(4, minmax(58px, 1fr)); gap: 8px; width: 100%; max-width: 340px; }
+.pain-pill { min-height: 52px; display: grid; justify-items: center; align-content: center; gap: 1px; font-size: 1.1rem; font-weight: 700; width: 100%; }
+.pain-pill small { font-size: 0.65rem; font-weight: 500; color: var(--muted); }

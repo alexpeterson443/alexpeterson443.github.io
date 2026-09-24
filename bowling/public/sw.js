@@ -7,8 +7,8 @@
 //
 // Only the shell is cached. No scores, no state, no API response ever lands here.
 
-const CACHE = "bowl-shell-v9";
-const SHELL = ["/style.css", "/app.js", "/icon-180.png"];
+const CACHE = "bowl-shell-v10";
+const SHELL = ["/style.css", "/frames-core.js", "/app.js", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
   // Best effort: a missing asset must not block the worker from installing.

@@ -46,8 +46,12 @@ function writeOutbox(list) {
   catch { return false; }
 }
 
-function queueGame(date, score) {
+function queueGame(date, score, extra = {}) {
+  // Frames and lane ride along when the game was entered frame by frame, so a
+  // game bowled in the basement keeps its detail through a dead connection.
   const entry = { id: newId(), date, score, at: Date.now() };
+  if (extra.frames) entry.frames = extra.frames;
+  if (extra.lane) entry.lane = extra.lane;
   const stored = writeOutbox([...readOutbox(), entry]);
   // If storage is unavailable the game only exists in this request, so the
   // caller has to be told it is not safe yet.
@@ -73,7 +77,11 @@ async function flushOutbox() {
       try {
         latest = await api("/api/score", {
           method: "POST",
-          body: JSON.stringify({ id: entry.id, date: entry.date, score: entry.score }),
+          body: JSON.stringify({
+            id: entry.id, date: entry.date, score: entry.score,
+            ...(entry.frames ? { frames: entry.frames } : {}),
+            ...(entry.lane ? { lane: entry.lane } : {}),
+          }),
         });
       } catch (e) {
         if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) {
@@ -187,8 +195,13 @@ function render() {
   // is halfway through typing into.
   const settled = s.verifiedToday && !readOutbox().length;
   if (!settled) formOpen = false;
-  $("score-form").hidden = settled && !formOpen;
-  $("add-game").hidden = !settled || formOpen;
+  // While the frame pad is open it is the entry form; the score box and the
+  // add game button stay out of the way until it is closed.
+  const padOpen = !$("frame-pad").hidden;
+  $("score-form").hidden = padOpen || (settled && !formOpen);
+  $("add-game").hidden = padOpen || !settled || formOpen;
+  // Frames need D1; without it they would be dropped, so the option is not offered.
+  $("frame-toggle").hidden = padOpen || (settled && !formOpen) || !(s.games && s.games.stored);
 
   if (s.verifiedToday) {
     status.className = "status ok";
@@ -238,23 +251,31 @@ function render() {
     date.textContent = prettyDate(d.date);
     const chips = document.createElement("span");
     chips.className = "chips";
+    const framed = (s.games && s.games.frames && s.games.frames[d.date]) || [];
+    const actions = document.createElement("div");
+    actions.className = "chip-actions";
+    actions.hidden = true;
     d.scores.forEach((score, index) => {
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = "chip" + (score === null ? " unknown" : score === sc.high ? " best" : "");
+      chip.className = "chip" + (score === null ? " unknown" : score === sc.high ? " best" : "")
+        + (framed[index] ? " framed" : "");
       chip.textContent = score === null ? "?" : score;
-      chip.title = "Tap to remove";
+      chip.title = framed[index] ? "Entered by frame. Tap for options" : "Tap for options";
       chip.addEventListener("click", () => {
-        const label = score === null ? "an unscored game" : `the ${score} game`;
-        if (!confirm(`Remove ${label} on ${prettyDate(d.date)}?`)) return;
-        act(chip, () => api("/api/score", { method: "DELETE", body: JSON.stringify({ date: d.date, index }) }));
+        // Tapping the open one again folds it away.
+        const open = actions.dataset.index === String(index) && !actions.hidden;
+        chips.querySelectorAll(".chip.picked").forEach((c) => c.classList.remove("picked"));
+        if (open) { actions.hidden = true; return; }
+        chip.classList.add("picked");
+        showChipActions(actions, d.date, index, score, !!framed[index], chip);
       });
       chips.appendChild(chip);
     });
     const count = document.createElement("span");
     count.className = "count";
     count.textContent = `${d.games} game${d.games === 1 ? "" : "s"}`;
-    li.append(date, chips, count);
+    li.append(date, chips, count, actions);
     games.appendChild(li);
   }
 
@@ -263,6 +284,8 @@ function render() {
   renderTonight(s);
   renderBetter(s.coach);
   renderFocus(s.coach);
+  renderPain(s);
+  renderPad();
   renderNumbers(s);
   renderInside(s.frames);
   renderChartCard(s.progress);
@@ -537,11 +560,373 @@ $("score-form").addEventListener("submit", async (e) => {
   }
 });
 
+/** The row under a day when one of its games is tapped: frames, or remove. */
+function showChipActions(actions, date, index, score, framed, chip) {
+  actions.innerHTML = "";
+  actions.dataset.index = String(index);
+  const canFrame = score !== null && state && state.games && state.games.stored;
+  if (canFrame) {
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "pill";
+    add.textContent = framed ? `Re-enter frames for ${score}` : `Add frames for ${score}`;
+    add.addEventListener("click", () => {
+      actions.hidden = true;
+      openPad({ date, index, score });
+    });
+    actions.appendChild(add);
+  }
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "pill danger";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    const label = score === null ? "an unscored game" : `the ${score} game`;
+    if (!confirm(`Remove ${label} on ${prettyDate(date)}?`)) return;
+    act(chip, () => api("/api/score", { method: "DELETE", body: JSON.stringify({ date, index }) }));
+  });
+  actions.appendChild(remove);
+  actions.hidden = false;
+}
+
 function openForm() {
   formOpen = true;
   $("score-form").hidden = false;
+  $("frame-toggle").hidden = !(state && state.games && state.games.stored);
   $("add-game").hidden = true;
 }
+
+// ---------- frame by frame ----------
+//
+// Entered at the lane between shots, one handed, so the rules are: big keys, no
+// dialogs, nothing to type. Keys that cannot be right are disabled rather than
+// refused afterwards (with three pins standing, 4 is not a key), the running
+// score updates on every ball, and "Same as last" repeats a frame in one tap
+// because a beginner's frames repeat a lot.
+//
+// Scoring is BowlFrames from frames-core.js, the same code the server checks
+// the game with, so the total shown here is the total that gets accepted.
+
+const FP = window.BowlFrames;
+const LANE_STORE = "bowl_lane";
+const PIN_ROWS = [[7, 8, 9, 10], [4, 5, 6], [2, 3], [1]];   // as seen from the approach
+
+// target: null for a new game, or {date, index, score} to add frames to one
+// already logged as a total.
+let pad = { frames: [], editing: null, target: null, leave: [] };
+
+const blankFrames = () => Array.from({ length: 10 }, () => ({ b1: null, b2: null, b3: null, leave: null }));
+const filled = (v) => v !== null && v !== undefined;
+
+function frameDone(i, f) {
+  return filled(f.b1) && FP.frameError(i, f, true) === null;
+}
+
+/** Where the next ball goes: the frame being re-entered, else the first open one. */
+function cursor() {
+  const i = pad.editing !== null ? pad.editing : pad.frames.findIndex((f, j) => !frameDone(j, f));
+  if (i === -1) return null;
+  const f = pad.frames[i];
+  const ball = !filled(f.b1) ? 1 : !filled(f.b2) ? 2 : 3;
+  return { i, f, ball, standing: standing(i, f, ball) };
+}
+
+/** Pins on the deck for this ball. */
+function standing(i, f, ball) {
+  if (ball === 1) return 10;
+  if (i < 9) return 10 - f.b1;
+  if (ball === 2) return f.b1 === 10 ? 10 : 10 - f.b1;
+  // Third ball in the 10th: a fresh rack after a strike on ball 2 or a spare.
+  if (f.b1 === 10) return f.b2 === 10 ? 10 : 10 - f.b2;
+  return 10;
+}
+
+function mark(v, prev, spareable) {
+  if (!filled(v)) return "";
+  if (spareable && filled(prev) && prev + v === 10) return "/";
+  if (v === 10) return "X";
+  return v === 0 ? "–" : String(v);
+}
+
+function renderSheet() {
+  const sheet = $("fp-sheet");
+  sheet.innerHTML = "";
+  const run = FP.running(pad.frames);
+  const cur = cursor();
+  pad.frames.forEach((f, i) => {
+    const li = document.createElement("li");
+    li.className = "fp-cell" + (cur && cur.i === i ? " now" : "") + (FP.kind(f) ? ` ${FP.kind(f)}` : "");
+    const num = document.createElement("span");
+    num.className = "fp-num";
+    num.textContent = i + 1;
+    const balls = document.createElement("span");
+    balls.className = "fp-balls";
+    const marks = i < 9
+      ? [f.b1 === 10 ? "" : mark(f.b1), f.b1 === 10 ? "X" : mark(f.b2, f.b1, true)]
+      : [mark(f.b1),
+        f.b1 === 10 ? mark(f.b2) : mark(f.b2, f.b1, true),
+        f.b1 === 10 && f.b2 !== 10 ? mark(f.b3, f.b2, true) : mark(f.b3)];
+    for (const m of marks) {
+      const b = document.createElement("i");
+      b.textContent = m;
+      if (m === "X" || m === "/") b.className = "mk";
+      balls.appendChild(b);
+    }
+    const tot = document.createElement("span");
+    tot.className = "fp-total";
+    tot.textContent = run[i] === null ? "" : run[i];
+    li.append(num, balls, tot);
+    // Tapping a finished frame re-enters just that frame; the rest stay.
+    li.addEventListener("click", () => {
+      if (!filled(f.b1)) return;
+      pad.frames[i] = { b1: null, b2: null, b3: null, leave: null };
+      pad.editing = i;
+      pad.leave = [];
+      renderPad();
+    });
+    sheet.appendChild(li);
+  });
+}
+
+function renderKeys(cur) {
+  const keys = $("fp-keys");
+  keys.innerHTML = "";
+  const spareBall = cur && cur.standing < 10;
+  const layout = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "X", "/"];
+  for (const k of layout) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "fp-key" + (k === "X" || k === "/" ? " mark" : "");
+    let value = k;
+    if (k === "X") value = 10;
+    if (k === "/") value = cur ? cur.standing : null;
+    b.textContent = k === 0 ? "–" : k;
+    b.setAttribute("aria-label", k === 0 ? "gutter, no pins" : k === "X" ? "strike" : k === "/" ? "spare" : `${k} pins`);
+    let ok = !!cur;
+    if (ok && k === "X") ok = cur.standing === 10;
+    else if (ok && k === "/") ok = spareBall;
+    // A number that clears the deck is a spare or strike; those have their own key.
+    else if (ok) ok = k < cur.standing;
+    b.disabled = !ok;
+    b.addEventListener("click", () => throwBall(value));
+    keys.appendChild(b);
+  }
+}
+
+function renderDeck(cur) {
+  // Only after a first ball that left pins: that is the leave worth knowing.
+  const show = cur && cur.ball === 2 && cur.f.b1 < 10;
+  $("fp-deck").hidden = !show;
+  if (!show) return;
+  const need = 10 - cur.f.b1;
+  const pins = $("fp-pins");
+  pins.innerHTML = "";
+  for (const row of PIN_ROWS) {
+    const r = document.createElement("div");
+    r.className = "fp-pin-row";
+    for (const n of row) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const on = pad.leave.includes(n);
+      b.className = "fp-pin" + (on ? " on" : "");
+      b.textContent = n;
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      // Never more pins marked than are actually standing.
+      b.disabled = !on && pad.leave.length >= need;
+      b.addEventListener("click", () => {
+        pad.leave = on ? pad.leave.filter((p) => p !== n) : [...pad.leave, n];
+        renderPad();
+      });
+      r.appendChild(b);
+    }
+    pins.appendChild(r);
+  }
+  $("fp-deck-hint").textContent = pad.leave.length === need
+    ? `Leave: ${FP.formatLeave(pad.leave)}`
+    : `Pins left standing (optional): ${pad.leave.length} of ${need} marked`;
+}
+
+function renderPad() {
+  if ($("frame-pad").hidden) return;
+  const cur = cursor();
+  renderSheet();
+  renderKeys(cur);
+  renderDeck(cur);
+  const game = FP.scoreGame(pad.frames);
+  const run = FP.running(pad.frames).filter((v) => v !== null);
+  const so = run.length ? run[run.length - 1] : 0;
+  $("fp-status").textContent = cur
+    ? `Frame ${cur.i + 1}, ball ${cur.ball}${cur.ball > 1 ? ` · ${cur.standing} standing` : ""} · ${so} so far`
+    : `Complete: ${game.score}`;
+  const t = pad.target;
+  $("fp-title").textContent = t ? `Frames for the ${t.score} on ${prettyDate(t.date)}` : "New game";
+  const prev = cur && cur.i > 0 ? pad.frames[cur.i - 1] : null;
+  $("fp-same").disabled = !(cur && cur.ball === 1 && prev && frameDone(cur.i - 1, prev));
+  $("fp-undo").disabled = !pad.frames.some((f) => filled(f.b1));
+  $("fp-clear").disabled = $("fp-undo").disabled;
+  const log = $("fp-log");
+  const err = $("fp-error");
+  err.hidden = true;
+  if (game.error) {
+    log.disabled = true;
+    log.textContent = t ? "Save frames" : "Log game";
+  } else if (t && game.score !== t.score) {
+    log.disabled = true;
+    log.textContent = "Save frames";
+    err.hidden = false;
+    err.textContent = `These frames add up to ${game.score}, but the game was logged as ${t.score}. Tap a frame to fix it.`;
+  } else {
+    log.disabled = false;
+    log.textContent = t ? `Save frames for ${game.score}` : `Log ${game.score}`;
+  }
+}
+
+function throwBall(value) {
+  const cur = cursor();
+  if (!cur || value === null) return;
+  const f = pad.frames[cur.i];
+  if (cur.ball === 1) f.b1 = value;
+  else if (cur.ball === 2) {
+    // The leave is kept only when it names exactly the pins that were standing.
+    if (cur.f.b1 < 10 && pad.leave.length === 10 - cur.f.b1) f.leave = FP.formatLeave(pad.leave);
+    f.b2 = value;
+  } else f.b3 = value;
+  // Marked pins belong to one first ball; the next one starts clean.
+  pad.leave = [];
+  if (pad.editing !== null && frameDone(cur.i, f)) pad.editing = null;
+  renderPad();
+}
+
+$("fp-same").addEventListener("click", () => {
+  const cur = cursor();
+  if (!cur || cur.i === 0) return;
+  const prev = pad.frames[cur.i - 1];
+  const copy = { b1: prev.b1, b2: prev.b1 === 10 ? null : prev.b2, b3: null, leave: prev.b1 === 10 ? null : prev.leave };
+  // In the 10th a copied strike is only the first ball: the bonus balls are his to throw.
+  if (cur.i === 9 && prev.b1 === 10) copy.b2 = null;
+  pad.frames[cur.i] = copy;
+  if (pad.editing !== null && frameDone(cur.i, copy)) pad.editing = null;
+  renderPad();
+});
+
+$("fp-undo").addEventListener("click", () => {
+  // The last ball thrown, wherever it is.
+  for (let i = 9; i >= 0; i--) {
+    const f = pad.frames[i];
+    if (filled(f.b3)) { f.b3 = null; break; }
+    if (filled(f.b2)) { f.b2 = null; f.leave = null; break; }
+    if (filled(f.b1)) { f.b1 = null; f.leave = null; break; }
+  }
+  pad.editing = null;
+  pad.leave = [];
+  renderPad();
+});
+
+$("fp-clear").addEventListener("click", () => {
+  pad.frames = blankFrames();
+  pad.editing = null;
+  pad.leave = [];
+  renderPad();
+});
+
+function readLane() {
+  const v = Number($("fp-lane").value);
+  return Number.isInteger(v) && v >= 1 && v <= 99 ? v : null;
+}
+
+function rememberedLane(date) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LANE_STORE) || "null");
+    if (saved && saved.date === date) return saved.lane;
+  } catch { /* nothing remembered */ }
+  return state && state.games && state.games.laneToday;
+}
+
+$("fp-lane").addEventListener("change", () => {
+  const date = $("score-date").value || (state && state.today) || todayLocal();
+  try { localStorage.setItem(LANE_STORE, JSON.stringify({ date, lane: readLane() })); } catch { /* optional */ }
+});
+
+function openPad(target = null) {
+  pad = { frames: blankFrames(), editing: null, target, leave: [] };
+  $("frame-pad").hidden = false;
+  $("frame-toggle").hidden = true;
+  $("score-form").hidden = true;
+  $("add-game").hidden = true;
+  const date = target ? target.date : $("score-date").value || (state && state.today) || todayLocal();
+  const lane = rememberedLane(date);
+  $("fp-lane").value = lane ? String(lane) : "";
+  renderPad();
+  $("frame-pad").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function closePad() {
+  $("frame-pad").hidden = true;
+  pad.target = null;
+  if (state) render();
+  else { $("score-form").hidden = false; $("frame-toggle").hidden = false; }
+}
+
+$("frame-toggle").addEventListener("click", () => openPad());
+$("fp-close").addEventListener("click", closePad);
+
+$("fp-log").addEventListener("click", async () => {
+  const game = FP.scoreGame(pad.frames);
+  if (game.error) return;
+  const frames = pad.frames.map(FP.clean);
+  const lane = readLane();
+  const t = pad.target;
+
+  if (t) {
+    // Adding frames to a game already on file goes straight to the server:
+    // the total is safe already, so there is nothing to protect offline.
+    const ok = await act($("fp-log"), () => api("/api/frames", {
+      method: "PUT",
+      body: JSON.stringify({ date: t.date, index: t.index, frames, ...(lane ? { lane } : {}) }),
+    }));
+    if (ok) closePad();
+    return;
+  }
+
+  // A new game goes through the outbox like any other, frames and all.
+  const date = $("score-date").value || (state && state.today) || todayLocal();
+  const { stored } = queueGame(date, game.score, { frames, lane });
+  if (stored) {
+    pad = { frames: blankFrames(), editing: null, target: null, leave: [] };
+    renderPad();
+    $("ball").classList.add("spin");
+    setTimeout(() => $("ball").classList.remove("spin"), 900);
+    renderPending();
+  }
+  const sent = await flushOutbox();
+  if (!sent && !stored) $("subtitle").textContent = "Could not save that. Check your connection and try again.";
+  else if (!sent) $("subtitle").textContent = "Saved on this device. It will sync when you have signal.";
+});
+
+// ---------- how the leg felt ----------
+
+function renderPain(s) {
+  // Asked once a game is in, since it is about the night that was bowled, and
+  // only when there is somewhere to keep it.
+  const show = !!(s.verifiedToday && s.games && s.games.stored);
+  $("pain").hidden = !show;
+  if (!show) return;
+  const now = s.games.painToday;
+  document.querySelectorAll(".pain-pill").forEach((b) => {
+    const on = Number(b.dataset.pain) === now;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+document.querySelectorAll(".pain-pill").forEach((b) => {
+  b.addEventListener("click", () => {
+    const value = Number(b.dataset.pain);
+    // Tapping the one already set clears it.
+    const pain = state && state.games && state.games.painToday === value ? null : value;
+    act(b, () => api("/api/session", { method: "PUT", body: JSON.stringify({ pain }) }));
+  });
+});
 
 // ---------- pausing a trip ----------
 
