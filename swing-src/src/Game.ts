@@ -14,6 +14,7 @@ import { Environment } from './render/Environment';
 import { CityRenderer } from './render/CityRenderer';
 import { PostFX, type Quality } from './render/PostFX';
 import { WebLine } from './render/WebLine';
+import { SpeedFX } from './render/SpeedFX';
 import { Rig } from './anim/Rig';
 import { Animator, type AnimFrame } from './anim/Animator';
 import { AudioSystem, type AudioFrame } from './audio/AudioSystem';
@@ -72,6 +73,7 @@ export class Game {
   readonly gpu: GpuTimer;
   private acc = 0;
   private last = 0;
+  private speedFx: SpeedFX;
   private fps = 60;
   private frameMs = 16;
   private simTime = 0;
@@ -108,6 +110,7 @@ export class Game {
     this.scene.add(this.rig.root);
     this.web = new WebLine(this.scene);
     this.zipWeb = new WebLine(this.scene);
+    this.speedFx = new SpeedFX(this.scene);
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
     container.appendChild(overlay);
@@ -182,17 +185,50 @@ export class Game {
 
   setQuality(q: Quality): void {
     this.quality = q;
-    const pr = Math.min(window.devicePixelRatio || 1, q === 'ultra' ? 2 : q === 'high' ? 1.5 : q === 'medium' ? 1 : 0.75);
-    this.renderer.setPixelRatio(pr);
+    this.prMax = Math.min(window.devicePixelRatio || 1, q === 'ultra' ? 2 : q === 'high' ? 1.5 : q === 'medium' ? 1 : 0.75);
+    this.renderer.setPixelRatio(this.prMax * this.prScale);
     this.env.setShadowQuality(q === 'ultra' ? 4096 : q === 'high' ? 2048 : 1024, q !== 'low', q === 'high' || q === 'ultra');
     this.renderer.shadowMap.enabled = q !== 'low';
     this.post.setQuality(q);
     this.resize();
   }
 
+  // --- dynamic resolution: hold 60 fps at any window size by scaling the render resolution ---
+  private prMax = 1.5;
+  private prScale = 1;
+  private drsT = 0;
+  private gpuAvg = -1;
+
+  /** Measure GPU time (or frame rate where timer queries are missing) and nudge the resolution. */
+  private dynamicResolution(dt: number): void {
+    if (this.gpu.supported && this.gpu.ms >= 0) this.gpuAvg = this.gpuAvg < 0 ? this.gpu.ms : this.gpuAvg + (this.gpu.ms - this.gpuAvg) * 0.1;
+    this.drsT += dt;
+    if (this.drsT < 0.5) return;
+    this.drsT = 0;
+    let s = this.prScale;
+    if (this.gpuAvg >= 0) {
+      // GPU budget at 60 fps is 16.7 ms; keep headroom for spikes (web shots, bloom, far shadow bakes)
+      if (this.gpuAvg > 12.5) s *= Math.max(0.8, 12 / this.gpuAvg);
+      else if (this.gpuAvg < 8.5) s *= 1.06;
+    } else if (this.fps < 50) s *= 0.9;
+    else if (this.fps > 58) s *= 1.03;
+    s = Math.min(1, Math.max(0.45, s));
+    if (Math.abs(s - this.prScale) > 0.02) {
+      this.prScale = s;
+      this.renderer.setPixelRatio(this.prMax * s);
+      this.resize();
+    }
+  }
+
+  /** Current render resolution as a fraction of the quality preset's (1 = full). */
+  get renderScale(): number {
+    return this.prScale;
+  }
+
   private resize(): void {
     const w = this.container.clientWidth || window.innerWidth, h = this.container.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h);
+    WebLine.viewportH = h * this.renderer.getPixelRatio();
     this.post.setSize(w, h);
     this.cam.camera.aspect = w / h;
     this.cam.camera.updateProjectionMatrix();
@@ -289,6 +325,7 @@ export class Game {
     this.ai?.update(dt, { pos: this.renderPos, vel: p.vel }, this.cam.camera);
     profiler.end('ai');
     this.updateWebs(dt);
+    this.speedFx.update(dt, this.cam.camera, p.vel, 48);
     const speed = p.vel.length();
     this.post.setSpeed(smoothstep(30, 85, speed) * 0.9);
     const af2 = this.audioFrame();
@@ -306,6 +343,7 @@ export class Game {
     this.gpu.begin();
     this.post.render(this.scene, this.cam.camera, dt);
     this.gpu.end();
+    this.dynamicResolution(dt);
     const rMs = profiler.end('render');
     profiler.end('frame');
     this.tickBench(dt, simMs, rMs);
@@ -509,7 +547,7 @@ export class Game {
     const lines = [
       `FPS ${this.fps.toFixed(0)}  frame ${this.frameMs.toFixed(1)} ms  steps ${this.stepsLastFrame}`,
       `CPU sim ${profiler.get('sim').toFixed(2)} ms (${simMs.toFixed(2)})  anim ${profiler.get('anim').toFixed(2)}  cam ${profiler.get('camera').toFixed(2)}  ai ${profiler.get('ai').toFixed(2)}`,
-      `CPU render submit ${profiler.get('render').toFixed(2)} ms  GPU ${this.gpu.supported ? (this.gpu.ms >= 0 ? this.gpu.ms.toFixed(2) + ' ms' : '…') : 'n/a'}`,
+      `CPU render submit ${profiler.get('render').toFixed(2)} ms  GPU ${this.gpu.supported ? (this.gpu.ms >= 0 ? this.gpu.ms.toFixed(2) + ' ms' : '…') : 'n/a'}  res ${(this.prScale * 100).toFixed(0)}%`,
       `draws ${info.render.calls}  tris ${(info.render.triangles / 1000).toFixed(0)}k  anchor select ${p.anchors.lastTimeMs.toFixed(2)} ms`,
       `state ${p.state} (${p.stateTime.toFixed(2)} s)  prev ${p.fsm.previous ?? '-'}`,
       `speed ${p.vel.length().toFixed(1)} m/s (${(p.vel.length() * 2.237).toFixed(0)} mph)  h ${hlen(p.vel).toFixed(1)}  v ${p.vel.y.toFixed(1)}`,
@@ -544,6 +582,7 @@ export class Game {
       simMsAvg: +avg(b.sim).toFixed(3),
       renderSubmitMsAvg: +avg(b.render).toFixed(3),
       gpuMs: this.gpu.supported ? +this.gpu.ms.toFixed(2) : null,
+      renderScale: +this.prScale.toFixed(2),
       drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles,
       flight: { ...b.bot.m, states: b.bot.m.states },

@@ -68,10 +68,31 @@ ${row('<kbd>M</kbd> <kbd>T</kbd>', 'mute · time of day')}
     if (this.showStats && this.stats.textContent !== text) this.stats.textContent = text;
   }
 
+  private lastMph = -1;
+  private lastState = '';
   setSpeed(mps: number, state: string): void {
-    const mph = mps * 2.23694;
-    this.speedo.textContent = `${mph.toFixed(0)} mph · ${state}`;
+    const mph = Math.round(mps * 2.23694);
+    if (!this.speedoNum) {
+      this.speedo.innerHTML = '<div class="v"><b></b><span>mph</span></div><i><em></em></i><small></small>';
+      this.speedoNum = this.speedo.querySelector('b')!;
+      this.speedoBar = this.speedo.querySelector('em')!;
+      this.speedoState = this.speedo.querySelector('small')!;
+    }
+    if (mph !== this.lastMph) {
+      this.lastMph = mph;
+      this.speedoNum.textContent = String(mph);
+      // bar full at ~110 mph (the top of a strong swing chain)
+      this.speedoBar.style.transform = `scaleX(${Math.min(1, mph / 110).toFixed(3)})`;
+      this.speedo.classList.toggle('fast', mph > 80);
+    }
+    if (state !== this.lastState) {
+      this.lastState = state;
+      this.speedoState.textContent = state.replace(/([a-z])([A-Z])/g, '$1 $2');
+    }
   }
+  private speedoNum: HTMLElement | null = null;
+  private speedoBar!: HTMLElement;
+  private speedoState!: HTMLElement;
 
   /** Show the point-launch reticle at a screen position (null hides it). */
   setReticle(x: number | null, y = 0): void {
