@@ -110,7 +110,7 @@ test("deleting a game closes the gap and keeps the others' frames", async () => 
   const db = d1();
   await syncDate(db, "2026-09-01", [90, 150]);
   await syncDate(db, "2026-09-01", [90, 150, 300], { id: "p", frames: checkFrames(perfect()).frames });
-  await removeGame(db, "2026-09-01", 1, [90, 300]);
+  await removeGame(db, "2026-09-01", 1, [90, 300], 150);
   const rows = db.raw.prepare("SELECT id, position, score FROM games WHERE date = '2026-09-01' ORDER BY position").all();
   assert.deepEqual(rows.map((r) => [r.position, r.score]), [[1, 90], [2, 300]]);
   assert.equal(rows[1].id, "p");
@@ -232,4 +232,16 @@ test("a limited read leaves older nights as totals and reads none of their frame
   assert.deepEqual(recentOnly.games.map((g) => [g.date, g.framesAvailable]), [["2026-09-01", false], ["2026-09-20", true]]);
   const all = await loadDetail({ LIVE_DB: db }, scores);
   assert.deepEqual(all.games.map((g) => g.framesAvailable), [true, true]);
+});
+
+test("a delete never drops a different game's frames when D1 has drifted", async () => {
+  const db = d1();
+  // D1 thinks game 2 is the framed 90; KV says game 2 was 100 and is being removed.
+  await syncDate(db, "2026-09-01", [80]);
+  await syncDate(db, "2026-09-01", [80, 90], { id: "keep", frames: checkFrames(allNines()).frames });
+  await removeGame(db, "2026-09-01", 1, [80], 100);
+  // The night is rebuilt from KV: one game, 80. The framed row did not match
+  // KV either, so it goes too, but by the sync, never by a guess.
+  const rows = db.raw.prepare("SELECT score FROM games WHERE date = '2026-09-01'").all().map((r) => r.score);
+  assert.deepEqual(rows, [80]);
 });

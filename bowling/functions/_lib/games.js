@@ -86,15 +86,22 @@ export async function syncDate(db, date, kvList, fresh = null) {
   return { kept: keep, removed: stale.length, added: kvList.length - keep };
 }
 
-/** Take one game out of a night and close the gap it leaves. */
-export async function removeGame(db, date, index, kvAfter) {
+/**
+ * Take one game out of a night and close the gap it leaves. The row is only
+ * deleted when it is the same game (same total); if D1 had drifted from KV,
+ * the sync afterwards rebuilds the night instead of guessing which row to drop.
+ */
+export async function removeGame(db, date, index, kvAfter, removedScore) {
   const pos = index + 1;
-  const row = await db.prepare("SELECT id FROM games WHERE date = ? AND position = ?").bind(date, pos).first();
-  const stmts = [];
-  if (row) {
-    stmts.push(db.prepare("DELETE FROM frames WHERE game_id = ?").bind(row.id));
-    stmts.push(db.prepare("DELETE FROM games WHERE id = ?").bind(row.id));
+  const row = await db.prepare("SELECT id, score FROM games WHERE date = ? AND position = ?").bind(date, pos).first();
+  if (!row || row.score !== removedScore) {
+    await syncDate(db, date, kvAfter);
+    return;
   }
+  const stmts = [
+    db.prepare("DELETE FROM frames WHERE game_id = ?").bind(row.id),
+    db.prepare("DELETE FROM games WHERE id = ?").bind(row.id),
+  ];
   // Two steps, since position is unique within a night and SQLite checks that
   // row by row: park the later games out of the way, then bring them back one
   // lower. Parked high rather than negative, which the CHECK would refuse.

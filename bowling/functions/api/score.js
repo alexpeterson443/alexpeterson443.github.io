@@ -90,8 +90,8 @@ export async function onRequestDelete({ request, env }) {
   if (!list || !Number.isInteger(body.index) || body.index < 0 || body.index >= list.length) {
     return Response.json({ error: "no such game" }, { status: 400 });
   }
-  list.splice(body.index, 1);
+  const [removed] = list.splice(body.index, 1);
   await saveScores(cfg, scores);
-  if (cfg.LIVE_DB) await removeGame(cfg.LIVE_DB, body.date, body.index, scores[body.date] || []).catch(() => {});
+  if (cfg.LIVE_DB) await removeGame(cfg.LIVE_DB, body.date, body.index, scores[body.date] || [], removed).catch(() => {});
   return Response.json(await buildState(cfg, await loadDays(cfg), scores));
 }
