@@ -1,0 +1,50 @@
+# Typecheck, unit/integration tests and a production build for the Strand
+# web-swinging prototype. Runs on PRs and pushes that touch it.
+
+name: Strand CI
+
+on:
+  pull_request:
+    paths:
+      - "swing-src/**"
+      - "swing/**"
+      - ".github/workflows/swing-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "swing-src/**"
+      - "swing/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: swing-src
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: swing-src/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+
+      - name: Tests
+        run: npx vitest run
+
+      - name: Build
+        run: npx vite build
+
+      - name: Committed build is up to date
+        run: |
+          if ! git diff --quiet -- ../swing; then
+            echo "::error::swing/ differs from a fresh build. Run 'npm run build' in swing-src and commit swing/."
+            git status --short -- ../swing
+            exit 1
+          fi

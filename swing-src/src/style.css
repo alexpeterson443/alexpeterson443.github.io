@@ -1,0 +1,35 @@
+:root { color-scheme: dark; --accent: #3fe0f0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #07090d; overflow: hidden; font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; color: #e8eef3; }
+#app { position: fixed; inset: 0; }
+canvas { display: block; }
+.overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.dbg-label { position: absolute; left: 0; top: 0; font: 11px/1 ui-monospace, monospace; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.hud { position: absolute; inset: 0; pointer-events: none; }
+.hud-stats { position: absolute; left: 10px; top: 10px; margin: 0; padding: 8px 10px; background: rgba(0,0,0,.55); border-radius: 6px; font: 11px/1.45 ui-monospace, monospace; color: #cfe; max-width: calc(100vw - 20px); white-space: pre-wrap; }
+.hud-help { position: absolute; left: 16px; top: 16px; width: 272px; max-width: calc(100vw - 32px); padding: 10px 12px; background: rgba(6,10,15,.62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; font-size: 12px; transition: opacity .4s, transform .4s; }
+.hud-help header { display: flex; justify-content: space-between; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+.hud-help header span { color: #8a9aa6; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.hud-help dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; align-items: center; }
+.hud-help dt { white-space: nowrap; }
+.hud-help dd { margin: 0; color: #c3ced6; }
+.hud-help footer { margin-top: 7px; color: #7d8d99; font-size: 11px; }
+.hud-help.hidden, .hud-hint.hidden { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+.hud-hint { position: absolute; left: 16px; top: 16px; color: #9fb0bc; font-size: 11px; opacity: .75; transition: opacity .4s, transform .4s; }
+.hud-hint.hidden { opacity: 0; }
+kbd { display: inline-block; padding: 0 5px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; font: 11px ui-monospace, monospace; background: rgba(255,255,255,.08); }
+.hud-reticle { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border: 1.5px solid var(--accent); border-radius: 3px; box-shadow: 0 0 10px rgba(63,224,240,.6), inset 0 0 6px rgba(63,224,240,.35); display: none; }
+.hud-speed { position: absolute; right: 22px; bottom: 18px; width: 132px; text-align: right; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+.hud-speed .v { display: flex; justify-content: flex-end; align-items: baseline; gap: 6px; }
+.hud-speed b { font: 700 34px/1 ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.hud-speed .v span { font: 600 10px ui-sans-serif, system-ui; letter-spacing: .16em; text-transform: uppercase; color: #a9bac6; }
+.hud-speed i { display: block; height: 2px; margin: 7px 0 6px; background: rgba(255,255,255,.14); border-radius: 2px; overflow: hidden; }
+.hud-speed em { display: block; height: 100%; background: linear-gradient(90deg, rgba(63,224,240,.5), var(--accent)); transform-origin: left; transform: scaleX(0); transition: transform .12s linear; }
+.hud-speed.fast em { box-shadow: 0 0 10px var(--accent); }
+.hud-speed small { font: 600 10px ui-sans-serif, system-ui; letter-spacing: .16em; text-transform: uppercase; color: #9fb0bc; }
+.hud-toast { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); font: 700 18px ui-sans-serif, system-ui; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 10px rgba(63,224,240,.7); opacity: 0; transition: opacity .3s; }
+#start { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse at 50% 60%, #14324a 0%, #07090d 70%); cursor: pointer; z-index: 30; padding: 16px; }
+#start.hidden { display: none; }
+#start h1 { font: 800 clamp(40px, 9vw, 88px)/1 ui-sans-serif, system-ui; letter-spacing: .18em; margin: 0 0 8px; color: #fff; text-shadow: 0 0 30px rgba(63,224,240,.5); }
+#start p { margin: 6px 0; color: #9fb3c2; }
+#start .go { margin-top: 18px; display: inline-block; padding: 10px 22px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); font-weight: 600; letter-spacing: .1em; }
