@@ -71,6 +71,7 @@ export class TraversalCamera {
   private renderPitch = -0.15;
   private readonly focus = new Vector3();
   private readonly focusV = new Vector3();
+  private readonly lastVel = new Vector3();
   private readonly travel = new Vector3(0, 0, -1);
   private dist = 5;
   private fov = 62;
@@ -85,7 +86,6 @@ export class TraversalCamera {
   private t = 0;
   private sinceLook = 10;
   private lastKick = -10;
-  private prevState: StateId | null = null;
   private groundY = 0;
   private probeT = 0;
   private initialized = false;
@@ -160,8 +160,6 @@ export class TraversalCamera {
     const speed = f.vel.length();
     const hs = hlen(f.vel);
     const sFast = smoothstep(C.speedMin, C.fovSpeedRef, speed);
-    if (f.state === 'Swinging' && this.prevState !== null && this.prevState !== 'Swinging') this.onWebAttach(speed);
-    this.prevState = f.state;
     const air = AIR_STATES.has(f.state);
     const vertWall = f.state === 'WallRunning' && f.wallMode === 'vertical';
 
@@ -250,6 +248,11 @@ export class TraversalCamera {
       const h = dt / n;
       const wh = C.followFreq, wv = C.followFreqV, z = C.followDamping;
       const fo = this.focus, fv = this.focusV, v = f.vel;
+      // an impact (wall run start, hard landing) changes the body's velocity in one step; the
+      // spring must not coast on through the hero into the wall, so it adopts the new velocity
+      const jump = Math.hypot(v.x - this.lastVel.x, v.y - this.lastVel.y, v.z - this.lastVel.z);
+      if (jump > 10) fv.copy(v);
+      this.lastVel.copy(v);
       for (let i = 0; i < n; i++) {
         fv.x += (wh * wh * (tgt.x - fo.x) + 2 * z * wh * (v.x - fv.x)) * h;
         fv.z += (wh * wh * (tgt.z - fo.z) + 2 * z * wh * (v.z - fv.z)) * h;
@@ -271,6 +274,25 @@ export class TraversalCamera {
       if (Math.abs(off.y) > maxV) {
         fo.y = tgt.y + Math.sign(off.y) * maxV;
         if ((fv.y - v.y) * off.y > 0) fv.y = v.y;
+      }
+    }
+
+    // the pivot may lag or lead the hero, but never into a building: look-ahead at speed toward a
+    // facade would put it inside, and every collision ray would then start behind the wall
+    {
+      const base = this._a.set(f.pos.x, f.pos.y + C.height * 0.6, f.pos.z);
+      const dir = this._d.subVectors(this.focus, base);
+      const len = dir.length();
+      if (len > 0.05) {
+        dir.multiplyScalar(1 / len);
+        if (world.raycast(base, dir, len + 0.35, this.hit, Kind.NoWeb)) {
+          const keep = Math.max(0, this.hit.t - 0.35);
+          if (keep < len) {
+            this.focus.copy(base).addScaledVector(dir, keep);
+            const vin = this.focusV.dot(dir);
+            if (vin > 0) this.focusV.addScaledVector(dir, -vin);
+          }
+        }
       }
     }
 

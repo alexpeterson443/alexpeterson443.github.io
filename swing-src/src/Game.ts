@@ -352,8 +352,15 @@ export class Game {
         case 'webFire':
           this.web.fire();
           break;
+        case 'webAttach':
+          this.cam.onWebAttach(p.vel.length());
+          break;
         case 'webRelease':
-          if (e.a > 0.85) this.hud.flash('perfect release');
+          // only a hand-timed release earns the callout; the held swing's auto-release chains
+          if (e.a > 0.85 && !p.chainPending) this.hud.flash('perfect release');
+          break;
+        case 'swingJump':
+          if (e.a >= 1) { this.hud.flash('perfect jump'); this.cam.addTrauma(0.1); }
           break;
         default:
           break;
@@ -368,11 +375,12 @@ export class Game {
       pos: this.renderPos, vel: p.vel, acc: p.accSmooth, state: p.state, stateTime: p.stateTime, facing: p.facing,
       ropeActive: false, anchor: p.rope.anchor, swingAngle: 0, tension: 0, zipTarget: p.zipWebPoint,
       wallNormal: p.wallNormal, wallMode: 'vertical', trickKind: 0, landingImpact: 0, diving: false, jumpCharge: 0,
-      releaseQuality: 0, camForward: this.cam.forward,
+      releaseQuality: 0, camForward: this.cam.forward, swingTuck: 0, swingPhase: 0,
     }, Object.assign(this._af, {
       state: p.state, stateTime: p.stateTime, facing: p.facing, ropeActive: p.rope.active, swingAngle: p.rope.swingAngle,
       tension: p.rope.tension, wallMode: p.wallMode, trickKind: p.trickKind, landingImpact: p.landingImpact,
       diving: this.intent.dive && (p.state === 'Airborne' || p.state === 'Trick'), jumpCharge: p.jumpCharge, releaseQuality: p.releaseQuality,
+      swingTuck: p.swingTuck, swingPhase: p.swingPhase,
     }));
   }
   private _af: AnimFrame | null = null;

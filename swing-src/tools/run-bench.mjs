@@ -1,7 +1,8 @@
 // Headless runtime check + benchmark. Serves the production build, drives it in Chromium
 // (SwiftShader software GL in the container, the real GPU on a dev machine), captures console output/errors, screenshots, and BENCH_RESULT.
 //
-//   node tools/run-bench.mjs [bench=swing] [seconds=12] [quality=medium] [shots=4] [w=1280] [h=720]
+//   node tools/run-bench.mjs [bench=swing] [seconds=12] [quality=medium] [shots=4] [w=1280] [h=720] [states=1]
+// states=1 also saves one screenshot per movement state (bench-out/<bench>-state-<State>.png).
 import { chromium } from 'playwright-core';
 import { createServer } from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -51,6 +52,7 @@ let result = null;
 let shot = 0;
 const interval = (seconds * 1000) / Math.max(1, shots);
 let nextShot = 1500;
+const stateShots = new Set();
 while (Date.now() - t0 < seconds * 1000 * 12 + 30000) {
   await page.waitForTimeout(250);
   const el = Date.now() - t0;
@@ -58,6 +60,22 @@ while (Date.now() - t0 < seconds * 1000 * 12 + 30000) {
     await page.screenshot({ path: join(out, `${bench}-${shot}.png`) });
     shot++;
     nextShot += interval;
+  }
+  if (args.states === '1') {
+    // one screenshot per movement state, taken once it has lasted a moment (for pose/camera review)
+    const st = await page.evaluate(() => { const p = window.game?.player; return p ? `${p.state}|${p.stateTime.toFixed(2)}` : null; });
+    if (st) {
+      const [name, t] = st.split('|');
+      // up to three shots per state: just in, settled, and well into it
+      for (const [k, at] of [[0, 0.25], [1, 0.9], [2, 2.0]]) {
+        const key = `${name}-${k}`;
+        if (Number(t) > at && !stateShots.has(key)) {
+          stateShots.add(key);
+          await page.screenshot({ path: join(out, `${bench}-state-${name}-${k}.png`) });
+          break;
+        }
+      }
+    }
   }
   result = await page.evaluate(() => window.__benchResult ?? null);
   if (result) break;

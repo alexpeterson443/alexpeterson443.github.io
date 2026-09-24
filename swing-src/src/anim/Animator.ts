@@ -26,6 +26,10 @@ export interface AnimFrame {
   diving: boolean;
   jumpCharge: number;
   releaseQuality: number;
+  /** 0..1 swing-jump cue from the swing state: 1 at the centre of the perfect jump window. */
+  swingTuck: number;
+  /** swing arc phase −1..1 (0 = bottom, +1 = end of the up-swing) */
+  swingPhase: number;
   camForward: Vector3;
 }
 
@@ -598,13 +602,14 @@ export class Animator {
     const t = f.stateTime;
     const G = clamp(f.tension / (T.physics.mass * T.physics.gravity), 0, 6); // g-load
     const heavy = smoothstep(1.2, 4, G);
-    const lo = T.web.idealReleaseAngleMin, hi = T.web.idealReleaseAngleMax;
     // phases along the arc
     const down = smoothstep(-4, -35, a);
     const up = smoothstep(2, 14, a);
-    const late = smoothstep(hi - 2, hi + 22, a) * (f.vel.y > -1 ? 1 : 0);
+    // the end of the arc (phase → 1): body opens up toward the release
+    const late = smoothstep(0.7, 0.95, f.swingPhase) * (f.vel.y > -1 ? 1 : 0);
     // the swing-jump cue: legs tuck to ~90° through the ideal jump window on the up-swing
-    const inWindow = f.vel.y > 0 ? smoothstep(lo - 12, lo + 1, a) * (1 - smoothstep(hi - 6, hi + 10, a)) : 0;
+    // (driven by the swing state's own timing so the pose and the perfect window always agree)
+    const inWindow = f.swingTuck;
     this.tuckW += (inWindow - this.tuckW) * damp(16, dt);
     const tk = this.tuckW;
     const catchK = 1 - smoothstep(0.05, 0.3, t);
