@@ -78,6 +78,8 @@ export class Player {
   moveDur = 0.3;
   releaseQuality = 0;
   losTimer = 0;
+  arcGroundTimer = 0;
+  arcGroundY = 0;
   launchQueued = false;
   /** where the visual web of a zip is attached */
   readonly zipWebPoint = new Vector3();

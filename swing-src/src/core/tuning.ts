@@ -71,7 +71,8 @@ export const Tuning = {
     attachConeDeg: 70,
     minAnchorHeightAbovePlayer: 6,
     idealAnchorDistance: 38,
-    idealAnchorElevationDeg: 52,
+    idealAnchorElevationDeg: 50,
+    minAnchorElevationDeg: 24,
   },
   assist: {
     enabled: 1,
@@ -82,9 +83,9 @@ export const Tuning = {
     autoExtend: 1,
     cornerAvoidForce: 1200,
     turnAssist: 0.6,
-    swingPlaneAssist: 0.45,
+    swingPlaneAssist: 0.85,
     forwardAssistForce: 280, // N along desired direction when input pressed
-    predictHorizon: 1.2,
+    predictHorizon: 1.6,
   },
   anchor: {
     rayCount: 40,
@@ -99,6 +100,7 @@ export const Tuning = {
     wTurn: 1.2,
     wStreet: 0.5,
     wSpeedGain: 1.4,
+    wPlane: 1.8,
   },
   zip: {
     zipSpeed: 48,

@@ -158,7 +158,10 @@ export class AnchorSelector {
       const terms = cand.terms;
       if (rise < T.web.minAnchorHeightAbovePlayer) { cand.valid = false; cand.reason = 'too low'; continue; }
       if (dist > maxLen) { cand.valid = false; cand.reason = 'too far'; continue; }
-      if (dist < T.web.minLength * 1.4) { cand.valid = false; cand.reason = 'too close'; continue; }
+      // short ropes at speed mean huge centripetal loads (v²/L); scale the minimum with speed
+      if (dist < Math.max(T.web.minLength * 1.4, speed * 0.45)) { cand.valid = false; cand.reason = 'too close'; continue; }
+      // shallow anchors produce huge drops; the web must pull mostly upward
+      if (Math.atan2(rise, hd) < T.web.minAnchorElevationDeg * DEG) { cand.valid = false; cand.reason = 'too shallow'; continue; }
       const hx = hd > 1e-3 ? to.x / hd : 0, hz = hd > 1e-3 ? to.z / hd : 0;
       const along = hx * heading.x + hz * heading.z;
       const cone = Math.cos(T.web.attachConeDeg * DEG);
@@ -192,10 +195,16 @@ export class AnchorSelector {
         terms.continuity = dp < 6 ? -1 : Math.min(1, dp / 30);
       } else terms.continuity = 0.5;
       terms.visibility = cand.source === 'ray' ? 1 : 0.85;
+      // swing plane: the arc bottom lies under the anchor, so a sideways anchor swings you into
+      // the facade. Prefer anchors within ~15–30° of the travel direction once moving.
+      const planeRef = hs > 4 ? vdir : along;
+      const planeDeg = Math.acos(Math.max(-1, Math.min(1, planeRef))) / DEG;
+      terms.plane = hs > 4 ? Math.exp(-Math.pow(Math.max(0, planeDeg - 12) / 16, 2)) * 2 - 1 : 0;
       cand.score =
         A.wDistance * terms.distance + A.wHeight * terms.height + A.wDirection * terms.direction +
         A.wCamera * terms.camera + A.wInput * terms.input + A.wStreet * terms.street +
-        A.wTurn * terms.turn + A.wContinuity * terms.continuity + A.wVisibility * terms.visibility;
+        A.wTurn * terms.turn + A.wContinuity * terms.continuity + A.wVisibility * terms.visibility +
+        A.wPlane * terms.plane * (1 - 0.6 * Math.min(1, turnAmt));
     }
 
     // --- 4. trajectory prediction for the top candidates --------------------

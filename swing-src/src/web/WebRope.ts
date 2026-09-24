@@ -43,6 +43,8 @@ export class WebRope {
     this.age = 0;
     this.tension = 0;
     this.inContact = false;
+    this.swingAngle = -90;
+    this.radialVel = 0;
   }
 
   detach(): void {
@@ -67,7 +69,9 @@ export class WebRope {
     this.tensionAnalytic = this.taut ? Math.max(0, T.physics.mass * (vt2 / Math.max(1, this.length) - gEff * r.y)) : 0;
     const cosA = Math.max(-1, Math.min(1, -r.y));
     const ang = Math.acos(cosA) * (180 / Math.PI);
-    this.swingAngle = vel.y >= 0 ? ang : -ang;
+    // past the bottom = moving horizontally away from the point under the anchor
+    const away = r.x * vel.x + r.z * vel.z;
+    this.swingAngle = away >= 0 ? ang : -ang;
   }
 
   get dir(): Vector3 {

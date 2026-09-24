@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { T } from '../../core/tuning';
-import { clamp, hlen } from '../../core/math';
+import { clamp, hlen, smoothstep } from '../../core/math';
 import { Kind } from '../../world/CollisionWorld';
 import { registerState, type StateId } from '../StateMachine';
 import type { Player } from '../Player';
@@ -29,7 +29,8 @@ export function releaseQuality(swingAngleDeg: number, vy: number): number {
 /** Let go of the web: keep momentum, add a timing-graded boost (plus a jump if requested). */
 export function releaseWeb(p: Player, jump: boolean): StateId {
   const r = p.rope;
-  const q = releaseQuality(r.swingAngle, p.vel.y);
+  // a boost has to be earned by an actual swing: tap-releasing right after attaching gets nothing
+  const q = releaseQuality(r.swingAngle, p.vel.y) * smoothstep(0.12, 0.45, r.age);
   p.releaseQuality = q;
   const s = p.vel.length();
   if (s > 0.5) p.vel.addScaledVector(_dir.copy(p.vel).multiplyScalar(1 / s), T.web.releaseBoost * q);
@@ -41,12 +42,30 @@ export function releaseWeb(p: Player, jump: boolean): StateId {
   return 'Airborne';
 }
 
+/**
+ * Height of whatever lies under the lowest point of the current arc. With the swing-plane
+ * assist the arc bottom is the anchor projected onto the vertical plane of travel.
+ */
+function arcBottomGround(p: Player): number {
+  const r = p.rope;
+  const hs = hlen(p.vel);
+  let bx = r.anchor.x, bz = r.anchor.z;
+  if (hs > 2) {
+    const fx = p.vel.x / hs, fz = p.vel.z / hs;
+    const t = (r.anchor.x - p.pos.x) * fx + (r.anchor.z - p.pos.z) * fz;
+    if (t > 0) { bx = p.pos.x + fx * t; bz = p.pos.z + fz * t; } else return 0;
+  }
+  _e.set(bx, Math.min(r.anchor.y - 1, p.pos.y + 60), bz);
+  return p.world.heightBelow(_e, 400);
+}
+
 registerState({
   id: 'Swinging',
   group: 'Web',
   enter(p) {
     p.emit('webAttach', p.rope.length);
     p.losTimer = 0;
+    p.arcGroundTimer = 0;
   },
   exit(p) {
     if (p.rope.active) p.rope.detach();
@@ -66,7 +85,13 @@ registerState({
     // holding traverse with no stick swings toward the camera direction
     const des = desired(input, _d);
     if (des.lengthSq() < 0.01) input.camForwardFlat(des).multiplyScalar(0.65);
-    const groundY = p.surfaceBelow();
+    // ground under the player and under the bottom of the arc ahead (roofs in the path count)
+    p.arcGroundTimer -= dt;
+    if (p.arcGroundTimer <= 0) {
+      p.arcGroundTimer = 0.08;
+      p.arcGroundY = arcBottomGround(p);
+    }
+    const groundY = Math.max(p.surfaceBelow(), p.arcGroundY);
     updateRopeTarget(r, p.pos, groundY, input.dive);
     if (input.reel) r.targetLength = Math.max(T.web.minLength, r.length - T.web.reelRate * dt * 2);
     accumulateSwingForces(p.pos, p.vel, r, des, groundY, p.world, _F, p.swingDbg);

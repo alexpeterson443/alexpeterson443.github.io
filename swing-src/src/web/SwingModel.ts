@@ -81,7 +81,7 @@ export function accumulateSwingForces(
         dbg?.pump.copy(vt).multiplyScalar(pump);
         // steer: component of desired perpendicular to motion within tangent plane
         const lat = _lat.copy(t).addScaledVector(vt, -along);
-        const steer = T.web.swingSteerForce * (1 + T.assist.swingPlaneAssist * T.assist.enabled) * inMag;
+        const steer = T.web.swingSteerForce * inMag;
         F.addScaledVector(lat, steer);
         dbg?.steer.copy(lat).multiplyScalar(steer);
         // turn assist: lateral force m·|v|·ω toward desired when heading differs a lot
@@ -120,6 +120,28 @@ export function accumulateSwingForces(
       const u = smoothstep(want, T.assist.minSwingAltitude * 0.3, predicted);
       F.y += T.assist.groundAvoidForce * u;
       // bleed some downward speed into forward speed rather than losing it
+    }
+    // swing-plane assist: cancel part of the rope's sideways pull (relative to where the player
+    // wants to go) so swings follow the street instead of arcing into the facade
+    const pa = T.assist.swingPlaneAssist;
+    if (pa > 0 && rope.taut && rope.tension > 0) {
+      const dl = Math.hypot(desired.x, desired.z);
+      let fx: number, fz: number;
+      if (dl > 0.05) { fx = desired.x / dl; fz = desired.z / dl; }
+      else {
+        const hs = Math.hypot(vel.x, vel.z);
+        if (hs < 2) { fx = 0; fz = 0; } else { fx = vel.x / hs; fz = vel.z / hs; }
+      }
+      if (fx !== 0 || fz !== 0) {
+        // tension force = −r̂·T ; its horizontal part across the travel direction
+        const tx = -rHat.x * rope.tension, tz = -rHat.z * rope.tension;
+        const lx = -fz, lz = fx; // left perpendicular
+        const across = tx * lx + tz * lz;
+        const cap = m * 45;
+        const c = Math.max(-cap, Math.min(cap, across)) * pa;
+        F.x -= lx * c;
+        F.z -= lz * c;
+      }
     }
     // corner avoidance: probe along velocity, push sideways off the obstacle
     if (world && speed > 6) {
