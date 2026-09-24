@@ -80,7 +80,7 @@ export class CityRenderer {
 
   private buildGround(): void {
     const b = this.city.bounds, p = this.city.params;
-    const margin = 600;
+    const margin = 6; // beyond the district the horizon's far ground and water take over
     const g = new PlaneGeometry(b.x1 - b.x0 + margin * 2, b.z1 - b.z0 + margin * 2);
     g.rotateX(-Math.PI / 2);
     const ground = new Mesh(g, createGroundMaterial(this.city.avenueX, this.city.streetZ, p.avenueWidth, p.streetWidth));

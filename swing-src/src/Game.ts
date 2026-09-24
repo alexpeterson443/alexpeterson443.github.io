@@ -15,6 +15,12 @@ import { CityRenderer } from './render/CityRenderer';
 import { PostFX, type Quality } from './render/PostFX';
 import { WebLine } from './render/WebLine';
 import { SpeedFX } from './render/SpeedFX';
+import { buildHorizonLayout } from './render/HorizonLayout';
+import { updateHorizonUniforms } from './render/HorizonShared';
+import { Skyline } from './render/Skyline';
+import { FarGround } from './render/FarGround';
+import { Water } from './render/Water';
+import { Bridge } from './render/Bridge';
 import { Rig } from './anim/Rig';
 import { Animator, type AnimFrame } from './anim/Animator';
 import { AudioSystem, type AudioFrame } from './audio/AudioSystem';
@@ -73,6 +79,10 @@ export class Game {
   readonly gpu: GpuTimer;
   private acc = 0;
   private last = 0;
+  private skyline!: Skyline;
+  private farGround!: FarGround;
+  private water!: Water;
+  private bridge!: Bridge;
   private speedFx: SpeedFX;
   private fps = 60;
   private frameMs = 16;
@@ -156,6 +166,13 @@ export class Game {
     this.cityView = new CityRenderer(this.city);
     this.cityView.addTo(this.scene);
     this.env.setStaticCasters(this.cityView.group);
+    // the world beyond the district: skyline ring, far streets and quays, the harbour and a bridge
+    const hl = buildHorizonLayout(this.city);
+    this.skyline = new Skyline(hl);
+    this.farGround = new FarGround(hl, this.city);
+    this.water = new Water(hl);
+    this.bridge = new Bridge(hl.bridge);
+    this.scene.add(this.skyline.group, this.farGround.group, this.water.mesh, this.bridge.group);
     this.ai = new AISystem(this.city, this.scene, { seed });
     this.updateLights();
     this.spawn();
@@ -229,6 +246,7 @@ export class Game {
     const w = this.container.clientWidth || window.innerWidth, h = this.container.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h);
     WebLine.viewportH = h * this.renderer.getPixelRatio();
+    this.skyline?.setPixelRatio(this.renderer.getPixelRatio());
     this.post.setSize(w, h);
     this.cam.camera.aspect = w / h;
     this.cam.camera.updateProjectionMatrix();
@@ -321,6 +339,8 @@ export class Game {
     profiler.end('camera');
     this.env.followShadow(this.renderPos);
     this.env.update(dt);
+    updateHorizonUniforms(this.env, dt);
+    this.bridge.update();
     profiler.begin('ai');
     this.ai?.update(dt, { pos: this.renderPos, vel: p.vel }, this.cam.camera);
     profiler.end('ai');
