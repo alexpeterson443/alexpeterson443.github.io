@@ -121,7 +121,7 @@ export function airTransitions(p: Player, input: Intent, allowWeb = true): State
     if (beginZip(p, input)) return 'WebZip';
   }
   // no web when about to touch down anyway (e.g. stepping off a kerb while sprinting)
-  if (allowWeb && input.traverse && p.webCooldown <= 0 && p.feetY - p.surfaceBelow() > 2.5) {
+  if (allowWeb && input.traverse && p.webCooldown <= 0 && p.feetY - p.surfaceBelow() > 1.2) {
     // a held swing chains straight into the next web after an automatic end-of-arc release; a fresh
     // press fires almost at once; a swing held through a manual release waits a moment (or a fall)
     const ready = p.chainPending ? p.timeSinceRelease >= T.web.chainDelay
