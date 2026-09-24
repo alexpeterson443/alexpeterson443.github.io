@@ -46,6 +46,7 @@ export class Player {
   prevAnchor: Vector3 | null = null;
   webCooldown = 0;
   timeSinceRelease = 10;
+  private lastWebFail = -10;
 
   // ground
   onGround = false;
@@ -299,7 +300,9 @@ export class Player {
       pos: this.pos, vel: this.vel, input: desired, camForward: input.camForward, prevAnchor: this.prevAnchor,
     });
     if (!best) {
-      this.emit('webFail');
+      // nothing to attach to (e.g. above the skyline): keep trying quietly, cue the player once
+      if (this.simTime - this.lastWebFail > 0.8) this.emit('webFail');
+      this.lastWebFail = this.simTime;
       return false;
     }
     this.rope.attach(best.point, this.pos, best.box);

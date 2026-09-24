@@ -16,6 +16,7 @@ export interface AnchorCandidate {
   predicted: boolean;
   minClearance: number;
   collided: boolean;
+  collideTime: number;
 }
 
 export interface AnchorQuery {
@@ -37,7 +38,7 @@ const NCAND = 160;
 export class AnchorSelector {
   readonly candidates: AnchorCandidate[] = Array.from({ length: NCAND }, () => ({
     point: new Vector3(), normal: new Vector3(), box: -1, source: 'ray' as const, valid: false,
-    reason: '', score: -Infinity, terms: {}, predicted: false, minClearance: 0, collided: false,
+    reason: '', score: -Infinity, terms: {}, predicted: false, minClearance: 0, collided: false, collideTime: Infinity,
   }));
   count = 0;
   best: AnchorCandidate | null = null;
@@ -69,6 +70,7 @@ export class AnchorSelector {
     c.predicted = false;
     c.minClearance = 0;
     c.collided = false;
+    c.collideTime = Infinity;
     return c;
   }
 
@@ -199,7 +201,8 @@ export class AnchorSelector {
       // the facade. Prefer anchors within ~15–30° of the travel direction once moving.
       const planeRef = hs > 4 ? vdir : along;
       const planeDeg = Math.acos(Math.max(-1, Math.min(1, planeRef))) / DEG;
-      terms.plane = hs > 4 ? Math.exp(-Math.pow(Math.max(0, planeDeg - 12) / 16, 2)) * 2 - 1 : 0;
+      if (hs > 15 && planeDeg > 65) { cand.valid = false; cand.reason = 'sideways at speed'; continue; }
+      terms.plane = hs > 4 ? (Math.exp(-Math.pow(Math.max(0, planeDeg - 12) / 16, 2)) * 2 - 1) * (0.6 + 0.8 * Math.min(1, (hs - 4) / 16)) : 0;
       cand.score =
         A.wDistance * terms.distance + A.wHeight * terms.height + A.wDirection * terms.direction +
         A.wCamera * terms.camera + A.wInput * terms.input + A.wStreet * terms.street +
@@ -220,6 +223,9 @@ export class AnchorSelector {
       cand.predicted = true;
       cand.minClearance = pr.minClearance;
       cand.collided = pr.collided;
+      cand.collideTime = pr.collideTime;
+      // a web that slams you into geometry almost immediately is never the right answer
+      if (pr.collided && pr.collideTime < 0.5) { cand.valid = false; cand.reason = 'immediate collision'; }
       const terms = cand.terms;
       terms.clearance = pr.collided ? -2 + Math.min(1, pr.collideTime / T.assist.predictHorizon) : Math.min(1, pr.minClearance / T.assist.groundClearance) - 0.2;
       const gain = (pr.endSpeed - speed) / 20;
@@ -233,6 +239,7 @@ export class AnchorSelector {
     let best: AnchorCandidate | null = null;
     for (const c of order) {
       const cand = this.candidates[c];
+      if (!cand.valid) continue;
       if (!best || cand.score > best.score) best = cand;
     }
     this.best = best;

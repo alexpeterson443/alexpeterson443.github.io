@@ -88,7 +88,7 @@ export const Tuning = {
     predictHorizon: 1.6,
   },
   anchor: {
-    rayCount: 40,
+    rayCount: 56,
     wDistance: 1.0,
     wHeight: 1.0,
     wDirection: 1.6,

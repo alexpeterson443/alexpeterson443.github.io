@@ -22,7 +22,7 @@ export interface FlightMetrics {
   webFails: number;
 }
 
-export type PilotStyle = 'swing' | 'swingLow' | 'swingTurn' | 'parkour' | 'diveCatch';
+export type PilotStyle = 'swing' | 'swingLow' | 'swingTurn' | 'parkour' | 'diveCatch' | 'tour';
 
 export class BotPilot {
   private releaseT = 0;

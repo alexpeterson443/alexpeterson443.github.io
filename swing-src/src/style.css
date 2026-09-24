@@ -1,0 +1,20 @@
+:root { color-scheme: dark; --accent: #3fe0f0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #07090d; overflow: hidden; font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; color: #e8eef3; }
+#app { position: fixed; inset: 0; }
+canvas { display: block; }
+.overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.dbg-label { position: absolute; left: 0; top: 0; font: 11px/1 ui-monospace, monospace; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.hud { position: absolute; inset: 0; pointer-events: none; }
+.hud-stats { position: absolute; left: 10px; top: 10px; margin: 0; padding: 8px 10px; background: rgba(0,0,0,.55); border-radius: 6px; font: 11px/1.45 ui-monospace, monospace; color: #cfe; max-width: calc(100vw - 20px); white-space: pre-wrap; }
+.hud-help { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 14px; background: rgba(5,8,12,.72); border: 1px solid rgba(63,224,240,.3); border-radius: 8px; line-height: 1.7; text-align: center; max-width: calc(100vw - 32px); }
+.hud-help.hidden { display: none; }
+kbd { display: inline-block; padding: 0 5px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; font: 11px ui-monospace, monospace; background: rgba(255,255,255,.08); }
+.hud-reticle { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border: 2px solid var(--accent); box-shadow: 0 0 8px var(--accent); display: none; }
+.hud-speed { position: absolute; right: 16px; bottom: 14px; font: 600 15px ui-monospace, monospace; color: #fff; text-shadow: 0 0 6px #000; letter-spacing: .04em; }
+.hud-toast { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); font: 700 18px ui-sans-serif, system-ui; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 10px rgba(63,224,240,.7); opacity: 0; transition: opacity .3s; }
+#start { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse at 50% 60%, #14324a 0%, #07090d 70%); cursor: pointer; z-index: 30; padding: 16px; }
+#start.hidden { display: none; }
+#start h1 { font: 800 clamp(40px, 9vw, 88px)/1 ui-sans-serif, system-ui; letter-spacing: .18em; margin: 0 0 8px; color: #fff; text-shadow: 0 0 30px rgba(63,224,240,.5); }
+#start p { margin: 6px 0; color: #9fb3c2; }
+#start .go { margin-top: 18px; display: inline-block; padding: 10px 22px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); font-weight: 600; letter-spacing: .1em; }

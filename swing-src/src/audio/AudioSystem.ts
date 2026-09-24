@@ -193,6 +193,16 @@ export class AudioSystem {
     }
   }
 
+  /** A car horn from a driver reacting to the player; `dist` in metres from the listener. */
+  honk(dist: number): void {
+    if (!this.ctx || !this.amb) return;
+    try {
+      this.horn(Math.max(0, 1 - dist / 120) * 1.6);
+    } catch {
+      /* ignore */
+    }
+  }
+
   stats(): Record<string, number> {
     return {
       voices: this.voices.length,
