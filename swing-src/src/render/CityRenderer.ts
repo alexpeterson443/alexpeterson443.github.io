@@ -103,17 +103,24 @@ export class CityRenderer {
     const b = this.city.bounds;
     const nx = Math.ceil((b.x1 - b.x0) / chunk), nz = Math.ceil((b.z1 - b.z0) / chunk);
     const batches: Batch[] = Array.from({ length: nx * nz }, () => new Batch());
-    const col = new Color();
+    const col = new Color(), glass = new Color(), frame = new Color(), trimC = new Color();
     const trim = new Batch();
     for (const bd of this.city.buildings) {
-      col.setHSL(bd.hue, bd.sat, bd.light);
+      col.setHex(bd.wallColor);
+      glass.setHex(bd.glassColor);
+      frame.setHex(bd.frameColor);
+      trimC.setHex(bd.trimColor);
       for (const t of bd.tiers) {
         const cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
         const ci = Math.min(nx - 1, Math.floor((cx - b.x0) / chunk)) + Math.min(nz - 1, Math.floor((cz - b.z0) / chunk)) * nx;
-        batches[ci].add(cx, t.y0, cz, t.x1 - t.x0, t.y1 - t.y0, t.z1 - t.z0, 0, col,
-          [bd.windowW, bd.windowH, bd.floorH, bd.seed, bd.style, bd.litFraction, 0, 0]);
+        batches[ci].add(cx, t.y0, cz, t.x1 - t.x0, t.y1 - t.y0, t.z1 - t.z0, 0, col, [
+          bd.windowW, bd.windowH, bd.floorH, bd.seed,
+          bd.archetype, bd.litFraction, bd.pier, bd.sill,
+          bd.groundH, bd.paired ? 1 : 0, bd.office ? 1 : 0, bd.roofKind,
+          glass.r, glass.g, glass.b, frame.r, frame.g, frame.b, trimC.r, trimC.g, trimC.b,
+        ]);
         // cornice ledge ringing each tier top (four slabs, so the roof surface stays visible)
-        const tc = col.clone().multiplyScalar(0.8);
+        const tc = trimC.clone().multiplyScalar(0.85);
         const w = t.x1 - t.x0, d = t.z1 - t.z0, o = 0.3, h = 0.55, y = t.y1 - 0.45;
         trim.add(cx, y, t.z0 + 0.15, w + 2 * o, h, 0.9, 0, tc);
         trim.add(cx, y, t.z1 - 0.15, w + 2 * o, h, 0.9, 0, tc);
@@ -122,21 +129,23 @@ export class CityRenderer {
       }
     }
     const geo = baseBox();
+    // per-instance extras, in the order pushed above: [attribute name, component count]
+    const layout: [string, number][] = [['aFacade', 4], ['aFacade2', 4], ['aFacade3', 4], ['aGlass', 3], ['aFrame', 3], ['aTrim', 3]];
     for (const batch of batches) {
-      // aFacade (4) + aFacade2 (4) are packed as 8 extras per instance
       if (!batch.count) continue;
       const g = geo.clone();
       const e = batch.extra;
-      const a1: number[] = [], a2: number[] = [];
-      for (let i = 0; i < batch.count; i++) {
-        a1.push(e[0][i], e[1][i], e[2][i], e[3][i]);
-        a2.push(e[4][i], e[5][i], e[6][i], e[7][i]);
-      }
+      let k = 0;
+      const attrs = layout.map(([name, size]) => {
+        const arr = new Float32Array(batch.count * size);
+        for (let i = 0; i < batch.count; i++) for (let c = 0; c < size; c++) arr[i * size + c] = e[k + c][i];
+        k += size;
+        return [name, new InstancedBufferAttribute(arr, size)] as const;
+      });
       batch.extra = [];
       const mesh = batch.build(g, mat);
       if (!mesh) continue;
-      g.setAttribute('aFacade', new InstancedBufferAttribute(new Float32Array(a1), 4));
-      g.setAttribute('aFacade2', new InstancedBufferAttribute(new Float32Array(a2), 4));
+      for (const [name, a] of attrs) g.setAttribute(name, a);
       this.add(mesh);
     }
     this.add(trim.build(baseBox(), new MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 })));

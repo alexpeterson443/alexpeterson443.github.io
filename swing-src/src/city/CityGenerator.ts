@@ -65,13 +65,22 @@ export interface Tier {
 
 export type RoofType = 'flat' | 'parapet' | 'stepped' | 'spire' | 'crown';
 
+/** Facade archetypes (appearance only; the renderer and facade shader share these ids). */
+export const Archetype = {
+  Brick: 0, Brownstone: 1, Limestone: 2, Concrete: 3, Granite: 4, Curtain: 5, Ribbon: 6,
+} as const;
+
+/** Roof surface kinds (appearance only). */
+export const RoofKind = { Tar: 0, Membrane: 1, Gravel: 2, Pavers: 3 } as const;
+
 export interface Building {
   id: number;
   tiers: Tier[];
   height: number;
   roof: RoofType;
-  /** facade style: 0 = brick/stone punched windows, 1 = glass curtain wall, 2 = concrete bands */
+  /** layout style draw: 0 = punched windows, 1 = glass curtain wall, 2 = bands (refined into `archetype`) */
   style: number;
+  /** wall colour as HSL of the linear colour (kept for compatibility; `wallColor` is authoritative) */
   hue: number;
   sat: number;
   light: number;
@@ -80,7 +89,158 @@ export interface Building {
   floorH: number;
   litFraction: number;
   seed: number;
+  // --- appearance only: derived from a separate hash of the building, never the layout RNG ---
+  archetype: number;
+  /** sRGB 0xRRGGBB */
+  wallColor: number;
+  trimColor: number;
+  frameColor: number;
+  glassColor: number;
+  /** storefront / lobby storey height (m) */
+  groundH: number;
+  /** masonry between window bays (m); 0 for glazed grids */
+  pier: number;
+  /** window sill height above each floor slab (m) */
+  sill: number;
+  /** windows grouped in pairs within each bay */
+  paired: boolean;
+  /** office floors (lit by zone at night) rather than apartments (lit per room) */
+  office: boolean;
+  roofKind: number;
 }
+
+/** Deterministic 32-bit hash used to seed the appearance RNG (independent of the layout RNG). */
+function appearanceSeed(citySeed: number, id: number): number {
+  let h = (Math.imul(citySeed | 0, 0x9e3779b1) ^ Math.imul(id + 1, 0x85ebca6b)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+function srgbToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+/** Jitter an sRGB colour's brightness/saturation a little so no two buildings match exactly. */
+function jitterColor(hex: number, a: Rng, amt: number): number {
+  const ch = [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255].map((v) => v / 255);
+  const k = 1 + a.range(-amt, amt);
+  const warm = a.range(-amt, amt) * 0.35;
+  const out = ch.map((v, i) => clamp(v * k * (1 + (i === 0 ? warm : i === 2 ? -warm : 0)), 0, 1));
+  return (Math.round(out[0] * 255) << 16) | (Math.round(out[1] * 255) << 8) | Math.round(out[2] * 255);
+}
+
+/** HSL of the *linear* colour, matching how `Color.setHSL` interprets it in the working colour space. */
+function hexToLinearHsl(hex: number): [number, number, number] {
+  const r = srgbToLinear(((hex >> 16) & 255) / 255), g = srgbToLinear(((hex >> 8) & 255) / 255), b = srgbToLinear((hex & 255) / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  const l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn;
+  const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+
+const PAL = {
+  brickWall: [0x8b3a2b, 0x9a4632, 0x7b3226, 0x6f3b2c, 0xa0583d, 0x5f2b23, 0x86503a, 0x8f4430, 0xb39a76, 0xa9785a, 0xbdb6a8],
+  brickTrim: [0xd2c7b0, 0xc4b89c, 0xe0dcd2, 0xb8ab90, 0xcfc9bb],
+  brickFrame: [0x1c1e1e, 0x1f3327, 0xe2e0da, 0x3b2a1f, 0x5a1f1a, 0xdad6cc],
+  brownWall: [0x5b3e32, 0x684636, 0x4c342a, 0x735243, 0x62463a],
+  brownFrame: [0x1a1a1a, 0xe0ddd5, 0x2d3a2c, 0x3a2418],
+  limeWall: [0xcfc1a5, 0xd9cdb5, 0xc2b08f, 0xbfb7a8, 0xe2d6bd, 0xb4a58b, 0xc9b79a, 0xd6c3a3],
+  limeTrim: [0xe6ddca, 0xa89a7f, 0xd8cfbd, 0xb9ab90],
+  limeFrame: [0x22201c, 0x2b3a31, 0x4b3b2a, 0xdcd8cc, 0x1a1d20],
+  concWall: [0x9c9a94, 0x8c8a85, 0xa9a59c, 0x7c7b77, 0xb2aa98, 0x929a9c, 0xa39d92],
+  concFrame: [0x9ea4a8, 0x2c2f33, 0x6b6f72, 0x8d8f8c],
+  granWall: [0x2a292b, 0x3b3633, 0x4a3f3a, 0x262b30, 0x5a4c44, 0x3d3f42, 0x6b5a50],
+  granFrame: [0x4a3a28, 0x151515, 0x3a3a3a, 0x6a5238],
+  granGlass: [0x5a4a38, 0x4b555a, 0x3d4a52, 0x465048],
+  cwWall: [0x8f979d, 0x5a6066, 0x2e3237, 0xa7adb2, 0x44484c],
+  cwGlass: [0x3d6b8f, 0x2f5f70, 0x467f76, 0x7a6548, 0x9aa6ae, 0x2a4666, 0x33393f, 0x5f8fa3, 0x55708a, 0x8a7a64],
+  cwFrame: [0xa9b0b5, 0x2b2f33, 0x5c4a36, 0x7d858b],
+  ribWall: [0xd9d9d3, 0xc7b99d, 0x9e9b94, 0x4b4e52, 0x8e4b3a, 0xb8c0c4, 0xe4e1d8],
+  ribGlass: [0x4f6f80, 0x5d7d74, 0x3d4a55, 0x6a7a80, 0x49606e],
+  ribFrame: [0x9aa0a4, 0x2a2d31, 0x5d6166],
+  resGlass: [0x8fa3a0, 0x98a4ad, 0x8a9a96, 0xa0aaaf],
+} as const;
+
+/**
+ * Appearance of one building: archetype, palette, window module and storefront height. Draws only
+ * from its own RNG `a`, so the layout (and every other building) is unaffected.
+ */
+function applyAppearance(b: Building, a: Rng): void {
+  const h = b.height;
+  const r = a.next();
+  let arch: number;
+  if (b.style === 1) arch = h > 60 ? (r < 0.8 ? Archetype.Curtain : Archetype.Granite) : r < 0.6 ? Archetype.Curtain : Archetype.Ribbon;
+  else if (b.style === 2) arch = h > 90 ? (r < 0.5 ? Archetype.Ribbon : r < 0.8 ? Archetype.Concrete : Archetype.Granite) : r < 0.55 ? Archetype.Ribbon : Archetype.Concrete;
+  else if (h < 28) arch = r < 0.45 ? Archetype.Brick : r < 0.75 ? Archetype.Brownstone : Archetype.Limestone;
+  else if (h < 70) arch = r < 0.5 ? Archetype.Brick : r < 0.85 ? Archetype.Limestone : Archetype.Concrete;
+  else arch = r < 0.55 ? Archetype.Limestone : r < 0.75 ? Archetype.Brick : Archetype.Concrete;
+
+  let wall: number, trim: number, frame: number, glass: number;
+  let floorH: number, winW: number, winH: number, pier: number, sill: number, groundH: number;
+  let paired = false, office = false;
+  switch (arch) {
+    case Archetype.Brick:
+      wall = a.pick(PAL.brickWall); trim = a.pick(PAL.brickTrim); frame = a.pick(PAL.brickFrame); glass = a.pick(PAL.resGlass);
+      floorH = a.range(3.1, 3.4); winW = a.range(0.95, 1.25); winH = a.range(1.65, 1.95); pier = a.range(0.9, 1.5); sill = a.range(0.8, 0.9);
+      paired = a.chance(0.25); groundH = a.range(4.2, 4.8);
+      break;
+    case Archetype.Brownstone:
+      wall = a.pick(PAL.brownWall); trim = jitterColor(wall, a, 0.1); frame = a.pick(PAL.brownFrame); glass = a.pick(PAL.resGlass);
+      floorH = a.range(3.4, 3.8); winW = a.range(1.0, 1.2); winH = a.range(2.0, 2.3); pier = a.range(1.1, 1.5); sill = 0.75;
+      paired = a.chance(0.1); groundH = a.range(4.2, 4.6);
+      break;
+    case Archetype.Limestone:
+      wall = a.pick(PAL.limeWall); trim = a.pick(PAL.limeTrim); frame = a.pick(PAL.limeFrame); glass = a.pick(PAL.resGlass);
+      floorH = a.range(3.4, 3.8); winW = a.range(1.0, 1.35); winH = a.range(1.8, 2.15); pier = a.range(0.7, 1.2); sill = 0.8;
+      paired = a.chance(0.5); office = a.chance(0.4); groundH = a.range(4.4, 5.2);
+      break;
+    case Archetype.Concrete:
+      wall = a.pick(PAL.concWall); trim = wall; frame = a.pick(PAL.concFrame); glass = a.pick(PAL.ribGlass);
+      floorH = a.range(3.3, 3.8); winW = a.range(1.5, 2.3); winH = a.range(1.5, 1.9); pier = a.range(0.7, 1.3); sill = 0.85;
+      office = a.chance(0.7); groundH = a.range(4.4, 5.4);
+      break;
+    case Archetype.Granite:
+      wall = a.pick(PAL.granWall); trim = jitterColor(wall, a, 0.15); frame = a.pick(PAL.granFrame); glass = a.pick(PAL.granGlass);
+      floorH = a.range(3.8, 4.1); winW = a.range(1.5, 2.4); winH = floorH - a.range(1.0, 1.2); pier = a.range(0.7, 1.0); sill = 0.5;
+      office = true; groundH = a.range(5.0, 6.0);
+      break;
+    case Archetype.Curtain:
+      wall = a.pick(PAL.cwWall); frame = a.pick(PAL.cwFrame); trim = frame; glass = a.pick(PAL.cwGlass);
+      floorH = a.range(3.8, 4.2); winW = a.range(1.35, 1.7); winH = floorH - a.range(0.9, 1.2); pier = 0; sill = 0.08;
+      office = true; groundH = a.range(5.0, 6.2);
+      break;
+    default:
+      wall = a.pick(PAL.ribWall); frame = a.pick(PAL.ribFrame); trim = wall; glass = a.pick(PAL.ribGlass);
+      floorH = a.range(3.5, 3.9); winW = a.range(1.4, 2.2); winH = a.range(1.4, 1.8); pier = 0; sill = 0.9;
+      office = a.chance(0.85); groundH = a.range(4.6, 5.6);
+      break;
+  }
+  wall = jitterColor(wall, a, 0.07);
+  winH = Math.min(winH, floorH - sill - 0.45);
+  const [hh, ss, ll] = hexToLinearHsl(wall);
+  b.archetype = arch;
+  b.wallColor = wall;
+  b.trimColor = trim;
+  b.frameColor = frame;
+  b.glassColor = glass;
+  b.hue = hh; b.sat = ss; b.light = ll;
+  b.floorH = floorH;
+  b.windowW = winW;
+  b.windowH = winH;
+  b.pier = pier;
+  b.sill = sill;
+  b.groundH = groundH;
+  b.paired = paired;
+  b.office = office;
+  b.litFraction = office ? a.range(0.3, 0.55) : a.range(0.35, 0.6);
+  const masonry = arch <= Archetype.Limestone;
+  b.roofKind = masonry ? (a.chance(0.6) ? RoofKind.Tar : RoofKind.Gravel) : a.chance(0.65) ? RoofKind.Membrane : RoofKind.Gravel;
+}
+
 
 export type PropType =
   | 'waterTower' | 'hvac' | 'antenna' | 'billboard' | 'streetLight' | 'signal'
@@ -202,8 +362,10 @@ export function generateCity(params: Partial<CityParams> = {}): CityLayout {
     tallest = Math.max(tallest, h);
     const roofRoll = brng.next();
     const roof: RoofType = h > 150 && roofRoll < 0.35 ? 'spire' : h > 110 && roofRoll < 0.55 ? 'crown' : roofRoll < 0.72 ? 'parapet' : 'flat';
+    // Legacy appearance draws: kept verbatim so the layout RNG stream (and therefore every roof prop
+    // placed after this point) is unchanged. `applyAppearance` then overwrites them from its own hash.
     const floorH = p.floorHeight * brng.range(0.92, 1.12);
-    buildings.push({
+    const bd: Building = {
       id, tiers, height: h, roof, style,
       hue: style === 1 ? brng.range(0.52, 0.62) : brng.pick([0.03, 0.06, 0.08, 0.1, 0.12, 0.58]) + brng.range(-0.02, 0.02),
       sat: style === 1 ? brng.range(0.15, 0.35) : brng.range(0.08, 0.38),
@@ -213,7 +375,11 @@ export function generateCity(params: Partial<CityParams> = {}): CityLayout {
       floorH,
       litFraction: brng.range(0.25, 0.7),
       seed: brng.next() * 1000,
-    });
+      archetype: 0, wallColor: 0, trimColor: 0, frameColor: 0, glassColor: 0, groundH: 4.5,
+      pier: 1, sill: 0.85, paired: false, office: false, roofKind: 0,
+    };
+    applyAppearance(bd, new Rng(appearanceSeed(p.seed, id)));
+    buildings.push(bd);
 
     // --- roof dressing on the top tier ---
     const top = tiers[tiers.length - 1];
