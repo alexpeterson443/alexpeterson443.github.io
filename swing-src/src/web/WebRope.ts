@@ -136,6 +136,18 @@ export class WebRope {
     return this.tension;
   }
 
+  /**
+   * Webs never hang slack: when the body moves toward the anchor the line is taken up
+   * (no force, so no energy change) and catches again the moment the body moves away.
+   */
+  takeUpSlack(pos: Vector3): void {
+    const d = pos.distanceTo(this.anchor);
+    if (d < this.length) {
+      this.length = Math.max(T.web.minLength, d);
+      if (this.targetLength > this.length) this.targetLength = this.length;
+    }
+  }
+
   /** Reel L toward targetLength at `rate` m/s. */
   reel(dt: number, rate: number): void {
     const d = this.targetLength - this.length;

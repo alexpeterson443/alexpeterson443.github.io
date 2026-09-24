@@ -17,7 +17,7 @@ export const Tuning = {
     mass: 80,
     airDrag: 0.3, // ½ρ·Cd·A for an upright body (kg/m)
     diveDrag: 0.11, // streamlined dive
-    maxNormalSpeed: 58,
+    maxNormalSpeed: 50,
     maxDiveSpeed: 95,
     speedLimitSoftness: 6.0, // 1/s rate at which excess speed bleeds off
     fixedHz: 120,

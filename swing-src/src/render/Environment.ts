@@ -31,10 +31,10 @@ export class Environment {
   constructor(private scene: Scene, private renderer: WebGLRenderer) {
     this.sky.scale.setScalar(4500);
     const u = this.sky.material.uniforms;
-    u.turbidity.value = 4.5;
-    u.rayleigh.value = 1.6;
-    u.mieCoefficient.value = 0.004;
-    u.mieDirectionalG.value = 0.85;
+    u.turbidity.value = 2.8;
+    u.rayleigh.value = 1.25;
+    u.mieCoefficient.value = 0.0035;
+    u.mieDirectionalG.value = 0.86;
     scene.add(this.sky);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
@@ -79,9 +79,9 @@ export class Environment {
     this.hemi.color.setRGB(lerp(0.25, 0.72, day), lerp(0.3, 0.8, day), lerp(0.5, 0.95, day));
     this.hemi.groundColor.setRGB(lerp(0.08, 0.3, day), lerp(0.07, 0.26, day), lerp(0.08, 0.22, day));
     const fog = this.scene.fog as FogExp2;
-    fog.color.setRGB(lerp(0.05, 0.7, day) * lerp(1, 1.12, golden), lerp(0.07, 0.72, day), lerp(0.12, 0.8, day) * lerp(1, 0.78, golden));
-    fog.density = lerp(0.0016, 0.001, day);
-    this.renderer.toneMappingExposure = lerp(0.55, 0.62, day);
+    fog.color.setRGB(lerp(0.04, 0.52, day) * lerp(1, 1.3, golden), lerp(0.06, 0.6, day) * lerp(1, 1.02, golden), lerp(0.11, 0.74, day) * lerp(1, 0.72, golden));
+    fog.density = lerp(0.0013, 0.00075, day);
+    this.renderer.toneMappingExposure = lerp(0.5, 0.42, day);
     if (Math.abs(this.lastEnvTime - t) > 0.004) this.rebuildEnv();
   }
 

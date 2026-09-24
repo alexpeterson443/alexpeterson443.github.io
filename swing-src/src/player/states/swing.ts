@@ -102,6 +102,7 @@ registerState({
     const springT = p.swingDbg.spring;
     r.constrain(p.pos, p.vel, dt, m, springT);
     r.reel(dt, T.web.reelRate);
+    r.takeUpSlack(p.pos);
     r.measure(p.pos, p.vel, T.physics.gravity * T.web.swingGravityScale);
 
     // body faces along the swing, leaning into the rope (animation reads accSmooth)

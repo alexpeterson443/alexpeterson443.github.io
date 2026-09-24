@@ -1,5 +1,6 @@
 import './style.css';
 import { Game } from './Game';
+import { T } from './core/tuning';
 import { facadeDebug } from './render/materials';
 import type { Quality } from './render/PostFX';
 import type { PilotStyle } from './bench/BotPilot';
@@ -19,7 +20,7 @@ function boot(): void {
       benchSeconds: Number(q.get('seconds') ?? 20),
       debug: q.has('debug'),
     });
-    (window as unknown as { game: Game }).game = game;
+    Object.assign(window as object, { game, tuning: T });
     game.start();
     start.classList.add('hidden');
   } catch (e) {

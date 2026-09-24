@@ -53,6 +53,7 @@ export class AnchorSelector {
   private readonly toA = new Vector3();
   private readonly tmp = new Vector3();
   private readonly desired = new Vector3();
+  private readonly tdir = new Vector3();
 
   constructor(private world: CollisionWorld) {}
 
@@ -149,8 +150,10 @@ export class AnchorSelector {
 
     // --- 3. static scoring --------------------------------------------------
     const A = T.anchor;
-    const lateralSign = Math.sign(heading.x * desired.z - heading.z * desired.x); // turn request
-    const turnAmt = 1 - Math.max(-1, Math.min(1, heading.dot(desired)));
+    // turn request: how far the stick points away from the current travel direction
+    const tdir = this.tdir.set(hs > 2 ? vel.x / hs : heading.x, 0, hs > 2 ? vel.z / hs : heading.z);
+    const lateralSign = Math.sign(tdir.x * desired.z - tdir.z * desired.x);
+    const turnAmt = q.input.lengthSq() > 0.01 ? 1 - Math.max(-1, Math.min(1, tdir.dot(desired))) : 0;
     for (let c = 0; c < this.count; c++) {
       const cand = this.candidates[c];
       const to = this.toA.subVectors(cand.point, pos);
@@ -189,7 +192,7 @@ export class AnchorSelector {
       const lat = Math.abs(heading.x * to.z - heading.z * to.x);
       terms.street = Math.exp(-Math.pow((lat - 12) / 12, 2));
       // turning: prefer anchors on the side we're turning to (the rope pulls us round the corner)
-      const side = Math.sign(heading.x * to.z - heading.z * to.x);
+      const side = Math.sign(tdir.x * to.z - tdir.z * to.x);
       terms.turn = turnAmt > 0.15 ? (side === lateralSign ? turnAmt : -turnAmt * 0.5) : 0;
       // continuity: don't re-use the same point, mild preference to alternate sides
       if (q.prevAnchor) {
@@ -207,7 +210,7 @@ export class AnchorSelector {
         A.wDistance * terms.distance + A.wHeight * terms.height + A.wDirection * terms.direction +
         A.wCamera * terms.camera + A.wInput * terms.input + A.wStreet * terms.street +
         A.wTurn * terms.turn + A.wContinuity * terms.continuity + A.wVisibility * terms.visibility +
-        A.wPlane * terms.plane * (1 - 0.6 * Math.min(1, turnAmt));
+        A.wPlane * terms.plane * Math.max(0.15, 1 - 1.6 * turnAmt);
     }
 
     // --- 4. trajectory prediction for the top candidates --------------------

@@ -29,7 +29,12 @@ describe('anchor selection', () => {
   });
 
   it('prefers the side the player is steering toward', () => {
-    const sel = new AnchorSelector(canyonWorld());
+    // a 50 m-wide avenue: room to swing on either side
+    const w = new CollisionWorld(16);
+    w.addBox(-60, 0, -400, -25, 90, 50, 1, 0);
+    w.addBox(25, 0, -400, 60, 90, 50, 1, 1);
+    w.build();
+    const sel = new AnchorSelector(w);
     const pos = new Vector3(0, 30, 0);
     const vel = new Vector3(0, 0, -25);
     const cam = new Vector3(0, 0, -1);

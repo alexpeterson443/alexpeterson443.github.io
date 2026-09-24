@@ -71,6 +71,7 @@ export function predict(
       const sT = T.web.stiffness * Math.max(0, rope.stretch);
       rope.constrain(p, v, dt, m, sT);
       rope.reel(dt, T.web.reelRate);
+      rope.takeUpSlack(p);
       if (releaseAtApex && p.y > rope.anchor.y - T.web.detachAboveAnchor && v.y > 0) swinging = false;
     } else {
       const s = v.length();
