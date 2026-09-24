@@ -19,6 +19,7 @@ function boot(): void {
       bench: (q.get('bench') as PilotStyle | null) ?? null,
       benchSeconds: Number(q.get('seconds') ?? 20),
       debug: q.has('debug'),
+      timeOfDay: q.has('tod') ? Number(q.get('tod')) : undefined,
     });
     Object.assign(window as object, { game, tuning: T });
     game.start();

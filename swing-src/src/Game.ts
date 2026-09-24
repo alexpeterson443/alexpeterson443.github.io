@@ -32,6 +32,8 @@ export interface GameOptions {
   bench: PilotStyle | null;
   benchSeconds: number;
   debug: boolean;
+  /** 0..1 (0.5 = noon); omitted keeps the environment default. */
+  timeOfDay?: number;
 }
 
 interface BenchState {
@@ -138,6 +140,11 @@ export class Game {
     const startAudio = () => this.audio.start();
     window.addEventListener('pointerdown', startAudio);
     window.addEventListener('keydown', startAudio);
+    if (opts.timeOfDay !== undefined) {
+      this.env.timeOfDay = this.hooks.env.timeOfDay = opts.timeOfDay;
+      this.env.apply();
+      this.updateLights();
+    }
     if (opts.bench) this.startBench(opts.bench, opts.benchSeconds);
   }
 
