@@ -26,13 +26,12 @@ describe('trajectory prediction', () => {
     p.spawn(0, 40, 0);
     p.vel.set(0, 0, -20);
     const anchor = new Vector3(9.9, 70, -25);
-    const des = new Vector3(0, 0, 0.65);
-    const pr = predict(p.pos, p.vel, anchor, p.pos.distanceTo(anchor), des, 1.0, 1 / 120, null, null, makePrediction(200), false);
+    const pr = predict(p.pos, p.vel, anchor, p.pos.distanceTo(anchor), null, 1.0, 1 / 120, null, null, makePrediction(200), false);
     p.rope.attach(anchor, p.pos);
     p.fsm.transition('Swinging', null);
     const input = new Intent();
     input.traverse = true;
-    input.camYaw = Math.PI; // no stick: swing state desires camera-forward × 0.65 = (0,0,0.65)
+    input.camYaw = Math.PI / 2; // camera looks elsewhere: with no stick the swing holds its own heading
     stepN(p, input, 120);
     expect(pr.endPos.distanceTo(p.pos)).toBeLessThan(2);
   });

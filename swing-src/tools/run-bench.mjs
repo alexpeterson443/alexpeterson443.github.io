@@ -1,5 +1,5 @@
 // Headless runtime check + benchmark. Serves the production build, drives it in Chromium
-// (SwiftShader software GL), captures console output/errors, screenshots, and BENCH_RESULT.
+// (SwiftShader software GL in the container, the real GPU on a dev machine), captures console output/errors, screenshots, and BENCH_RESULT.
 //
 //   node tools/run-bench.mjs [bench=swing] [seconds=12] [quality=medium] [shots=4] [w=1280] [h=720]
 import { chromium } from 'playwright-core';
@@ -30,11 +30,13 @@ const server = createServer(async (req, res) => {
 }).listen(0);
 const port = server.address().port;
 
+// Linux CI container: bundled Chromium on SwiftShader. Elsewhere (a dev Mac): installed Chrome on
+// the real GPU, which is the only place frame times mean anything.
 const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', '/opt/pw-browsers/chromium'].find(existsSync);
-const browser = await chromium.launch({
-  executablePath: exe,
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
-});
+const common = ['--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+const browser = exe
+  ? await chromium.launch({ executablePath: exe, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', ...common] })
+  : await chromium.launch({ channel: 'chrome', headless: args.headed !== '1', args: ['--use-angle=metal', ...common] });
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const logs = [];
 const errors = [];

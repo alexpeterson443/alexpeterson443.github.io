@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 import { T } from '../../core/tuning';
 import { hlen } from '../../core/math';
 import { registerState } from '../StateMachine';
-import { FEET } from '../Player';
+import { FEET } from '../body';
 import { airContacts, airStep, airTransitions, beginZip, doJump, landState, yawOf } from './common';
 
 const _to = new Vector3();

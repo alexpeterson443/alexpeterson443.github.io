@@ -477,6 +477,7 @@ export class Game {
   private updateHud(dt: number, simMs: number): void {
     const p = this.player;
     this.hud.update(dt);
+    if (p.vel.lengthSq() > 4) this.hud.noteActivity(dt);
     this.hud.setSpeed(p.vel.length(), p.state);
     this.hudTimer -= dt;
     if (this.hudTimer > 0) return;

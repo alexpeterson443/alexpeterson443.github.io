@@ -29,12 +29,14 @@ const rope = new WebRope();
 const p = new Vector3();
 const v = new Vector3();
 const F = new Vector3();
-const zero = new Vector3();
+const hold = new Vector3();
 
 /**
  * Forward-simulates the player using the same force model and integrator as gameplay, at a
  * coarser step. Used both for anchor scoring and for the debug trajectory overlay.
  * If `anchor` is null the flight is ballistic (gravity + drag).
+ * A null `desired` mirrors the swing state with no stick: it keeps steering along the current
+ * horizontal heading at 0.65 strength.
  */
 export function predict(
   pos: Vector3, vel: Vector3,
@@ -64,7 +66,12 @@ export function predict(
   for (let i = 0; i < steps; i++) {
     if (swinging) {
       updateRopeTarget(rope, p, 0, false);
-      accumulateSwingForces(p, v, rope, desired ?? zero, 0, null, F);
+      let d = desired;
+      if (!d) {
+        const hs = Math.hypot(v.x, v.z);
+        d = hs > 2 ? hold.set(v.x / hs, 0, v.z / hs).multiplyScalar(0.65) : hold.set(0, 0, 0);
+      }
+      accumulateSwingForces(p, v, rope, d, 0, null, F);
       p.addScaledVector(v, dt).addScaledVector(F, (0.5 * dt * dt) / m);
       v.addScaledVector(F, dt / m);
       rope.age += dt;

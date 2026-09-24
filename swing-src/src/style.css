@@ -7,8 +7,16 @@ canvas { display: block; }
 .dbg-label { position: absolute; left: 0; top: 0; font: 11px/1 ui-monospace, monospace; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .hud { position: absolute; inset: 0; pointer-events: none; }
 .hud-stats { position: absolute; left: 10px; top: 10px; margin: 0; padding: 8px 10px; background: rgba(0,0,0,.55); border-radius: 6px; font: 11px/1.45 ui-monospace, monospace; color: #cfe; max-width: calc(100vw - 20px); white-space: pre-wrap; }
-.hud-help { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 14px; background: rgba(5,8,12,.72); border: 1px solid rgba(63,224,240,.3); border-radius: 8px; line-height: 1.7; text-align: center; max-width: calc(100vw - 32px); }
-.hud-help.hidden { display: none; }
+.hud-help { position: absolute; left: 16px; top: 16px; width: 272px; max-width: calc(100vw - 32px); padding: 10px 12px; background: rgba(6,10,15,.62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; font-size: 12px; transition: opacity .4s, transform .4s; }
+.hud-help header { display: flex; justify-content: space-between; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+.hud-help header span { color: #8a9aa6; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.hud-help dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; align-items: center; }
+.hud-help dt { white-space: nowrap; }
+.hud-help dd { margin: 0; color: #c3ced6; }
+.hud-help footer { margin-top: 7px; color: #7d8d99; font-size: 11px; }
+.hud-help.hidden, .hud-hint.hidden { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+.hud-hint { position: absolute; left: 16px; top: 16px; color: #9fb0bc; font-size: 11px; opacity: .75; transition: opacity .4s, transform .4s; }
+.hud-hint.hidden { opacity: 0; }
 kbd { display: inline-block; padding: 0 5px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; font: 11px ui-monospace, monospace; background: rgba(255,255,255,.08); }
 .hud-reticle { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border: 2px solid var(--accent); box-shadow: 0 0 8px var(--accent); display: none; }
 .hud-speed { position: absolute; right: 16px; bottom: 14px; font: 600 15px ui-monospace, monospace; color: #fff; text-shadow: 0 0 6px #000; letter-spacing: .04em; }

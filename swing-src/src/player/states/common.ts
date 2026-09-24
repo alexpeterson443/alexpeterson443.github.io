@@ -2,7 +2,8 @@ import { Vector3 } from 'three';
 import { T } from '../../core/tuning';
 import { hlen } from '../../core/math';
 import type { Intent } from '../../input/Intent';
-import { FEET, type Player } from '../Player';
+import { FEET } from '../body';
+import type { Player } from '../Player';
 import type { StateId } from '../StateMachine';
 import { Kind } from '../../world/CollisionWorld';
 
@@ -119,7 +120,12 @@ export function airTransitions(p: Player, input: Intent, allowWeb = true): State
   // no web when about to touch down anyway (e.g. stepping off a kerb while sprinting)
   if (allowWeb && input.traverse && p.webCooldown <= 0 && (p.timeSinceRelease > 0.3 || p.vel.y < -1) && p.feetY - p.surfaceBelow() > 2.5) {
     const d = desired(input, _m);
-    if (d.lengthSq() < 0.01) input.camForwardFlat(d).multiplyScalar(0.6);
+    if (d.lengthSq() < 0.01) {
+      // no stick: keep the line you are already flying (falls back to the camera when slow)
+      const hs = Math.hypot(p.vel.x, p.vel.z);
+      if (hs > 4) d.set(p.vel.x / hs, 0, p.vel.z / hs).multiplyScalar(0.6);
+      else input.camForwardFlat(d).multiplyScalar(0.6);
+    }
     if (p.tryAttachWeb(input, d)) return 'Swinging';
   }
   return null;

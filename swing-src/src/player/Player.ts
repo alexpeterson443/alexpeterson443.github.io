@@ -21,10 +21,8 @@ export interface GameEvent {
   pos: Vector3;
 }
 
-/** Capsule approximated by three spheres (offsets from body centre). */
-export const CAPSULE_R = 0.4;
-export const CAPSULE_OFFSETS = [-0.5, 0, 0.45];
-export const FEET = 0.9; // body centre height above feet
+import { CAPSULE_R, CAPSULE_OFFSETS, FEET } from './body';
+export { CAPSULE_R, CAPSULE_OFFSETS, FEET };
 
 /**
  * The simulated player body. Owns kinematics and sensing; behaviour lives in the states.

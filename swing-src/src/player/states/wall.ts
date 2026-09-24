@@ -1,7 +1,8 @@
 import { Vector3 } from 'three';
 import { T } from '../../core/tuning';
 import { registerState, type StateId } from '../StateMachine';
-import { CAPSULE_R, FEET, type Player } from '../Player';
+import { CAPSULE_R } from '../body';
+import type { Player } from '../Player';
 import type { Intent } from '../../input/Intent';
 import { beginZip, wallJump, yawOf } from './common';
 
@@ -186,4 +187,3 @@ registerState({
   },
 });
 
-void FEET;

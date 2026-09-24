@@ -82,9 +82,13 @@ registerState({
     }
 
     const m = T.physics.mass;
-    // holding traverse with no stick swings toward the camera direction
+    // no stick: carry on along the current heading (the camera only steers when the stick does)
     const des = desired(input, _d);
-    if (des.lengthSq() < 0.01) input.camForwardFlat(des).multiplyScalar(0.65);
+    if (des.lengthSq() < 0.01) {
+      const hs0 = hlen(p.vel);
+      if (hs0 > 2) des.set(p.vel.x / hs0, 0, p.vel.z / hs0).multiplyScalar(0.65);
+      else input.camForwardFlat(des).multiplyScalar(0.65);
+    }
     // ground under the player and under the bottom of the arc ahead (roofs in the path count)
     p.arcGroundTimer -= dt;
     if (p.arcGroundTimer <= 0) {
