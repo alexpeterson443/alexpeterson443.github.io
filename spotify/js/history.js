@@ -309,6 +309,8 @@ SP.history = (function () {
     stats.sessions = sessions;
     stats.longestSession = longest;
 
+    rankArtists(stats);
+
     stats.yearList = Array.from(stats.years.values()).sort(function (a, b) { return a.year - b.year; });
     stats.yearList.forEach(function (year) {
       year.topArtist = biggest(year.artists);
@@ -321,6 +323,30 @@ SP.history = (function () {
     stats.monthList = Array.from(stats.months.values()).sort(function (a, b) {
       return a.key < b.key ? -1 : 1;
     });
+  }
+
+  /* Where each artist sits among all the artists in this selection.
+
+     This is the honest version of Wrapped's "top 0.5% of listeners": Spotify
+     works that one out against everyone who played the artist and never
+     publishes it — no Web API endpoint exposes listener counts or
+     percentiles. What can be said truthfully is how the artist ranks inside
+     your own listening, so that is what these three numbers are. */
+  function rankArtists(stats) {
+    var ranked = Array.from(stats.artists.values())
+      .sort(function (a, b) { return b.ms - a.ms || b.plays - a.plays; });
+
+    ranked.forEach(function (artist, index) {
+      artist.rank = index + 1;
+      artist.share = stats.ms ? artist.ms / stats.ms : 0;
+      /* Ties share the better rank, so two artists on identical time don't
+         land in different percentiles by sort luck. */
+      var tied = index > 0 && ranked[index - 1].ms === artist.ms;
+      if (tied) artist.rank = ranked[index - 1].rank;
+      artist.topPercent = ranked.length ? (artist.rank / ranked.length) * 100 : 100;
+    });
+
+    stats.rankedArtists = ranked;
   }
 
   function biggest(map) {

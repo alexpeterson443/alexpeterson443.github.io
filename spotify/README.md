@@ -14,7 +14,7 @@ Live at **/spotify/** on this site.
 | **Top** | Your top 50 artists and tracks over 4 weeks / 6 months / all time, the genres behind them, and when those tracks were released |
 | **Recent** | Every play this app has logged, a weekday-by-hour heatmap, most-played artists and tracks, and a full timeline |
 | **Library** | Saved tracks, albums, playlists and follows; when you saved things; which artists and release years fill your library |
-| **Full history** | Your entire listening life from a Spotify data export: lifetime hours, streaks, top artists/tracks/albums, year-by-year and month-by-month, a listening clock, a calendar per year, skip and shuffle rates, platforms, countries, and search over every stream |
+| **Full history** | Your entire listening life from a Spotify data export: lifetime hours, streaks, top artists/tracks/albums, where each artist ranks in your listening, year-by-year and month-by-month, a listening clock, a calendar per year, skip and shuffle rates, platforms, countries, and search over every stream |
 | **Setup** | Client ID, connection, what's stored on this device, and how to wipe it |
 
 ## Add it to your home screen
@@ -94,6 +94,27 @@ so where those stats appear.
 Audio features (danceability, energy, tempo) are **not** here: Spotify
 deprecated `/audio-features` for new apps in November 2024, and any app created
 since gets a 403.
+
+## "Top 1% of listeners" — why this app can't show that
+
+Wrapped's line about being in the top fraction of an artist's listeners is
+computed inside Spotify against everyone who played them. **No Web API endpoint
+exposes it**, or monthly listeners, or any listener count you could derive it
+from — so no third-party app can show that number, and one that claims to is
+making it up.
+
+What every artist does carry here is your own standing, which is real and
+computable from your history:
+
+- **Your rank** — #3 of the 412 artists you have played.
+- **The percentile that follows from it** — "top 0.7% of the artists you play".
+  Ties share a rank, and a library under 20 artists shows the plain rank
+  instead, since a percentile of eight names means nothing.
+- **Share of your time** — what fraction of all your listening went to them.
+
+They appear under every artist in the Full history list, in the artist
+drill-down, and on the Top tab's artist cards (as `Yours:`), drawn from your
+imported export or, failing that, from the play log.
 
 ## Where your data lives
 

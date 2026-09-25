@@ -157,6 +157,29 @@
     return util.duration(ms);
   }
 
+  /* "Top 0.4%" is only meaningful against a decent pool of artists; with a
+     handful of names it is noise, so a small pool gets the plain rank. */
+  /* The 0.95 cut keeps consecutive rows from reading "1.0%, 1%, 1%": anything
+     that would round to a whole number is shown as one. */
+  function percentText(value) {
+    if (value < 0.1) return value.toFixed(2) + "%";
+    if (value < 0.95) return value.toFixed(1) + "%";
+    return Math.round(value) + "%";
+  }
+
+  function rankLabel(artist, total) {
+    if (!artist || !artist.rank) return null;
+    if (total < 20) return "#" + artist.rank + " of " + total;
+    return "top " + percentText(artist.topPercent);
+  }
+
+  /* Kept short: this sits on one ellipsised line beside the artist name. */
+  function shareLabel(artist) {
+    if (!artist || !artist.share) return null;
+    var pct = artist.share * 100;
+    return (pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1)) + "% of your time";
+  }
+
   function artistsOf(track) {
     return (track.artists || []).map(function (a) { return a.name; }).join(", ");
   }
@@ -228,6 +251,8 @@
       ]));
     }
 
+    /* Not blocking: the log only feeds the "Yours:" line when there's no export. */
+    ensure("log", loadLog);
     var key = "top:" + state.range;
     if (!ensure(key, function () {
       return Promise.all([api.top("artists", state.range), api.top("tracks", state.range)])
@@ -348,6 +373,8 @@
         "(0–100, how much everyone else plays it) — a rank on its own isn't a quantity worth drawing." })
     ]));
 
+    /* Not blocking: the log only feeds the "Yours:" line when there's no export. */
+    ensure("log", loadLog);
     var key = "top:" + state.range;
     if (!ensure(key, function () {
       return Promise.all([api.top("artists", state.range), api.top("tracks", state.range)])
@@ -368,6 +395,7 @@
           el("span", { class: "thing-rank", text: "#" + (index + 1) }),
           el("span", { class: "thing-name", text: artist.name, title: artist.name }),
           el("span", { class: "thing-sub", text: (artist.genres || []).slice(0, 2).join(", ") || "—" }),
+          yoursLine(artist.name),
           el("span", { class: "meter" }, [el("span", { style: "width:" + (artist.popularity || 0) + "%" })])
         ]);
       }))
@@ -422,6 +450,16 @@
         labelHead: "Release year", valueHead: "Tracks", height: 180
       })
     ]));
+  }
+
+  /* How far up your own listening an artist sits, for the cards on the Top
+     tab \u2014 blank when nothing all-time knows the name yet. */
+  function yoursLine(name) {
+    var found = rankedArtist(name);
+    if (!found) return null;
+    var label = rankLabel(found.artist, found.stats.uniqueArtists);
+    return el("span", { class: "thing-sub", text: "Yours: " + label + " \u00b7 " +
+      (found.artist.share * 100).toFixed(1) + "%" });
   }
 
   /* ---- recent ---- */
@@ -772,11 +810,14 @@
         charts.rankBars(past.topList(stats.artists, 20, state.history.metric), {
           value: metricValue, label: function (a) { return a.name; },
           format: metricFormat, art: function (a) { return a.art; },
-          meta: function (a) { return util.int(a.plays) + " plays · since " + util.dayLabel(util.dateKey(new Date(a.first))); },
+          meta: function (a) {
+            return [shareLabel(a), rankLabel(a, stats.uniqueArtists)].filter(Boolean).join(" · ");
+          },
           labelHead: "Artist", valueHead: metricHead(),
           onSelect: function (a) { showArtist(a.name); },
           tip: function (a) {
-            return "<b>" + escape(a.name) + "</b><br>" + util.duration(a.ms) + " · " + util.int(a.plays) + " plays";
+            return "<b>" + escape(a.name) + "</b><br>" + util.duration(a.ms) + " · " +
+              util.int(a.plays) + " plays<br>since " + util.dayLabel(util.dateKey(new Date(a.first)));
           }
         })
       ]),
@@ -1247,21 +1288,29 @@
   /* ---- artist drill-down ---- */
 
   function showArtist(name, apiArtist) {
-    var records = activeRecords();
-    var stats = records.length ? past.aggregate(records) : null;
+    /* Always the whole source, never the year filter: "your #3 artist" and
+       "first heard" mean your listening, not the slice on screen. And it's the
+       cached aggregate, so opening this is free. */
+    var stats = activeRecords().length ? sourceStats() : null;
     var detail = stats ? past.artistDetail(stats, name) : null;
 
     var body = el("div", {});
     if (detail) {
       var artist = detail.artist;
       body.appendChild(charts.tiles([
+        { label: "You rank them", value: "#" + artist.rank,
+          note: "of " + util.int(stats.uniqueArtists) + " artists you've played" },
+        stats.uniqueArtists >= 20
+          ? { label: "Top", value: percentText(artist.topPercent), note: "of the artists you play" }
+          : null,
+        { label: "Share of your listening", value: (artist.share * 100).toFixed(1) + "%" },
         { label: "Listening time", value: util.duration(artist.ms) },
         { label: "Streams", value: util.int(artist.plays) },
         { label: "Different tracks", value: util.int(detail.tracks.length) },
         { label: "First heard", value: util.dayLabel(util.dateKey(new Date(artist.first))) },
-        { label: "Last heard", value: util.dayLabel(util.dateKey(new Date(artist.last))) },
-        { label: "Share of everything", value: (artist.ms / stats.ms * 100).toFixed(1) + "%" }
-      ]));
+        { label: "Last heard", value: util.dayLabel(util.dateKey(new Date(artist.last))) }
+      ].filter(Boolean)));
+
       if (detail.years.length > 1) {
         body.appendChild(charts.columns(detail.years.map(function (year) {
           return { name: String(year.year), value: year.ms };
@@ -1278,11 +1327,21 @@
     }
 
     if (apiArtist) {
-      body.appendChild(el("p", { class: "small muted", text:
-        [(apiArtist.genres || []).join(", "),
-         apiArtist.followers ? util.int(apiArtist.followers.total) + " followers on Spotify" : null]
-          .filter(Boolean).join(" · ") }));
+      var world = [];
+      if (apiArtist.followers) world.push(util.int(apiArtist.followers.total) + " followers on Spotify");
+      if (apiArtist.popularity !== undefined) world.push(apiArtist.popularity + "/100 popularity");
+      body.appendChild(el("p", { class: "small muted", style: "margin-top:.9rem", text:
+        [(apiArtist.genres || []).join(", ")].concat(world).filter(Boolean).join(" \u00b7 ") }));
     }
+
+    if (detail) {
+      body.appendChild(el("p", { class: "small muted", text:
+        "These percentages are about your own listening. Spotify works out the " +
+        "\u201ctop 1% of listeners worldwide\u201d figure for Wrapped against everyone " +
+        "who played the artist, and never publishes it \u2014 no API gives out " +
+        "listener counts or percentiles, so no app outside Spotify can show it." }));
+    }
+
     openModal(name, body);
   }
 
@@ -1499,6 +1558,28 @@
         poll(false).then(function (added) { if (added) refresh(); }).catch(function () { /* quiet */ });
       }
     });
+  }
+
+  /* The all-time picture for views outside the history tab: the export when
+     there is one, otherwise whatever the play log has managed to collect. */
+  function allTimeStats() {
+    var imported = lifetimeStats();
+    if (imported) return imported;
+    if (state.log && state.log.length) {
+      if (!state._logStats || state._logStatsFor !== state.log.length) {
+        state._logStats = past.aggregate(state.log);
+        state._logStatsFor = state.log.length;
+      }
+      return state._logStats;
+    }
+    return null;
+  }
+
+  function rankedArtist(name) {
+    var stats = allTimeStats();
+    if (!stats) return null;
+    var artist = stats.artists.get(name);
+    return artist ? { artist: artist, stats: stats } : null;
   }
 
   function lifetimeStats() {

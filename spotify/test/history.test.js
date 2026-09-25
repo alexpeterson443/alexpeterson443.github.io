@@ -157,9 +157,34 @@ var top = SP.history.topList(stats.artists, 5);
 check("top artists: order", top.map(function (t) { return t.name; }), ["Artist A", "Artist B"]);
 checkTrue("top artists: A ahead of B", top[0].ms > top[1].ms);
 
+/* Per-artist standing: rank, share of your listening, and the percentile that
+   stands in for Wrapped's unavailable "top x% of listeners". */
+check("rank: artists are ranked by time", stats.rankedArtists.map(function (a) { return a.name; }), ["Artist A", "Artist B"]);
+check("rank: top artist is #1", stats.rankedArtists[0].rank, 1);
+check("rank: shares sum to 1", Math.round(stats.rankedArtists.reduce(function (sum, a) { return sum + a.share; }, 0) * 1000) / 1000, 1);
+check("rank: share matches the time", Math.round(stats.artists.get("Artist A").share * 1000) / 1000,
+  Math.round(stats.artists.get("Artist A").ms / stats.ms * 1000) / 1000);
+check("rank: last artist is the 100th percentile", stats.rankedArtists[1].topPercent, 100);
+
+/* Ties must not be split by sort luck: equal time, equal rank and percentile. */
+var tieRows = [];
+[["Even A", 3], ["Even B", 3], ["Quiet", 1]].forEach(function (pair) {
+  for (var i = 0; i < pair[1]; i++) {
+    tieRows.push({ ts: new Date(Date.UTC(2024, 0, 1 + i, 12)).toISOString(), ms_played: 120000,
+      master_metadata_track_name: "T", master_metadata_album_artist_name: pair[0],
+      master_metadata_album_album_name: "A", spotify_track_uri: "spotify:track:" + pair[0] });
+  }
+});
+var tied = SP.history.aggregate(SP.history.parseFile(JSON.stringify(tieRows)));
+check("rank: tied artists share a rank", tied.rankedArtists.slice(0, 2).map(function (a) { return a.rank; }), [1, 1]);
+check("rank: tied artists share a percentile",
+  tied.rankedArtists[0].topPercent === tied.rankedArtists[1].topPercent, true);
+check("rank: the next artist keeps its own place", tied.rankedArtists[2].rank, 3);
+
 var detail = SP.history.artistDetail(stats, "Artist A");
 check("artist detail: track count", detail.tracks.length, 2);
 check("artist detail: years", detail.years.length, 1);
+check("artist detail: carries the ranking", detail.artist.rank, 1);
 
 /* A minimum-play filter is how "did I actually listen" gets separated from
    "it started and I hit next". */
