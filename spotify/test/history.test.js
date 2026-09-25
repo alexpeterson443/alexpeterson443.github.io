@@ -146,7 +146,8 @@ check("aggregate: streak length", stats.streak.length, 30);
 check("aggregate: platforms collapsed", SP.history.countList(stats.platforms).map(function (p) { return p.name; }), ["Android", "Web player"]);
 check("aggregate: countries", SP.history.countList(stats.countries).length, 2);
 check("aggregate: years covered", stats.yearList.length, 1);
-check("aggregate: top artist of 2024", stats.yearList[0].topArtist.key, "Artist A");
+/* The key is folded for merging; the display name is what a reader sees. */
+check("aggregate: top artist of 2024", stats.yearList[0].topArtist.name, "Artist A");
 check("aggregate: hours are 24 buckets", stats.hours.length, 24);
 checkTrue("aggregate: hours sum to total", stats.hours.reduce(function (s, v) { return s + v; }, 0) === stats.ms);
 checkTrue("aggregate: weekdays sum to total", stats.weekdays.reduce(function (s, v) { return s + v; }, 0) === stats.ms);
@@ -162,8 +163,9 @@ checkTrue("top artists: A ahead of B", top[0].ms > top[1].ms);
 check("rank: artists are ranked by time", stats.rankedArtists.map(function (a) { return a.name; }), ["Artist A", "Artist B"]);
 check("rank: top artist is #1", stats.rankedArtists[0].rank, 1);
 check("rank: shares sum to 1", Math.round(stats.rankedArtists.reduce(function (sum, a) { return sum + a.share; }, 0) * 1000) / 1000, 1);
-check("rank: share matches the time", Math.round(stats.artists.get("Artist A").share * 1000) / 1000,
-  Math.round(stats.artists.get("Artist A").ms / stats.ms * 1000) / 1000);
+var artistA = stats.artists.get(SP.history.artistKey("Artist A"));
+check("rank: share matches the time", Math.round(artistA.share * 1000) / 1000,
+  Math.round(artistA.ms / stats.ms * 1000) / 1000);
 check("rank: last artist is the 100th percentile", stats.rankedArtists[1].topPercent, 100);
 
 /* Ties must not be split by sort luck: equal time, equal rank and percentile. */

@@ -38,7 +38,9 @@
     history: {
       records: null,
       stats: null,
-      source: "import",
+      /* One switch per place the listening came from. All on by default:
+         merged is the point. */
+      use: util.load("sources", { spotify: true, apple: true, log: true }),
       year: "all",
       metric: "ms",
       importMeta: null,
@@ -208,7 +210,7 @@
           text: auth.clientId() ? "Connect Spotify" : "Set up in 2 minutes",
           onclick: function () { auth.clientId() ? startLogin() : go("setup"); }
         }),
-        el("button", { class: "btn", type: "button", text: "Import my data export instead", onclick: function () { go("history"); } })
+        el("button", { class: "btn", type: "button", text: "Import an export instead", onclick: function () { go("history"); } })
       ])
     ]);
   }
@@ -246,8 +248,9 @@
       view.appendChild(card("Want the whole story?", null, [
         el("p", { text:
           "Spotify's API only exposes the last 50 plays, so a lifetime total has to come " +
-          "from your data export. It's free, takes a few clicks, and the file drops straight into this page." }),
-        el("button", { class: "btn", type: "button", text: "How to get it", onclick: function () { go("history"); } })
+          "from your data export \u2014 and if you've used Apple Music too, its export drops " +
+          "into the same page and the two become one dataset." }),
+        el("button", { class: "btn", type: "button", text: "How to get them", onclick: function () { go("history"); } })
       ]));
     }
 
@@ -695,17 +698,39 @@
 
   var statsCache = {};
 
+  var ORIGINS = [
+    { id: "spotify", label: "Spotify export" },
+    { id: "apple", label: "Apple Music" },
+    { id: "log", label: "Logged here" }
+  ];
+
+  /* Which origin a stored row came from. Rows written before the app knew
+     about Apple Music have no source and are Spotify. */
+  function originOf(record) {
+    return record.source === "apple" ? "apple" : "spotify";
+  }
+
+  function counts() {
+    var out = { spotify: 0, apple: 0, log: state.log ? state.log.length : 0 };
+    (state.imported || []).forEach(function (record) { out[originOf(record)]++; });
+    return out;
+  }
+
+  /* The merged dataset: every enabled origin in one array, which is the whole
+     point of the exercise \u2014 one artist, one total, whatever played it. */
   function activeRecords() {
-    var source = state.history.source;
-    var imported = state.imported || [];
-    var log = state.log || [];
-    if (source === "log") return log;
-    if (source === "both") return imported.concat(log);
-    return imported;
+    var use = state.history.use;
+    var out = [];
+    (state.imported || []).forEach(function (record) {
+      if (use[originOf(record)]) out.push(record);
+    });
+    if (use.log && state.log) state.log.forEach(function (record) { out.push(record); });
+    return out;
   }
 
   function cacheKey(part) {
-    return state.history.source + "|" + part + "|" +
+    var use = state.history.use;
+    return ORIGINS.map(function (o) { return use[o.id] ? o.id : ""; }).join(",") + "|" + part + "|" +
       (state.imported ? state.imported.length : 0) + "|" + (state.log ? state.log.length : 0);
   }
 
@@ -756,24 +781,35 @@
     view.appendChild(importCard(hasImport));
     if (!hasImport && !hasLog) return;
 
-    if (hasImport && hasLog) {
-      view.appendChild(card("What to count", null, [
-        el("div", { class: "seg", role: "group", "aria-label": "Data source" }, [
-          { id: "import", label: "Data export (" + util.int(state.imported.length) + ")" },
-          { id: "log", label: "Logged here (" + util.int(state.log.length) + ")" },
-          { id: "both", label: "Both" }
-        ].map(function (option) {
+    var have = counts();
+    var live = ORIGINS.filter(function (origin) { return have[origin.id] > 0; });
+
+    /* Never leave every switch off \u2014 that would show an empty page with no
+       hint why. */
+    if (!live.some(function (origin) { return state.history.use[origin.id]; })) {
+      live.forEach(function (origin) { state.history.use[origin.id] = true; });
+    }
+
+    if (live.length > 1) {
+      view.appendChild(card("What to count", "All of it is one dataset \u2014 switch a source off to see its share.", [
+        el("div", { class: "chips" }, live.map(function (origin) {
           return el("button", {
-            type: "button", text: option.label,
-            "aria-pressed": state.history.source === option.id ? "true" : "false",
-            onclick: function () { state.history.source = option.id; state.history.year = "all"; refresh(); }
+            class: "chip", type: "button",
+            text: origin.label + " (" + util.int(have[origin.id]) + ")",
+            "aria-pressed": state.history.use[origin.id] ? "true" : "false",
+            onclick: function () {
+              var use = state.history.use;
+              var on = live.filter(function (o) { return use[o.id]; });
+              /* Turning off the last one would leave nothing to show. */
+              if (use[origin.id] && on.length === 1) return;
+              use[origin.id] = !use[origin.id];
+              util.save("sources", use);
+              state.history.year = "all";
+              refresh();
+            }
           });
         }))
       ]));
-    } else if (!hasImport) {
-      state.history.source = "log";
-    } else if (!hasLog && state.history.source !== "import") {
-      state.history.source = "import";
     }
 
     var all = sourceStats();
@@ -804,6 +840,8 @@
     ]));
 
     view.appendChild(historyHighlights(stats));
+    var split = sourceSplit(stats);
+    if (split) view.appendChild(split);
 
     view.appendChild(el("div", { class: "cols two" }, [
       card("Top artists", state.history.year === "all" ? "All time" : state.history.year, [
@@ -859,7 +897,7 @@
           return { name: String(year.year), value: state.history.metric === "plays" ? year.plays : year.ms, year: year };
         }), {
           format: metricFormat, labelHead: "Year", valueHead: metricHead(),
-          tipExtra: function (d) { return d.year.topArtist ? "Top: " + escape(d.year.topArtist.key) : ""; },
+          tipExtra: function (d) { return d.year.topArtist ? "Top: " + escape(d.year.topArtist.name) : ""; },
           highlight: function (d) { return String(d.name) === String(state.history.year); }
         })
       ]));
@@ -894,6 +932,50 @@
     view.appendChild(yearReviewCard(stats));
     view.appendChild(habitsCard(stats));
     view.appendChild(searchCard());
+  }
+
+  var SOURCE_NAMES = { spotify: "Spotify", apple: "Apple Music" };
+
+  function sourceName(id) {
+    return SOURCE_NAMES[id] || id;
+  }
+
+  /* Only worth a card once there is more than one service in the pile. */
+  function sourceSplit(stats) {
+    if (!stats.sources || stats.sources.size < 2) return null;
+    var rows = [];
+    stats.sources.forEach(function (entry) { rows.push(entry); });
+    rows.sort(function (a, b) { return b.ms - a.ms; });
+
+    var tiles = rows.map(function (entry) {
+      return {
+        label: sourceName(entry.source),
+        value: hoursNote(entry.ms),
+        note: util.int(entry.streams) + " streams \u00b7 " +
+          Math.round(entry.ms / stats.ms * 100) + "% of the total"
+      };
+    });
+
+    return card("Where it came from", "Both services, counted together above.", [
+      charts.tiles(tiles),
+      el("div", { style: "margin-top:1rem" }, [
+        charts.rankBars(rows, {
+          title: "Share of your listening",
+          value: function (entry) { return entry.ms; },
+          label: function (entry) { return sourceName(entry.source); },
+          meta: function (entry) {
+            return util.dayLabel(util.dateKey(new Date(entry.first))) + " \u2192 " +
+              util.dayLabel(util.dateKey(new Date(entry.last)));
+          },
+          format: util.duration, labelHead: "Service", valueHead: "Time"
+        })
+      ]),
+      stats.approx ? el("p", { class: "small muted", text:
+        "Apple's daily file gives a day, an hour and a play count rather than each " +
+        "play's clock time, so " + util.int(stats.approx) + " of these streams have a " +
+        "rebuilt timestamp: the totals and the hour are exact, the minute inside the " +
+        "hour is inferred." }) : null
+    ]);
   }
 
   function historyHighlights(stats) {
@@ -934,7 +1016,7 @@
         el("span", { class: "tile-label", text: String(year.year) }),
         el("span", { class: "tile-value", text: hoursNote(year.ms) }),
         el("span", { class: "tile-note", text: util.int(year.plays) + " streams · " + util.int(year.activeDays) + " days" }),
-        el("span", { class: "tile-note", text: year.topArtist ? "Artist: " + year.topArtist.key : "" }),
+        el("span", { class: "tile-note", text: year.topArtist ? "Artist: " + year.topArtist.name : "" }),
         el("span", { class: "tile-note", text: track ? "Track: " + track.name : "" })
       ]);
     });
@@ -1008,14 +1090,16 @@
     var fill = bar.firstChild;
 
     var input = el("input", {
-      type: "file", multiple: true, accept: ".json,.zip,application/json,application/zip",
+      type: "file", multiple: true,
+      accept: ".json,.csv,.zip,application/json,text/csv,application/zip",
       style: "display:none",
       onchange: function (event) { runImport(event.target.files, status, bar, fill); }
     });
 
     var drop = el("div", { class: "drop" }, [
-      el("p", { style: "margin:0 0 .5rem", text: hasImport ? "Add another export" : "Drop your Spotify data export here" }),
-      el("p", { class: "small muted", style: "margin:0 0 .8rem", text: "my_spotify_data.zip, or the Streaming_History_*.json files inside it" }),
+      el("p", { style: "margin:0 0 .5rem", text: hasImport ? "Add another export" : "Drop a Spotify or Apple Music export here" }),
+      el("p", { class: "small muted", style: "margin:0 0 .8rem", text:
+        "my_spotify_data.zip, an Apple Media Services zip, or the JSON and CSV files from inside either" }),
       el("button", { class: "btn", type: "button", text: "Choose files", onclick: function () { input.click(); } }),
       input, bar, status
     ]);
@@ -1039,33 +1123,62 @@
     });
 
     var meta = state.history.importMeta;
+    var have = counts();
     var kids = [];
+
     if (!hasImport) {
       kids.push(el("p", { text:
-        "Spotify's API can only ever show the last 50 plays. Your full history lives in " +
-        "the data export you can request from your account — it's the same file " +
-        "Wrapped is built from, and it stays on this device." }));
-      kids.push(el("ol", { class: "steps" }, [
-        el("li", { html: 'Open <a href="https://www.spotify.com/account/privacy/" target="_blank" rel="noopener">spotify.com/account/privacy</a>.' }),
-        el("li", { text: "Tick “Extended streaming history” — that's the one with every stream since you joined. (“Account data” is quicker but only covers the past year.)" }),
-        el("li", { text: "Confirm the email Spotify sends, then wait. Account data usually lands in a few days; extended history can take up to 30." }),
-        el("li", { text: "Drop the zip below. Nothing is uploaded — the parsing happens in this tab." })
+        "Neither service's API will hand over your listening history \u2014 Spotify's " +
+        "stops at the last 50 plays and Apple's has no history endpoint at all. Both " +
+        "will post you the whole thing though, and both files drop straight into this " +
+        "page, where they become one dataset." }));
+      kids.push(el("div", { class: "cols two" }, [
+        el("div", {}, [
+          el("h3", { class: "viz-title", text: "Spotify" }),
+          el("ol", { class: "steps" }, [
+            el("li", { html: 'Open <a href="https://www.spotify.com/account/privacy/" target="_blank" rel="noopener">spotify.com/account/privacy</a>.' }),
+            el("li", { text: "Tick \u201cExtended streaming history\u201d \u2014 every stream since you joined. (\u201cAccount data\u201d is quicker but only covers the past year.)" }),
+            el("li", { text: "Confirm the email, then wait: account data lands in a few days, extended history can take up to 30." })
+          ])
+        ]),
+        el("div", {}, [
+          el("h3", { class: "viz-title", text: "Apple Music" }),
+          el("ol", { class: "steps" }, [
+            el("li", { html: 'Open <a href="https://privacy.apple.com/" target="_blank" rel="noopener">privacy.apple.com</a> and choose \u201cRequest a copy of your data\u201d.' }),
+            el("li", { text: "Pick \u201cApple Media Services information\u201d. The music history is the part that matters." }),
+            el("li", { text: "Apple emails a download link, usually within a week. Drop the zip in as it arrives." })
+          ])
+        ])
       ]));
-    } else if (meta) {
       kids.push(el("p", { class: "small muted", text:
-        "Imported " + util.int(meta.records) + " streams from " + meta.files +
-        " file" + (meta.files === 1 ? "" : "s") + " on " + util.dayLabel(meta.day) + "." }));
+        "Nothing is uploaded either way \u2014 the zips are opened and parsed in this tab." }));
+    } else {
+      var lines = [];
+      if (meta) {
+        lines.push("Imported " + util.int(meta.records) + " streams from " + meta.files +
+          " file" + (meta.files === 1 ? "" : "s") + " on " + util.dayLabel(meta.day) + ".");
+      }
+      if (have.apple && meta && meta.appleKind) {
+        lines.push("Apple Music came from " + (SP.apple.LABELS[meta.appleKind] || meta.appleKind) + ".");
+      }
+      if (have.spotify && have.apple) {
+        lines.push("Spotify " + util.int(have.spotify) + " streams \u00b7 Apple Music " + util.int(have.apple) + ".");
+      }
+      if (lines.length) kids.push(el("p", { class: "small muted", text: lines.join(" ") }));
     }
+
     kids.push(drop);
+
     if (hasImport) {
       kids.push(el("div", { class: "row", style: "margin-top:.8rem" }, [
         el("button", {
           class: "btn btn-sm btn-danger", type: "button", text: "Clear imported history",
           onclick: function () {
-            if (!confirm("Delete the imported history from this browser? The export file on your computer is untouched.")) return;
+            if (!confirm("Delete the imported history from this browser? The export files on your computer are untouched.")) return;
             store.clearHistory().then(function () {
               state.imported = null;
               state.history.importMeta = null;
+              state._lifetime = null;
               statsCache = {};
               banner("Imported history cleared.", "good");
               refresh();
@@ -1082,46 +1195,73 @@
     if (!files.length) return;
     bar.hidden = false;
     fill.style.width = "2%";
-    status.textContent = "Reading " + files.length + " file" + (files.length === 1 ? "" : "s") + "…";
+    status.textContent = "Reading " + files.length + " file" + (files.length === 1 ? "" : "s") + "\u2026";
 
     collect(files, function (message, fraction) {
       status.textContent = message;
       fill.style.width = Math.round(fraction * 100) + "%";
     }).then(function (found) {
       if (!found.records.length) {
-        status.textContent = found.skipped
-          ? "No listening history in those files — look for Streaming_History_*.json or endsong_*.json."
-          : "Nothing to import.";
+        status.textContent = explainNothing(found);
         fill.style.width = "0";
         return null;
       }
       return store.allHistory().then(function (existing) {
+        /* The key carries the source, so the same song played on both
+           services on the same evening isn't mistaken for a duplicate. */
         var seen = new Set();
-        existing.forEach(function (record) { seen.add(record.ts + "|" + record.ms + "|" + record.track); });
+        var had = { spotify: 0, apple: 0 };
+        existing.forEach(function (record) {
+          seen.add(dedupeKey(record));
+          had[originOf(record)]++;
+        });
+
         var fresh = found.records.filter(function (record) {
-          var key = record.ts + "|" + record.ms + "|" + record.track;
+          var key = dedupeKey(record);
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
         });
+
         if (!fresh.length) {
-          status.textContent = "Already imported — all " + util.int(found.records.length) + " streams were there.";
+          status.textContent = "Already imported \u2014 all " + util.int(found.records.length) + " streams were there.";
           fill.style.width = "100%";
           return null;
         }
-        status.textContent = "Saving " + util.int(fresh.length) + " streams…";
+
+        /* Apple's three files describe the same plays at different
+           resolutions, so importing a second kind on top of a first would
+           count that listening twice. */
+        if (found.appleKind && had.apple && state.history.importMeta &&
+            state.history.importMeta.appleKind &&
+            state.history.importMeta.appleKind !== found.appleKind) {
+          var was = SP.apple.LABELS[state.history.importMeta.appleKind] || "another file";
+          var now = SP.apple.LABELS[found.appleKind] || "this file";
+          if (!confirm("This browser already holds Apple Music history from " + was +
+              ", and " + now + " describes the same plays. Importing both will count " +
+              "that listening twice.\n\nImport anyway?")) {
+            status.textContent = "Left as it was. Clear the imported history first to switch files.";
+            fill.style.width = "0";
+            return null;
+          }
+        }
+
+        status.textContent = "Saving " + util.int(fresh.length) + " streams\u2026";
         return store.addHistory(fresh, function (done, total) {
           fill.style.width = Math.round((done / total) * 100) + "%";
         }).then(function () {
           return store.setMeta("import", {
-            records: existing.length + fresh.length, files: found.files, day: util.dateKey(new Date())
+            records: existing.length + fresh.length,
+            files: found.files,
+            day: util.dateKey(new Date()),
+            appleKind: found.appleKind || (state.history.importMeta && state.history.importMeta.appleKind) || null
           });
         }).then(function () {
           state.imported = null;
           state.history.importMeta = null;
-          state.history.source = "import";
+          state._lifetime = null;
           statsCache = {};
-          banner("Imported " + util.int(fresh.length) + " streams.", "good");
+          banner(importSummary(fresh, found), "good");
           refresh();
         });
       });
@@ -1131,48 +1271,136 @@
     });
   }
 
-  /* Pulls history rows out of whatever was dropped: zips, loose JSON, or a
-     mix. Anything that isn't a history file is quietly skipped. */
+  function dedupeKey(record) {
+    return originOf(record) + "|" + record.ts + "|" + record.ms + "|" + record.track;
+  }
+
+  function importSummary(fresh, found) {
+    var byOrigin = { spotify: 0, apple: 0 };
+    fresh.forEach(function (record) { byOrigin[originOf(record)]++; });
+    var parts = [];
+    if (byOrigin.spotify) parts.push(util.int(byOrigin.spotify) + " from Spotify");
+    if (byOrigin.apple) {
+      parts.push(util.int(byOrigin.apple) + " from Apple Music" +
+        (found.appleKind ? " (" + SP.apple.LABELS[found.appleKind] + ")" : ""));
+    }
+    return "Imported " + util.int(fresh.length) + " streams \u2014 " + parts.join(" and ") + ".";
+  }
+
+  /* When a drop yields nothing, say what was actually in it rather than a
+     flat "no data" \u2014 usually it's the wrong file out of the export. */
+  function explainNothing(found) {
+    if (found.unknown.length) {
+      var first = found.unknown[0];
+      return "Couldn't read " + first.name + ". Columns found: " +
+        first.headers.slice(0, 6).join(", ") + (first.headers.length > 6 ? "\u2026" : "") + ".";
+    }
+    if (found.skipped) {
+      return "No listening history in those files \u2014 look for Streaming_History_*.json, " +
+        "endsong_*.json, or Apple's Play Activity / Play History Daily Tracks CSVs.";
+    }
+    return "Nothing to import.";
+  }
+
+  /* Pulls history out of whatever was dropped: zips (including a zip inside a
+     zip, which is how Apple's download often arrives), Spotify JSON and Apple
+     CSV, in any mix. Anything else is skipped.
+
+     Apple's files overlap, so only the richest kind present is kept. */
   function collect(files, report) {
     var records = [];
+    var apple = {};          /* kind -> records, so only the best one is used */
     var used = 0;
     var skipped = 0;
+    var unknown = [];
     var index = 0;
 
+    function readText(name, text) {
+      if (/\.csv$/i.test(name)) {
+        var found = SP.apple.parseFile(text, name);
+        if (!found.kind || found.kind === "other") {
+          if (found.headers.length) unknown.push({ name: name.split("/").pop(), headers: found.headers });
+          else skipped++;
+          return;
+        }
+        if (!found.records.length) { skipped++; return; }
+        if (!apple[found.kind]) apple[found.kind] = [];
+        found.records.forEach(function (record) { apple[found.kind].push(record); });
+        used++;
+        return;
+      }
+      var parsed = past.parseFile(text);
+      if (parsed.length) {
+        used++;
+        parsed.forEach(function (record) { records.push(record); });
+      } else {
+        skipped++;
+      }
+    }
+
+    function wanted(name) {
+      return past.isHistoryFile(name) || SP.apple.isAppleFile(name);
+    }
+
+    function readZip(buffer, label, progress) {
+      var entries = unzip.entries(buffer).filter(function (entry) { return !entry.directory; });
+      var nested = entries.filter(function (entry) { return /\.zip$/i.test(entry.name); });
+      var direct = entries.filter(function (entry) { return wanted(entry.name); });
+      if (!direct.length && !nested.length) { skipped++; return Promise.resolve(); }
+
+      return direct.reduce(function (chain, entry, position) {
+        return chain.then(function () {
+          report("Unpacking " + entry.name.split("/").pop() + "\u2026",
+            progress + (position + 1) / (direct.length + nested.length + 1) / (files.length + 1));
+          return entry.text().then(function (text) { readText(entry.name, text); });
+        });
+      }, Promise.resolve()).then(function () {
+        /* Apple's download is frequently a zip of zips. */
+        return nested.reduce(function (chain, entry) {
+          return chain.then(function () {
+            report("Opening " + entry.name.split("/").pop() + "\u2026", progress);
+            return entry.read().then(function (bytes) {
+              return readZip(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+                entry.name, progress);
+            });
+          });
+        }, Promise.resolve());
+      });
+    }
+
     function next() {
-      if (index >= files.length) return Promise.resolve({ records: records, files: used, skipped: skipped });
+      if (index >= files.length) return Promise.resolve(finish());
       var file = files[index++];
-      report("Reading " + file.name + "…", index / (files.length + 1));
+      var progress = index / (files.length + 1);
+      report("Reading " + file.name + "\u2026", progress);
+
       var task;
       if (/\.zip$/i.test(file.name)) {
-        task = file.arrayBuffer().then(function (buffer) {
-          var wanted = unzip.entries(buffer).filter(function (entry) {
-            return !entry.directory && past.isHistoryFile(entry.name);
-          });
-          if (!wanted.length) { skipped++; return; }
-          return wanted.reduce(function (chain, entry, position) {
-            return chain.then(function () {
-              report("Unpacking " + entry.name.split("/").pop() + "…",
-                (index - 1 + (position + 1) / wanted.length) / (files.length + 1));
-              return entry.text().then(function (text) {
-                var parsed = past.parseFile(text);
-                if (parsed.length) { used++; parsed.forEach(function (r) { records.push(r); }); }
-              });
-            });
-          }, Promise.resolve());
-        });
-      } else if (/\.json$/i.test(file.name)) {
-        task = file.text().then(function (text) {
-          var parsed = past.parseFile(text);
-          if (parsed.length) { used++; parsed.forEach(function (r) { records.push(r); }); }
-          else skipped++;
-        }).catch(function () { skipped++; });
+        task = file.arrayBuffer().then(function (buffer) { return readZip(buffer, file.name, progress); });
+      } else if (/\.(json|csv)$/i.test(file.name)) {
+        task = file.text().then(function (text) { readText(file.name, text); })
+          .catch(function () { skipped++; });
       } else {
         skipped++;
         task = Promise.resolve();
       }
       return task.then(next);
     }
+
+    function finish() {
+      var kinds = Object.keys(apple);
+      var appleKind = null;
+      if (kinds.length) {
+        appleKind = kinds.reduce(function (best, kind) { return SP.apple.better(best, kind); });
+        apple[appleKind].forEach(function (record) { records.push(record); });
+      }
+      return {
+        records: records, files: used, skipped: skipped, unknown: unknown,
+        appleKind: appleKind,
+        appleSkipped: kinds.filter(function (kind) { return kind !== appleKind; })
+      };
+    }
+
     return next();
   }
 
@@ -1310,6 +1538,16 @@
         { label: "First heard", value: util.dayLabel(util.dateKey(new Date(artist.first))) },
         { label: "Last heard", value: util.dayLabel(util.dateKey(new Date(artist.last))) }
       ].filter(Boolean)));
+
+      if (artist.bySource && artist.bySource.size > 1) {
+        var split = [];
+        artist.bySource.forEach(function (ms, source) { split.push({ source: source, ms: ms }); });
+        split.sort(function (a, b) { return b.ms - a.ms; });
+        body.appendChild(el("p", { class: "small muted", text: "Played on " +
+          split.map(function (entry) {
+            return sourceName(entry.source) + " (" + util.duration(entry.ms) + ")";
+          }).join(" and ") + "." }));
+      }
 
       if (detail.years.length > 1) {
         body.appendChild(charts.columns(detail.years.map(function (year) {
@@ -1578,7 +1816,7 @@
   function rankedArtist(name) {
     var stats = allTimeStats();
     if (!stats) return null;
-    var artist = stats.artists.get(name);
+    var artist = stats.artists.get(past.artistKey(name));
     return artist ? { artist: artist, stats: stats } : null;
   }
 
