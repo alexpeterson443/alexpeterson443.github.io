@@ -42,10 +42,40 @@ SP.auth = (function () {
     return util.load("redirectUri", "") || pageRedirectUri();
   }
 
+  /* Why the override has to stay on this origin: the PKCE verifier is kept in
+     localStorage, which is scoped to the origin that started the login. Send
+     Spotify to another origin and the callback lands somewhere that cannot
+     read the verifier \u2014 not even another copy of this app \u2014 so the exchange
+     can never complete. A different path here is fine; a different origin is
+     a dead end, so it is refused rather than offered and then broken.
+
+     Returns a reason the value is unusable, or null when it is fine. */
+  function redirectUriProblem(value) {
+    var trimmed = (value || "").trim();
+    if (!trimmed) return null; /* empty clears the override */
+
+    var parsed;
+    try {
+      parsed = new URL(trimmed);
+    } catch (err) {
+      return "That isn't a full URL. It needs to start with " + location.protocol + "//";
+    }
+    if (parsed.origin !== location.origin) {
+      return "It has to be on this site (" + location.origin + "). The login stores its " +
+        "one-time key here, and another origin can't read it \u2014 so a redirect there " +
+        "could never finish. Register a URI on this site with Spotify instead.";
+    }
+    if (parsed.hash) return "Drop the # part \u2014 Spotify won't match it.";
+    return null;
+  }
+
+  /* Rejects anything redirectUriProblem() names; returns whether it stuck. */
   function setRedirectUri(value) {
     var trimmed = (value || "").trim();
+    if (redirectUriProblem(trimmed)) return false;
     if (trimmed && trimmed !== pageRedirectUri()) util.save("redirectUri", trimmed);
     else util.drop("redirectUri");
+    return true;
   }
 
   /* The Spotify app this site is registered as. A PKCE client ID is public
@@ -122,16 +152,22 @@ SP.auth = (function () {
     if (!id) return Promise.reject(new Error("Add your Spotify client ID first."));
     var verifier = randomString(64);
     var state = randomString(16);
+    var redirect = redirectUri();
     return challenge(verifier).then(function (code_challenge) {
       /* localStorage, not sessionStorage: installed to a home screen, the trip
          through Spotify can come back in a different browsing context, and a
          session-scoped verifier would be gone by then. It is one-shot and
          short-lived either way — cleared the moment it is used. */
-      util.save("pending", { verifier: verifier, state: state, at: Date.now() });
+      /* Pin the URI this request is carrying. Spotify rejects a token
+         exchange whose redirect_uri differs from the authorize one, and the
+         setting can change in another tab while the consent screen is open. */
+      util.save("pending", {
+        verifier: verifier, state: state, at: Date.now(), redirectUri: redirect
+      });
       var params = new URLSearchParams({
         client_id: id,
         response_type: "code",
-        redirect_uri: redirectUri(),
+        redirect_uri: redirect,
         state: state,
         scope: SCOPES.join(" "),
         code_challenge_method: "S256",
@@ -187,7 +223,9 @@ SP.auth = (function () {
     return postToken({
       grant_type: "authorization_code",
       code: code,
-      redirect_uri: redirectUri(),
+      /* The one the authorize request carried, not whatever the setting says
+         now \u2014 older pending records predate this and fall back. */
+      redirect_uri: waiting.redirectUri || redirectUri(),
       client_id: clientId(),
       code_verifier: verifier
     }).then(function (data) {
@@ -233,6 +271,7 @@ SP.auth = (function () {
     redirectUri: redirectUri,
     pageRedirectUri: pageRedirectUri,
     setRedirectUri: setRedirectUri,
+    redirectUriProblem: redirectUriProblem,
     clientId: clientId,
     ownClientId: ownClientId,
     setClientId: setClientId,

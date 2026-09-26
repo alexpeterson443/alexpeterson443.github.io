@@ -1430,7 +1430,10 @@
   /* A tap-to-copy string. Falls back to selecting the text where the
      clipboard is blocked, which is common on a phone over plain http. */
   function copyable(text) {
-    return el("code", { class: "copy", text: text, title: "Tap to copy", onclick: function (event) {
+    return el("button", {
+      type: "button", class: "copy", text: text,
+      title: "Tap to copy", "aria-label": "Copy " + text,
+      onclick: function (event) {
       var node = event.currentTarget;
       var done = function () { banner("Copied: " + text, "good"); };
       var select = function () {
@@ -1442,7 +1445,8 @@
       };
       if (navigator.clipboard) navigator.clipboard.writeText(text).then(done).catch(select);
       else select();
-    } });
+      }
+    });
   }
 
   function renderSetup(view) {
@@ -1487,10 +1491,8 @@
         uriInput,
         el("button", { class: "btn", type: "button", text: "Save", onclick: function () {
           var value = uriInput.value.trim();
-          if (value && !/^https:\/\//i.test(value) && !/^http:\/\/(127\.0\.0\.1|localhost)/i.test(value)) {
-            banner("Spotify only accepts https, or http on 127.0.0.1 for local testing.", "bad");
-            return;
-          }
+          var problem = auth.redirectUriProblem(value);
+          if (problem) { banner(problem, "bad"); return; }
           auth.setRedirectUri(value);
           banner(util.load("redirectUri", "")
             ? "Sending " + auth.redirectUri() + " from now on."
@@ -1499,7 +1501,9 @@
         } })
       ]),
       el("p", { class: "small muted", text:
-        "It has to match character for character \u2014 https, the trailing slash, no index.html." })
+        "It has to match character for character \u2014 the scheme, the trailing slash, no " +
+        "index.html \u2014 and it has to be a path on this site: the login keeps its one-time " +
+        "key here, so a redirect to another origin could never finish." })
     ]));
 
     var input = el("input", { type: "text", value: own, placeholder: "e.g. 3a9f0c2e5b7d4f1a8c6e2b4d9f7a1c3e", "aria-label": "Spotify client ID", spellcheck: "false" });
