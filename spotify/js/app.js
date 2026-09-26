@@ -1427,6 +1427,28 @@
 
   /* ---- setup ---- */
 
+  /* A tap-to-copy string. Falls back to selecting the text where the
+     clipboard is blocked, which is common on a phone over plain http. */
+  function copyable(text) {
+    return el("button", {
+      type: "button", class: "copy", text: text,
+      title: "Tap to copy", "aria-label": "Copy " + text,
+      onclick: function (event) {
+      var node = event.currentTarget;
+      var done = function () { banner("Copied: " + text, "good"); };
+      var select = function () {
+        var range = document.createRange();
+        range.selectNodeContents(node);
+        var selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done).catch(select);
+      else select();
+      }
+    });
+  }
+
   function renderSetup(view) {
     var id = auth.clientId();
     var own = auth.ownClientId();
@@ -1443,25 +1465,54 @@
       ])
     ]));
 
+    /* The failure this card exists for: Spotify matches the redirect URI as
+       an exact string, and when it does not match it stops at its own error
+       page and never returns here \u2014 so nothing in this app can see it
+       happen. All it can do is show the string it sends and let you change
+       it to whatever the Spotify app actually has registered. */
+    var page = auth.pageRedirectUri();
+    var override = util.load("redirectUri", "");
+    var uriInput = el("input", {
+      type: "text", value: override, spellcheck: "false",
+      placeholder: page, "aria-label": "Redirect URI to send"
+    });
+
+    view.appendChild(card("Redirect URI", "Spotify has to have this exact string registered on the app, or the login stops at Spotify.", [
+      el("p", { class: "small muted", style: "margin-bottom:.35rem", text: "This page currently sends:" }),
+      el("div", { style: "margin:0 0 .8rem" }, [copyable(uri)]),
+      override ? el("p", { class: "banner", text:
+        "That is an override you set. Clear the box below to go back to this page's own address (" + page + ")." }) : null,
+      el("p", { class: "small muted", text:
+        "Seeing \u201credirect_uri: Not matching configuration\u201d at accounts.spotify.com? " +
+        "That string is not on the app's list. Either add it in the Spotify dashboard " +
+        "under Settings \u2192 Edit \u2192 Redirect URIs, or paste what the app already has " +
+        "registered here so this page sends that instead." }),
+      el("div", { class: "field" }, [
+        uriInput,
+        el("button", { class: "btn", type: "button", text: "Save", onclick: function () {
+          var value = uriInput.value.trim();
+          var problem = auth.redirectUriProblem(value);
+          if (problem) { banner(problem, "bad"); return; }
+          auth.setRedirectUri(value);
+          banner(util.load("redirectUri", "")
+            ? "Sending " + auth.redirectUri() + " from now on."
+            : "Back to this page's own address.", "good");
+          refresh();
+        } })
+      ]),
+      el("p", { class: "small muted", text:
+        "It has to match character for character \u2014 the scheme, the trailing slash, no " +
+        "index.html \u2014 and it has to be a path on this site: the login keeps its one-time " +
+        "key here, so a redirect to another origin could never finish." })
+    ]));
+
     var input = el("input", { type: "text", value: own, placeholder: "e.g. 3a9f0c2e5b7d4f1a8c6e2b4d9f7a1c3e", "aria-label": "Spotify client ID", spellcheck: "false" });
     view.appendChild(card("Your own Spotify app", "Optional. This site already has a Spotify app built in, so its owner can just connect. It's in development mode, though, so any other account needs its own app — two minutes, once.", [
       el("ol", { class: "steps" }, [
         el("li", { html: 'Open the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify developer dashboard</a> and click <b>Create app</b>. Any name will do.' }),
         el("li", {}, [
-          el("span", { text: "Set the Redirect URI to exactly this — click to copy:" }),
-          el("div", { style: "margin:.4rem 0" }, [
-            el("code", { class: "copy", text: uri, title: "Click to copy", onclick: function (event) {
-              navigator.clipboard.writeText(uri).then(function () {
-                banner("Redirect URI copied.", "good");
-              }).catch(function () {
-                var range = document.createRange();
-                range.selectNodeContents(event.currentTarget);
-                var selection = getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-              });
-            } })
-          ])
+          el("span", { text: "Set its Redirect URI to exactly this — tap to copy:" }),
+          el("div", { style: "margin:.4rem 0" }, [copyable(uri)])
         ]),
         el("li", { text: "Tick the Web API, save, then copy the app's Client ID." }),
         el("li", { text: "Paste it here. It stays in this browser — a client ID isn't a secret, and there is no client secret in this flow (PKCE)." })
