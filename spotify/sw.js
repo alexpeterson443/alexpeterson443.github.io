@@ -11,7 +11,8 @@ var SHELL = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest", "./icon.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./js/util.js", "./js/auth.js", "./js/api.js", "./js/store.js",
-  "./js/unzip.js", "./js/history.js", "./js/charts.js", "./js/app.js"
+  "./js/unzip.js", "./js/csv.js", "./js/apple.js", "./js/history.js",
+  "./js/charts.js", "./js/app.js"
 ];
 
 self.addEventListener("install", function (event) {

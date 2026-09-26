@@ -1,8 +1,9 @@
 # Listening Stats
 
 A static page that links your Spotify account and shows your listening history
-and stats. No server, no build step, no dependencies — eight plain `<script>`
-files and a stylesheet, served straight from GitHub Pages.
+and stats, with Apple Music's history merged into the same dataset. No server,
+no build step, no dependencies — ten plain `<script>` files and a stylesheet,
+served straight from GitHub Pages.
 
 Live at **/spotify/** on this site.
 
@@ -14,7 +15,7 @@ Live at **/spotify/** on this site.
 | **Top** | Your top 50 artists and tracks over 4 weeks / 6 months / all time, the genres behind them, and when those tracks were released |
 | **Recent** | Every play this app has logged, a weekday-by-hour heatmap, most-played artists and tracks, and a full timeline |
 | **Library** | Saved tracks, albums, playlists and follows; when you saved things; which artists and release years fill your library |
-| **Full history** | Your entire listening life from a Spotify data export: lifetime hours, streaks, top artists/tracks/albums, year-by-year and month-by-month, a listening clock, a calendar per year, skip and shuffle rates, platforms, countries, and search over every stream |
+| **Full history** | Your entire listening life from your Spotify and Apple Music data exports, merged: lifetime hours, streaks, top artists/tracks/albums, where each artist ranks in your listening, year-by-year and month-by-month, a listening clock, a calendar per year, skip and shuffle rates, platforms, countries, and search over every stream |
 | **Setup** | Client ID, connection, what's stored on this device, and how to wipe it |
 
 ## Add it to your home screen
@@ -95,6 +96,77 @@ Audio features (danceability, energy, tempo) are **not** here: Spotify
 deprecated `/audio-features` for new apps in November 2024, and any app created
 since gets a 403.
 
+## Two services, one dataset
+
+Spotify and Apple Music are counted together, not side by side. An artist you
+played on both is **one row** with one total; the split is still there when you
+want it.
+
+Tracks and artists are matched by name rather than by ID, because Apple's export
+carries no Spotify URI and Spotify's carries no Apple one. Names are folded
+first: case, accents, curly apostrophes and dash styles. Track titles also lose
+the version suffix that means *the same recording under a different label* —
+`Dreams - 2004 Remaster` is `Dreams`. Live takes, remixes, acoustic and
+instrumental versions keep theirs, because those really are different
+recordings.
+
+What you get from the merge:
+
+- **One set of totals** across both services, and one ranking of artists.
+- **A "Where it came from" card** — hours, streams and share per service.
+- **A switch per source** (Spotify export / Apple Music / the play log), so you
+  can see any one service's numbers on their own.
+- **A per-artist split** in the drill-down: *Played on Spotify (5 d 7 hr) and
+  Apple Music (2 d 1 hr).*
+
+### Getting the Apple Music export
+
+Open [privacy.apple.com](https://privacy.apple.com/), choose **Request a copy of
+your data**, and pick **Apple Media Services information**. It usually arrives
+within a week, as a zip — often a zip inside a zip, which this page opens either
+way. Three files in it describe listening history:
+
+| File | What it holds |
+|---|---|
+| `Apple Music Play Activity.csv` | one row per play, with real timestamps — the best of the three |
+| `Apple Music - Play History Daily Tracks.csv` | one row per track per day: a date, the hours, a play count and a total |
+| `Apple Music - Recently Played Tracks.csv` | the short recent list |
+
+They overlap, so **only the richest one present is imported** — taking two would
+count the same listening twice. If you later import a different one on top, the
+page says so and asks first.
+
+The daily file has no clock time for individual plays, so those are rebuilt: the
+day's total is split across its play count and spread through the hours the file
+lists. Totals, days and hours stay exact; only the minute inside the hour is
+inferred, and the app says so wherever those rows are counted.
+
+Columns are matched by name against a list of candidates, since Apple has
+renamed fields between exports (`Song Name` used to be `Content Name`). A file
+that doesn't match anything reports the columns it *did* find rather than
+silently importing nothing.
+
+## "Top 1% of listeners" — why this app can't show that
+
+Wrapped's line about being in the top fraction of an artist's listeners is
+computed inside Spotify against everyone who played them. **No Web API endpoint
+exposes it**, or monthly listeners, or any listener count you could derive it
+from — so no third-party app can show that number, and one that claims to is
+making it up.
+
+What every artist does carry here is your own standing, which is real and
+computable from your history:
+
+- **Your rank** — #3 of the 412 artists you have played.
+- **The percentile that follows from it** — "top 0.7% of the artists you play".
+  Ties share a rank, and a library under 20 artists shows the plain rank
+  instead, since a percentile of eight names means nothing.
+- **Share of your time** — what fraction of all your listening went to them.
+
+They appear under every artist in the Full history list, in the artist
+drill-down, and on the Top tab's artist cards (as `Yours:`), drawn from your
+imported export or, failing that, from the play log.
+
 ## Where your data lives
 
 On your device. The token exchange goes from your browser straight to
@@ -116,7 +188,9 @@ spotify/
   js/api.js           Web API client: retries, 429 backoff, pagination
   js/store.js         IndexedDB: the play log and imported history
   js/unzip.js         ZIP reader built on DecompressionStream
-  js/history.js       export parsing and all the aggregation
+  js/csv.js           RFC 4180 CSV reader, row by row
+  js/apple.js         the three Apple Music export shapes
+  js/history.js       export parsing, merge keys and all the aggregation
   js/charts.js        SVG/HTML chart primitives
   js/app.js           views, routing, loading
   test/               node tests for the parser and the zip reader
@@ -128,6 +202,9 @@ spotify/
 npm test          # or: node spotify/test/history.test.js
 ```
 
-Covers the three export shapes, the aggregation maths (totals, streaks,
-sessions, skip rates, per-year rollups), the platform-string collapsing, junk
-input, and unzipping a real deflated archive.
+Covers Spotify's three export shapes and Apple's three, the aggregation maths
+(totals, streaks, sessions, skip rates, per-year rollups, per-artist ranking),
+the CSV reader's quoting and newline rules, the merge itself (same song on both
+services becoming one row, a remaster suffix not splitting a track, a live take
+staying separate, per-service splits adding up), the platform-string collapsing,
+junk input, and unzipping a real deflated archive.

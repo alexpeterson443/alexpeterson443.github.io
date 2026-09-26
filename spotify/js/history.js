@@ -101,8 +101,44 @@ SP.history = (function () {
 
   /* ---- aggregating ---- */
 
+  /* Merge keys.
+
+     Spotify's export carries a track URI and Apple's carries none, so a URI
+     can't be the identity of a song here \u2014 the same track played on both
+     services has to land in one row. Names are what both sides agree on, so
+     the key is the normalised artist and title: case, accents, curly
+     apostrophes and dash styles folded away.
+
+     Track titles also get their version suffix dropped, but only the kind
+     that is the same recording under a different label: "Dreams - 2004
+     Remaster" is "Dreams". Live takes, remixes and acoustic versions keep
+     their suffix, because those really are different recordings. */
+  var SAME_RECORDING = /\s[-\u2013\u2014]\s[^-\u2013\u2014]*\b(remaster(ed)?|mono|stereo|single version|album version|radio edit|bonus track|deluxe(\s+edition)?)\b.*$/i;
+
+  function fold(text) {
+    return String(text === null || text === undefined ? "" : text)
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u2018\u2019\u02bc]/g, "'")
+      .replace(/[\u2013\u2014]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function artistKey(name) {
+    return fold(name);
+  }
+
+  function trackKey(artist, track) {
+    return fold(artist) + "\u0000" + fold(String(track || "").replace(SAME_RECORDING, ""));
+  }
+
+  function albumKey(artist, album) {
+    return fold(artist) + "\u0000" + fold(album);
+  }
+
   function keyOf(record) {
-    return record.uri || (record.artist + "\u0000" + record.track);
+    return trackKey(record.artist, record.track);
   }
 
   function bump(map, key, seed) {
@@ -137,6 +173,7 @@ SP.history = (function () {
       platforms: new Map(), countries: new Map(),
       reasonStart: new Map(), reasonEnd: new Map(),
       skipped: 0, skippable: 0, shuffled: 0, shuffleKnown: 0, offline: 0,
+      sources: new Map(), approx: 0,
       episodes: { streams: 0, ms: 0, shows: new Map() },
       estimated: 0,
       ignored: 0
@@ -149,6 +186,18 @@ SP.history = (function () {
       var date = new Date(r.ts);
       stats.streams++;
       stats.ms += r.ms;
+
+      /* Rows written before the app knew about more than one service, and the
+         app's own play log, are Spotify. */
+      var origin = r.source || "spotify";
+      var service = bump(stats.sources, origin, function () {
+        return { source: origin, streams: 0, ms: 0, first: r.ts, last: r.ts };
+      });
+      service.streams++;
+      service.ms += r.ms;
+      if (r.ts < service.first) service.first = r.ts;
+      if (r.ts > service.last) service.last = r.ts;
+      if (r.approxTime) stats.approx++;
       if (stats.first === null || r.ts < stats.first) stats.first = r.ts;
       if (stats.last === null || r.ts > stats.last) stats.last = r.ts;
       if (r.estimated) stats.estimated++;
@@ -174,9 +223,10 @@ SP.history = (function () {
       if (r.ts > track.last) track.last = r.ts;
       if (!track.art && r.art) track.art = r.art;
 
-      var artist = bump(stats.artists, r.artist, function () {
-        return { name: r.artist, ms: 0, plays: 0, first: r.ts, last: r.ts,
-                 tracks: new Map(), years: new Map(), art: r.art || null };
+      var aKeyName = artistKey(r.artist);
+      var artist = bump(stats.artists, aKeyName, function () {
+        return { key: aKeyName, name: r.artist, ms: 0, plays: 0, first: r.ts, last: r.ts,
+                 tracks: new Map(), years: new Map(), bySource: new Map(), art: r.art || null };
       });
       artist.ms += r.ms;
       artist.plays++;
@@ -184,9 +234,10 @@ SP.history = (function () {
       if (r.ts > artist.last) artist.last = r.ts;
       if (!artist.art && r.art) artist.art = r.art;
       artist.tracks.set(tKey, (artist.tracks.get(tKey) || 0) + r.ms);
+      artist.bySource.set(origin, (artist.bySource.get(origin) || 0) + r.ms);
 
       if (r.album) {
-        var aKey = r.artist + "\u0000" + r.album;
+        var aKey = albumKey(r.artist, r.album);
         var album = bump(stats.albums, aKey, function () {
           return { key: aKey, name: r.album, artist: r.artist, art: r.art || null, ms: 0, plays: 0 };
         });
@@ -211,7 +262,7 @@ SP.history = (function () {
       year.ms += r.ms;
       year.plays++;
       year.days.add(dayKey);
-      year.artists.set(r.artist, (year.artists.get(r.artist) || 0) + r.ms);
+      year.artists.set(aKeyName, (year.artists.get(aKeyName) || 0) + r.ms);
       year.tracks.set(tKey, (year.tracks.get(tKey) || 0) + r.ms);
       artist.years.set(yearKey, (artist.years.get(yearKey) || 0) + r.ms);
 
@@ -262,6 +313,8 @@ SP.history = (function () {
     if (/(web_player|webplayer|browser)/i.test(value)) return "Web player";
     if (/(cast|chromecast)/i.test(value)) return "Cast";
     if (/partner|sonos|tv|xbox|playstation/i.test(value)) return "Speaker / TV";
+    /* What Spotify writes when the device wasn't recorded — not a device. */
+    if (/^(not_applicable|unknown|n\/a)$/i.test(value)) return "Not recorded";
     return value.length > 24 ? value.slice(0, 24) + "…" : value;
   }
 
@@ -309,9 +362,15 @@ SP.history = (function () {
     stats.sessions = sessions;
     stats.longestSession = longest;
 
+    rankArtists(stats);
+
     stats.yearList = Array.from(stats.years.values()).sort(function (a, b) { return a.year - b.year; });
     stats.yearList.forEach(function (year) {
       year.topArtist = biggest(year.artists);
+      if (year.topArtist) {
+        var named = stats.artists.get(year.topArtist.key);
+        year.topArtist.name = named ? named.name : year.topArtist.key;
+      }
       var topTrackKey = biggest(year.tracks);
       year.topTrack = topTrackKey ? stats.tracks.get(topTrackKey.key) : null;
       year.topTrackMs = topTrackKey ? topTrackKey.ms : 0;
@@ -321,6 +380,30 @@ SP.history = (function () {
     stats.monthList = Array.from(stats.months.values()).sort(function (a, b) {
       return a.key < b.key ? -1 : 1;
     });
+  }
+
+  /* Where each artist sits among all the artists in this selection.
+
+     This is the honest version of Wrapped's "top 0.5% of listeners": Spotify
+     works that one out against everyone who played the artist and never
+     publishes it — no Web API endpoint exposes listener counts or
+     percentiles. What can be said truthfully is how the artist ranks inside
+     your own listening, so that is what these three numbers are. */
+  function rankArtists(stats) {
+    var ranked = Array.from(stats.artists.values())
+      .sort(function (a, b) { return b.ms - a.ms || b.plays - a.plays; });
+
+    ranked.forEach(function (artist, index) {
+      artist.rank = index + 1;
+      artist.share = stats.ms ? artist.ms / stats.ms : 0;
+      /* Ties share the better rank, so two artists on identical time don't
+         land in different percentiles by sort luck. */
+      var tied = index > 0 && ranked[index - 1].ms === artist.ms;
+      if (tied) artist.rank = ranked[index - 1].rank;
+      artist.topPercent = ranked.length ? (artist.rank / ranked.length) * 100 : 100;
+    });
+
+    stats.rankedArtists = ranked;
   }
 
   function biggest(map) {
@@ -361,7 +444,7 @@ SP.history = (function () {
   }
 
   function artistDetail(stats, name) {
-    var artist = stats.artists.get(name);
+    var artist = stats.artists.get(artistKey(name));
     if (!artist) return null;
     var tracks = [];
     artist.tracks.forEach(function (ms, key) {
@@ -402,6 +485,8 @@ SP.history = (function () {
     topList: topList,
     countList: countList,
     artistDetail: artistDetail,
+    artistKey: artistKey,
+    trackKey: trackKey,
     search: search
   };
 })();
