@@ -313,6 +313,8 @@ SP.history = (function () {
     if (/(web_player|webplayer|browser)/i.test(value)) return "Web player";
     if (/(cast|chromecast)/i.test(value)) return "Cast";
     if (/partner|sonos|tv|xbox|playstation/i.test(value)) return "Speaker / TV";
+    /* What Spotify writes when the device wasn't recorded — not a device. */
+    if (/^(not_applicable|unknown|n\/a)$/i.test(value)) return "Not recorded";
     return value.length > 24 ? value.slice(0, 24) + "…" : value;
   }
 

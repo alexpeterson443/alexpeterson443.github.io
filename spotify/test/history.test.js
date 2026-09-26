@@ -144,6 +144,8 @@ check("aggregate: skip rate", Math.round(stats.skipRate * 1000) / 1000, Math.rou
 check("aggregate: shuffled", stats.shuffled, 60);
 check("aggregate: streak length", stats.streak.length, 30);
 check("aggregate: platforms collapsed", SP.history.countList(stats.platforms).map(function (p) { return p.name; }), ["Android", "Web player"]);
+check("aggregate: a missing device isn't shown as one",
+  SP.history.platformName("not_applicable"), "Not recorded");
 check("aggregate: countries", SP.history.countList(stats.countries).length, 2);
 check("aggregate: years covered", stats.yearList.length, 1);
 /* The key is folded for merging; the display name is what a reader sees. */

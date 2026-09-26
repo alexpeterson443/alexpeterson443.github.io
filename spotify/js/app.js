@@ -1207,20 +1207,32 @@
         return null;
       }
       return store.allHistory().then(function (existing) {
-        /* The key carries the source, so the same song played on both
-           services on the same evening isn't mistaken for a duplicate. */
-        var seen = new Set();
+        /* Dedupe by how many times a key appears, not whether it appears.
+
+           A real export holds genuinely identical rows \u2014 tap a track four
+           times in one second and Spotify logs four streams with the same
+           timestamp, duration and title. Dropping repeats on sight lost 1,617
+           of 102,399 real streams. Counting them keeps every play while a
+           re-import of the same file still adds nothing: an incoming row is
+           new only once the batch has more copies of that key than the store
+           already holds.
+
+           The key carries the source, so the same song played on both
+           services is never mistaken for a duplicate either. */
         var had = { spotify: 0, apple: 0 };
+        var stored = new Map();
         existing.forEach(function (record) {
-          seen.add(dedupeKey(record));
+          var key = dedupeKey(record);
+          stored.set(key, (stored.get(key) || 0) + 1);
           had[originOf(record)]++;
         });
 
+        var incoming = new Map();
         var fresh = found.records.filter(function (record) {
           var key = dedupeKey(record);
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
+          var copy = (incoming.get(key) || 0) + 1;
+          incoming.set(key, copy);
+          return copy > (stored.get(key) || 0);
         });
 
         if (!fresh.length) {
