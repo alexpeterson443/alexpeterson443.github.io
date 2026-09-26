@@ -23,12 +23,29 @@ SP.auth = (function () {
     "user-read-currently-playing"
   ];
 
-  /* The app is registered against this exact string; keep it stable by
-     dropping any filename and query the browser happens to be showing. */
-  function redirectUri() {
+  /* What this page would use by default: its own address, with any filename
+     and query dropped so the string stays stable however you arrived. */
+  function pageRedirectUri() {
     var path = location.pathname.replace(/index\.html$/, "");
     if (path.charAt(path.length - 1) !== "/") path += "/";
     return location.origin + path;
+  }
+
+  /* Spotify compares the redirect URI as an exact string, and it has to be
+     one the app has registered. When the registered one differs from this
+     page's address \u2014 no trailing slash, an apex domain, a different path \u2014
+     the login dies at Spotify with "redirect_uri: Not matching configuration"
+     and never comes back here, so the app cannot detect or correct it.
+     An override makes that fixable from the Setup tab instead of being a
+     dead end. */
+  function redirectUri() {
+    return util.load("redirectUri", "") || pageRedirectUri();
+  }
+
+  function setRedirectUri(value) {
+    var trimmed = (value || "").trim();
+    if (trimmed && trimmed !== pageRedirectUri()) util.save("redirectUri", trimmed);
+    else util.drop("redirectUri");
   }
 
   /* The Spotify app this site is registered as. A PKCE client ID is public
@@ -154,7 +171,10 @@ SP.auth = (function () {
     var expected = waiting.state;
     var verifier = waiting.verifier;
     var fresh = waiting.at && Date.now() - waiting.at < PENDING_MS;
-    history.replaceState({}, "", redirectUri());
+    /* Strip the code and state from the address bar without touching the
+       path: an override can point at a different path, or another origin,
+       and replaceState would either move the page or throw. */
+    history.replaceState({}, "", location.pathname + location.hash);
 
     if (error) {
       return Promise.reject(new Error(error === "access_denied"
@@ -211,6 +231,8 @@ SP.auth = (function () {
   return {
     SCOPES: SCOPES,
     redirectUri: redirectUri,
+    pageRedirectUri: pageRedirectUri,
+    setRedirectUri: setRedirectUri,
     clientId: clientId,
     ownClientId: ownClientId,
     setClientId: setClientId,
