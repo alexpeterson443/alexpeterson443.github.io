@@ -1,10 +1,10 @@
 diff --git a/src/page.html b/src/page.html
-index 7b1980f..ca9807a 100644
+index 90294a6..f0543a5 100644
 --- a/src/page.html
 +++ b/src/page.html
-@@ -175,6 +175,21 @@
-   .copy-btn svg { width: 18px; height: 18px; fill: none; stroke: var(--gold); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-   .copy-btn:active { opacity: .5; }
+@@ -188,6 +188,21 @@
+   .irow.unread .ititle { color: var(--ink); }
+   @media (hover: hover) { .inbox .irow:hover { background: var(--card2); } }
    [data-aurl].holding { background: var(--card2); transition: background .15s ease; }
 +  /* Recent: swipe a graded row left to hide it from the list */
 +  .swipe { position: relative; touch-action: pan-y; }
@@ -24,7 +24,7 @@ index 7b1980f..ca9807a 100644
    .sub-attempts { padding: 0 0 10px; }
    .sub-meta { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
    .sub-body + .sub-file, .comment + .sub-file { margin-top: 10px; }
-@@ -1256,6 +1271,18 @@ function recentItems() {
+@@ -1420,6 +1435,18 @@ function recentItems() {
      .sort((a, b) => new Date(b.gradedAt) - new Date(a.gradedAt));
  }
  
@@ -43,7 +43,7 @@ index 7b1980f..ca9807a 100644
  function nextDue(course) {
    const now = Date.now() - 3600 * 1000;
    return course.groups.flatMap((g) => g.assignments)
-@@ -2344,8 +2371,15 @@ function waitingOnGrade() {
+@@ -2570,8 +2597,15 @@ function waitingOnGrade() {
      .sort((x, y) => new Date(y.submittedAt) - new Date(x.submittedAt));
  }
  
@@ -60,7 +60,7 @@ index 7b1980f..ca9807a 100644
    const waiting = waitingOnGrade();
    const submitted = waiting.length
      ? block(`<div class="section"><span>Turned in, waiting on a grade</span><span>${waiting.length}</span></div>
-@@ -2354,9 +2388,9 @@ function renderRecent() {
+@@ -2580,9 +2614,9 @@ function renderRecent() {
    const graded = items.length
      ? inParts(items).map((part, i) => block(
          `<div class="section"><span>Graded in the last 14 days${i ? ' <span class="sec-sub">continued</span>' : ""}</span><span>${i ? "" : items.length}</span></div>
@@ -73,7 +73,7 @@ index 7b1980f..ca9807a 100644
  }
  
  function renderBadges() {
-@@ -2364,7 +2398,7 @@ function renderBadges() {
+@@ -2590,7 +2624,7 @@ function renderBadges() {
    // To Do badge: overdue or due today, and not checked off yet
    const today = dayKey(Date.now());
    const doNow = allAssignments().filter((a) => !a.excused && a.due && !isDone(a) && (a.missing || dayKey(a.due) === today)).length;
@@ -82,7 +82,7 @@ index 7b1980f..ca9807a 100644
    $("badge-todo").hidden = !doNow;
    $("badge-todo").textContent = doNow;
    try {
-@@ -3549,6 +3583,92 @@ document.addEventListener("click", (e) => {
+@@ -3854,6 +3888,92 @@ document.addEventListener("click", (e) => {
    if (row) { e.preventDefault(); openAssignmentPage(row.dataset.aurl); }
  }, true);
  
