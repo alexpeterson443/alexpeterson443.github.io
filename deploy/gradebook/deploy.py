@@ -38,6 +38,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PATCH = os.path.join(HERE, "swipe-hide-recent.patch")
 PAGE_BEFORE = "379416db71bf722b078146ef61bb3c4cab4579b7"  # live page the patch was made against (deployed 2026-09-29 18:09 UTC, with Inbox)
 PAGE_AFTER = "c211047dca2a73344c73b3ab7de97e11df2f39c7"   # the patched page that was tested
+# index.js of the deployed version 13a3ec45, downloaded before any upload from this branch
+INDEX_SHA1 = "176f6bead19a3f9d18d2b2c2dd4fa45db56bdda6"
 RELEASE_TITLE = "New: swipe to hide"
 RELEASE_NOTES = "Swipe left on a graded assignment in Recent to hide it from the list."
 SECRET_TYPES = {"secret_text", "secret_key"}
@@ -229,18 +231,33 @@ def main():
         fail(f"Expected one page module, found {[n for _, n in pages]}")
     page_index, page_name = pages[0]
     page = modules[page_index][1]
-    if sha1(page) != PAGE_BEFORE:
+    # This download is the newest upload, which isn't always what's deployed, so every module is pinned:
+    # index.js to the deployed version's, icons to the fingerprint wrangler put in their names, and the
+    # page to either the deployed page (patched below) or the already-patched, tested page.
+    for name, data in modules:
+        if name == main_module and sha1(data) != INDEX_SHA1:
+            fail(f"{name} isn't the deployed code (sha1 {sha1(data)}); not deploying.")
+        if name.endswith(".png") and not name.split("/")[-1].startswith(sha1(data)):
+            fail(f"{name} doesn't match its fingerprint; not deploying.")
+    if sha1(page) == PAGE_AFTER:
+        print("Downloaded page is already the tested, patched page.")
+        patched = page
+    elif sha1(page) != PAGE_BEFORE:
         fail(f"The live page has changed since the patch was made (sha1 {sha1(page)}); not deploying over it.")
+    else:
+        patched = None
+    print(f"index.js and icons match the deployed version {prev_version}.")
 
     # Patch it and make sure the result is exactly the page that was tested
-    with tempfile.TemporaryDirectory() as tmp:
-        os.makedirs(os.path.join(tmp, "src"))
-        with open(os.path.join(tmp, "src", "page.html"), "wb") as f:
-            f.write(page)
-        subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
-        subprocess.run(["git", "apply", PATCH], cwd=tmp, check=True)
-        with open(os.path.join(tmp, "src", "page.html"), "rb") as f:
-            patched = f.read()
+    if patched is None:
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "src"))
+            with open(os.path.join(tmp, "src", "page.html"), "wb") as f:
+                f.write(page)
+            subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+            subprocess.run(["git", "apply", PATCH], cwd=tmp, check=True)
+            with open(os.path.join(tmp, "src", "page.html"), "rb") as f:
+                patched = f.read()
     if sha1(patched) != PAGE_AFTER:
         fail(f"The patched page isn't the one that was tested (sha1 {sha1(patched)}).")
     modules[page_index] = (page_name, patched)
