@@ -1,0 +1,40 @@
+# One-off: publish the "swipe to hide" page change to the live Grades Worker
+# (gradebook.alexpeterson443.workers.dev). The Grades source on GitHub is behind
+# what's live, so deploy/gradebook/deploy.py patches the Worker that's deployed
+# right now instead of building from source, keeps every binding, secret and
+# cron, and rolls back by itself if the live checks fail.
+#
+# Uses the same CLOUDFLARE_API_TOKEN as the menu site ("Edit Cloudflare
+# Workers", scoped to this account). Runs only from this branch.
+
+name: Deploy Grades page change
+
+on:
+  push:
+    branches: [claude/deploy-gradebook]
+    paths:
+      - "deploy/gradebook/**"
+      - ".github/workflows/deploy-gradebook.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-gradebook
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Deploy and check the live app
+        run: python3 deploy/gradebook/deploy.py

@@ -1,0 +1,177 @@
+diff --git a/src/page.html b/src/page.html
+index 90294a6..f0543a5 100644
+--- a/src/page.html
++++ b/src/page.html
+@@ -188,6 +188,21 @@
+   .irow.unread .ititle { color: var(--ink); }
+   @media (hover: hover) { .inbox .irow:hover { background: var(--card2); } }
+   [data-aurl].holding { background: var(--card2); transition: background .15s ease; }
++  /* Recent: swipe a graded row left to hide it from the list */
++  .swipe { position: relative; touch-action: pan-y; }
++  .swipe > .arow { background: var(--card); transition: transform .34s var(--spring); }
++  .swipe > button.arow:active, .swipe > button.arow:hover { background: linear-gradient(var(--press), var(--press)) var(--card); }
++  .swipe > .arow.holding { background: var(--card2); }
++  .swipe.dragging > .arow { transition: none; }
++  .swipe > .arow::after { display: block; }
++  .swipe:last-child > .arow::after { display: none; }
++  .swipe-act { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-right: 20px;
++    background: var(--f); color: #fff; font: inherit; font-size: 15px; font-weight: 700; visibility: hidden; }
++  .swipe-act svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
++  .swipe.swiping .swipe-act { visibility: visible; }
++  .swipe.leaving { overflow: hidden; transition: height .24s ease .12s; }
++  .swipe.leaving > .arow { transition: transform .22s ease-in; }
++  .hidden-note button { color: var(--gold); font-weight: 600; padding: 2px 0; }
+   .sub-attempts { padding: 0 0 10px; }
+   .sub-meta { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+   .sub-body + .sub-file, .comment + .sub-file { margin-top: 10px; }
+@@ -1420,6 +1435,18 @@ function recentItems() {
+     .sort((a, b) => new Date(b.gradedAt) - new Date(a.gradedAt));
+ }
+ 
++// Graded work you swiped off the Recent list, on this device: assignment URL → the grading that was hidden.
++// It stays everywhere else (the assignment, its class, Search), and a new grade on it brings it back.
++let hiddenRecent = store.get("grades:hiddenRecent", {});
++const hiddenFromRecent = (a) => !!a.gradedAt && hiddenRecent[a.url] === a.gradedAt;
++const recentFeed = () => recentItems().filter((a) => !hiddenFromRecent(a));
++function setHiddenRecent(next) {
++  // Anything graded more than 14 days ago has left the list anyway
++  const cutoff = Date.now() - 15 * DAY;
++  hiddenRecent = Object.fromEntries(Object.entries(next).filter(([, at]) => new Date(at).getTime() >= cutoff));
++  store.set("grades:hiddenRecent", hiddenRecent);
++}
++
+ function nextDue(course) {
+   const now = Date.now() - 3600 * 1000;
+   return course.groups.flatMap((g) => g.assignments)
+@@ -2570,8 +2597,15 @@ function waitingOnGrade() {
+     .sort((x, y) => new Date(y.submittedAt) - new Date(x.submittedAt));
+ }
+ 
++const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3.2 4.3M6.5 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a9.6 9.6 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
++const swipeRow = (a, html) => `<div class="swipe" data-swipe="${esc(a.url)}"><button class="swipe-act" type="button" data-hide-recent tabindex="-1" aria-hidden="true">${EYE_OFF}Hide</button>${html}</div>`;
++
+ function renderRecent() {
+-  const items = recentItems();
++  const items = recentFeed();
++  const hiddenCount = recentItems().length - items.length;
++  const hiddenNote = hiddenCount
++    ? block(`<p class="note hidden-note">${hiddenCount} hidden from this list · <button type="button" data-unhide-recent>Show ${hiddenCount === 1 ? "it" : "them"}</button></p>`)
++    : "";
+   const waiting = waitingOnGrade();
+   const submitted = waiting.length
+     ? block(`<div class="section"><span>Turned in, waiting on a grade</span><span>${waiting.length}</span></div>
+@@ -2580,9 +2614,9 @@ function renderRecent() {
+   const graded = items.length
+     ? inParts(items).map((part, i) => block(
+         `<div class="section"><span>Graded in the last 14 days${i ? ' <span class="sec-sub">continued</span>' : ""}</span><span>${i ? "" : items.length}</span></div>
+-         <div class="group">${part.map((a) => assignmentRow(a, { isNew: new Date(a.gradedAt).getTime() > lastSeenRecent })).join("")}</div>`))
+-    : [block('<div class="section"><span>Graded in the last 14 days</span></div><div class="empty">No grades posted in the last 14 days.</div>')];
+-  return inColumns([...recapHtml(), submitted, ...graded].filter(Boolean));
++         <div class="group">${part.map((a) => swipeRow(a, assignmentRow(a, { isNew: new Date(a.gradedAt).getTime() > lastSeenRecent }))).join("")}</div>`))
++    : [block(`<div class="section"><span>Graded in the last 14 days</span></div><div class="empty">${hiddenCount ? "You've hidden everything graded in the last 14 days." : "No grades posted in the last 14 days."}</div>`)];
++  return inColumns([...recapHtml(), submitted, ...graded, hiddenNote].filter(Boolean));
+ }
+ 
+ function renderBadges() {
+@@ -2590,7 +2624,7 @@ function renderBadges() {
+   // To Do badge: overdue or due today, and not checked off yet
+   const today = dayKey(Date.now());
+   const doNow = allAssignments().filter((a) => !a.excused && a.due && !isDone(a) && (a.missing || dayKey(a.due) === today)).length;
+-  const newCount = recentItems().filter((a) => new Date(a.gradedAt).getTime() > lastSeenRecent).length;
++  const newCount = recentFeed().filter((a) => new Date(a.gradedAt).getTime() > lastSeenRecent).length;
+   $("badge-todo").hidden = !doNow;
+   $("badge-todo").textContent = doNow;
+   try {
+@@ -3854,6 +3888,92 @@ document.addEventListener("click", (e) => {
+   if (row) { e.preventDefault(); openAssignmentPage(row.dataset.aurl); }
+ }, true);
+ 
++// ---------- Recent: swipe a graded row left to hide it ----------
++// A short swipe leaves the Hide button showing; a long one (or a quick flick) hides it right away.
++const SWIPE_OPEN = 88;
++let swipe = null;       // the row being dragged: { el, x, y, base, dx, t, id, active }
++let openSwipe = null;   // a row left open with Hide showing
++function settleSwipe(el, x) {
++  const row = el.querySelector(".arow");
++  el.classList.remove("dragging");
++  el.classList.toggle("open", !!x);
++  if (row) row.style.transform = x ? `translateX(${x}px)` : "";
++  if (openSwipe === el && !x) openSwipe = null;
++  if (x) openSwipe = el;
++  else setTimeout(() => { if (!el.classList.contains("dragging") && !el.classList.contains("open")) el.classList.remove("swiping"); }, 360);
++}
++function hideFromRecent(el) {
++  const url = el.dataset.swipe;
++  const a = findAssignment(url);
++  if (!a?.gradedAt || el.classList.contains("leaving")) return;
++  if (openSwipe === el) openSwipe = null;
++  el.classList.remove("dragging", "open");
++  el.classList.add("swiping", "leaving");
++  el.style.height = `${el.offsetHeight}px`;
++  el.querySelector(".arow").style.transform = "translateX(-100%)";
++  requestAnimationFrame(() => { el.style.height = "0px"; });
++  setTimeout(() => {
++    setHiddenRecent({ ...hiddenRecent, [url]: a.gradedAt });
++    render();
++    const name = a.name.length > 32 ? `${a.name.slice(0, 31)}…` : a.name;
++    showToast(`Hid “${name}” from Recent`, () => {
++      const next = { ...hiddenRecent };
++      delete next[url];
++      setHiddenRecent(next);
++      render();
++    });
++  }, 380);
++}
++document.addEventListener("pointerdown", (e) => {
++  const el = e.target.closest(".swipe");
++  if (openSwipe && openSwipe !== el) settleSwipe(openSwipe, 0);
++  if (!el || e.button > 0 || e.target.closest(".swipe-act") || el.classList.contains("leaving")) return;
++  swipe = { el, x: e.clientX, y: e.clientY, base: el.classList.contains("open") ? -SWIPE_OPEN : 0, dx: 0, t: e.timeStamp, id: e.pointerId, active: false };
++});
++document.addEventListener("pointermove", (e) => {
++  if (!swipe || e.pointerId !== swipe.id) return;
++  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
++  if (!swipe.active) {
++    if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) { swipe = null; return; } // scrolling, not swiping
++    if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
++    if (dx > 0 && !swipe.base) { swipe = null; return; }                            // only leftward opens it
++    swipe.active = true;
++    swipe.el.classList.add("dragging", "swiping");
++    try { swipe.el.setPointerCapture(e.pointerId); } catch {}
++  }
++  const x = Math.min(0, swipe.base + dx);
++  swipe.dx = x;
++  swipe.el.querySelector(".arow").style.transform = `translateX(${x}px)`;
++});
++function endSwipe(e) {
++  if (!swipe || e.pointerId !== swipe.id) return;
++  const s = swipe;
++  swipe = null;
++  const blockTap = () => { swallowClick = true; setTimeout(() => { swallowClick = false; }, 400); };
++  if (!s.active) {
++    // Tapping a row that's open just closes it
++    if (s.base && e.type === "pointerup") { blockTap(); settleSwipe(s.el, 0); }
++    return;
++  }
++  blockTap();
++  const flick = e.timeStamp - s.t < 260 && s.dx < -SWIPE_OPEN;
++  if (e.type === "pointerup" && (s.dx < -s.el.offsetWidth * 0.5 || flick)) hideFromRecent(s.el);
++  else if (e.type === "pointerup" && s.dx < -SWIPE_OPEN * 0.6) settleSwipe(s.el, -SWIPE_OPEN);
++  else settleSwipe(s.el, 0);
++}
++document.addEventListener("pointerup", endSwipe);
++document.addEventListener("pointercancel", endSwipe);
++document.addEventListener("click", (e) => {
++  const hide = e.target.closest("[data-hide-recent]");
++  if (hide) { hideFromRecent(hide.closest(".swipe")); return; }
++  if (e.target.closest("[data-unhide-recent]")) {
++    const n = recentItems().filter(hiddenFromRecent).length;
++    setHiddenRecent({});
++    render();
++    showToast(n === 1 ? "Showing it again" : "Showing them again");
++  }
++});
++
+ window.addEventListener("popstate", () => {
+   if (openAssignment) closeAssignment();
+   else if (notifOpen) closeNotifSheet();
