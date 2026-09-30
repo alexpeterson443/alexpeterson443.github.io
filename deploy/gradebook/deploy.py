@@ -192,6 +192,10 @@ def main():
     print(f"Live version: {prev_version} ({len(prev_bindings)} bindings: {', '.join(n for n, _ in binding_shape(prev_bindings))})")
     schedules_before = call("GET", f"{base}/schedules")
     settings_before = script_settings(base)
+    # The Grades config places the Worker next to Canvas; if live shows none, stop rather than copy that
+    print(f"Live placement: {json.dumps(settings_before.get('placement'))}")
+    if not settings_before.get("placement"):
+        fail("The live Worker has no placement setting (expected it next to uwmil.instructure.com). Not deploying.")
     me_before = get_site("/api/me")
 
     # The live code, exactly as deployed
@@ -238,9 +242,12 @@ def main():
     }
     if prev_runtime.get("usage_model"):
         metadata["usage_model"] = prev_runtime["usage_model"]
-    placement = prev["resources"].get("placement") or prev_runtime.get("placement")
+    # Placement lives on the version: the live one runs next to Canvas (a hostname hint). The version
+    # detail doesn't show it, so it comes from the Worker's settings, which describe the live version.
+    placement = settings_before.get("placement") or prev["resources"].get("placement") or prev_runtime.get("placement")
     if placement:
         metadata["placement"] = placement
+        print(f"Keeping placement: {', '.join(sorted(placement))}")
     metadata = {k: v for k, v in metadata.items() if v is not None}
 
     payload, ctype = build_multipart(metadata, modules, main_module)
@@ -257,10 +264,9 @@ def main():
     for key in ("compatibility_date", "compatibility_flags", "usage_model"):
         if (prev_runtime.get(key) or None) != (new_runtime.get(key) or None):
             fail(f"{key} differs from live ({prev_runtime.get(key)} vs {new_runtime.get(key)}). Not deploying.")
-    old_placement = prev["resources"].get("placement") or prev_runtime.get("placement")
     new_placement = check["resources"].get("placement") or new_runtime.get("placement")
-    if (old_placement or None) != (new_placement or None):
-        fail(f"Placement differs from live ({old_placement} vs {new_placement}). Not deploying.")
+    if new_placement and new_placement != placement:
+        fail("The new version's placement isn't the live one. Not deploying.")
     print("New version has the same bindings, secrets, compatibility settings and placement as live.")
 
     def route_to(version_id, message):
@@ -269,9 +275,21 @@ def main():
                               "annotations": {"workers/message": message}}).encode())
 
     route_to(new_version, RELEASE_TITLE)
-    print("Deployed. Checking the live site...")
+    print("Deployed. Checking settings, then the live site...")
 
+    # Settings first, before anything loads the page (a page load is what sends the update notice)
     problems = []
+    if call("GET", f"{base}/schedules") != schedules_before:
+        problems.append("cron schedules changed")
+    settings_now = script_settings(base)
+    if settings_now != settings_before:
+        changed = [k for k in set(settings_before) | set(settings_now) if settings_before.get(k) != settings_now.get(k)]
+        problems.append(f"Worker settings changed: {changed}")
+    if problems:
+        print(f"::error::{'; '.join(problems)}. Rolling back to {prev_version}.")
+        route_to(prev_version, "Rollback: settings changed")
+        fail("Rolled back to the previous version.")
+
     ok = False
     for attempt in range(12):
         time.sleep(10)
