@@ -36,6 +36,5 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Temporary: read-only look at where the Worker's placement setting lives
-      - name: Inspect the live Worker (read-only)
-        run: cd deploy/gradebook && python3 inspect_worker.py
+      - name: Deploy and check the live app
+        run: python3 deploy/gradebook/deploy.py

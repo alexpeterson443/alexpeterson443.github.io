@@ -50,7 +50,9 @@ def fail(msg):
     sys.exit(1)
 
 
-def call(method, path, body=None, headers=None, raw=False):
+def call(method, path, body=None, headers=None, raw=False, soft=False):
+    """soft=True: report an API error and return None instead of stopping the run."""
+    where = path.split("/workers/")[-1].split("?")[0]
     req = urllib.request.Request(f"{API}{path}", data=body, method=method)
     req.add_header("Authorization", f"Bearer {TOKEN}")
     for k, v in (headers or {}).items():
@@ -62,11 +64,25 @@ def call(method, path, body=None, headers=None, raw=False):
                 return data, res.headers
             out = json.loads(data)
     except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:800]
-        fail(f"{method} {path.split('/workers/')[-1]} -> HTTP {e.code}: {detail}")
+        msg = f"{method} {where} -> HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:800]}"
+        if soft:
+            print(f"  {msg}")
+            return None
+        fail(msg)
     if not out.get("success"):
-        fail(f"{method} {path.split('/workers/')[-1]} failed: {json.dumps(out.get('errors'))[:800]}")
+        msg = f"{method} {where} failed: {json.dumps(out.get('errors'))[:800]}"
+        if soft:
+            print(f"  {msg}")
+            return None
+        fail(msg)
     return out["result"]
+
+
+def placement_of(version):
+    """A version's placement as (mode, sorted targets); it lives under resources.script."""
+    p = (version.get("resources", {}).get("script") or {}).get("placement") or {}
+    targets = sorted((t.get("type"), t.get("hostname") or t.get("host") or t.get("region")) for t in p.get("target") or [])
+    return (p.get("mode"), targets) if p else None
 
 
 def download(base):
@@ -154,9 +170,10 @@ def build_multipart(metadata, modules, main):
 
 
 def script_settings(base):
-    """Script-level settings a version upload must leave alone (bindings are compared separately)."""
+    """Script-level settings a version upload must leave alone. Bindings and placement are per version and
+    compared version to version instead (this endpoint describes the newest upload, not what's deployed)."""
     s = call("GET", f"{base}/settings")
-    return {k: s.get(k) for k in ("placement", "observability", "logpush", "tail_consumers", "compatibility_date", "compatibility_flags", "usage_model", "limits")}
+    return {k: s.get(k) for k in ("observability", "logpush", "tail_consumers", "compatibility_date", "compatibility_flags", "usage_model", "limits")}
 
 
 def binding_shape(bindings):
@@ -192,10 +209,11 @@ def main():
     print(f"Live version: {prev_version} ({len(prev_bindings)} bindings: {', '.join(n for n, _ in binding_shape(prev_bindings))})")
     schedules_before = call("GET", f"{base}/schedules")
     settings_before = script_settings(base)
-    # The Grades config places the Worker next to Canvas; if live shows none, stop rather than copy that
-    print(f"Live placement: {json.dumps(settings_before.get('placement'))}")
-    if not settings_before.get("placement"):
-        fail("The live Worker has no placement setting (expected it next to uwmil.instructure.com). Not deploying.")
+    # Placement is per version: the live one runs next to Canvas. Stop if it can't be read rather than drop it.
+    live_placement = placement_of(prev)
+    print(f"Live placement: {live_placement}")
+    if not live_placement:
+        fail("Couldn't read the live version's placement. Not deploying.")
     me_before = get_site("/api/me")
 
     # The live code, exactly as deployed
@@ -242,21 +260,32 @@ def main():
     }
     if prev_runtime.get("usage_model"):
         metadata["usage_model"] = prev_runtime["usage_model"]
-    # Placement lives on the version: the live one runs next to Canvas (a hostname hint). The version
-    # detail doesn't show it, so it comes from the Worker's settings, which describe the live version.
-    placement = settings_before.get("placement") or prev["resources"].get("placement") or prev_runtime.get("placement")
-    if placement:
-        metadata["placement"] = placement
-        print(f"Keeping placement: {', '.join(sorted(placement))}")
     metadata = {k: v for k, v in metadata.items() if v is not None}
 
-    payload, ctype = build_multipart(metadata, modules, main_module)
-    new = call("POST", f"{base}/versions", body=payload, headers={"content-type": ctype})
-    new_version = new["id"]
-    print(f"Uploaded new version {new_version} (not live yet).")
+    # Upload with the live placement. The upload format is wrangler's config shape; try the forms it
+    # could take until the stored version's placement matches live. Uploads aren't live, so a miss costs nothing.
+    raw_placement = prev["resources"]["script"]["placement"]
+    hostnames = [t.get("hostname") for t in raw_placement.get("target") or [] if t.get("hostname")]
+    if not hostnames:
+        fail("The live placement isn't a hostname hint; not guessing its upload form.")
+    forms = [{"hostname": hostnames[0]}, {"mode": raw_placement.get("mode"), "hostname": hostnames[0]}, raw_placement]
+    new_version = check = None
+    for form in forms:
+        payload, ctype = build_multipart({**metadata, "placement": form}, modules, main_module)
+        new = call("POST", f"{base}/versions", body=payload, headers={"content-type": ctype}, soft=True)
+        if not new:
+            continue
+        detail = call("GET", f"{base}/versions/{new['id']}")
+        got = placement_of(detail)
+        print(f"Uploaded version {new['id']} (not live) with placement form {sorted(form)} -> {got}")
+        if got == live_placement:
+            new_version, check = new["id"], detail
+            break
+    if not new_version:
+        fail("No upload kept the live placement. Nothing was deployed.")
+    print(f"Using version {new_version}: placement matches live.")
 
     # Before switching anything: the new version must look like the old one apart from the page
-    check = call("GET", f"{base}/versions/{new_version}")
     new_bindings = check["resources"]["bindings"]
     new_runtime = check["resources"].get("script_runtime", {})
     if binding_shape(new_bindings) != binding_shape(prev_bindings):
@@ -264,9 +293,6 @@ def main():
     for key in ("compatibility_date", "compatibility_flags", "usage_model"):
         if (prev_runtime.get(key) or None) != (new_runtime.get(key) or None):
             fail(f"{key} differs from live ({prev_runtime.get(key)} vs {new_runtime.get(key)}). Not deploying.")
-    new_placement = check["resources"].get("placement") or new_runtime.get("placement")
-    if new_placement and new_placement != placement:
-        fail("The new version's placement isn't the live one. Not deploying.")
     print("New version has the same bindings, secrets, compatibility settings and placement as live.")
 
     def route_to(version_id, message):
@@ -285,6 +311,11 @@ def main():
     if settings_now != settings_before:
         changed = [k for k in set(settings_before) | set(settings_now) if settings_before.get(k) != settings_now.get(k)]
         problems.append(f"Worker settings changed: {changed}")
+    serving = call("GET", f"{base}/deployments")["deployments"][0]["versions"]
+    if [v["version_id"] for v in serving] != [new_version]:
+        problems.append("the deployment isn't serving the new version")
+    elif placement_of(call("GET", f"{base}/versions/{new_version}")) != live_placement:
+        problems.append("the deployed version's placement isn't the live one")
     if problems:
         print(f"::error::{'; '.join(problems)}. Rolling back to {prev_version}.")
         route_to(prev_version, "Rollback: settings changed")
