@@ -69,6 +69,23 @@ def call(method, path, body=None, headers=None, raw=False):
     return out["result"]
 
 
+def download(base):
+    """The live Worker's modules as multipart: /content/v2, or the older script download as a fallback."""
+    tried = []
+    for path in (f"{base}/content/v2", base):
+        req = urllib.request.Request(f"{API}{path}", method="GET")
+        req.add_header("Authorization", f"Bearer {TOKEN}")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as res:
+                ctype = res.headers.get("content-type", "")
+                if "multipart/form-data" in ctype:
+                    return res.read(), res.headers
+                tried.append(f"{path.split('/workers/')[-1]} gave {ctype or 'no content type'}")
+        except urllib.error.HTTPError as e:
+            tried.append(f"{path.split('/workers/')[-1]} -> HTTP {e.code}")
+    fail(f"Couldn't download the live Worker: {'; '.join(tried)}")
+
+
 def get_site(path):
     req = urllib.request.Request(f"{SITE}{path}", headers={"cache-control": "no-cache", "user-agent": "grades-deploy-check"})
     try:
@@ -178,7 +195,7 @@ def main():
     me_before = get_site("/api/me")
 
     # The live code, exactly as deployed
-    body, headers = call("GET", f"{base}/content", raw=True)
+    body, headers = download(base)
     modules = parse_multipart(body, headers.get("content-type", ""))
     main_module = headers.get("cf-entrypoint") or "index.js"
     names = [n for n, _ in modules]
