@@ -35,12 +35,12 @@ SCRIPT = "gradebook"
 SITE = "https://gradebook.alexpeterson443.workers.dev"
 API = "https://api.cloudflare.com/client/v4"
 HERE = os.path.dirname(os.path.abspath(__file__))
-PATCH = os.path.join(HERE, "attendance-off-todo.patch")
-PAGE_BEFORE = "112b0ab61ce2c22cc9dfb00473ce5885d00e8a46"  # live page the patch was made against (served 2026-10-12 as build 7zryea)
-PAGE_AFTER = "5ec2c33e359638e4ded4025983a5eb17db6715ff"   # the patched page that was tested
-PAGE_MARKER = b"const isAttendance = "                    # only the patched page has this
-RELEASE_TITLE = "Fixed: attendance isn't a to-do"
-RELEASE_NOTES = "Class attendance no longer shows up on To Do or in the badge as if it were due."
+PATCH = os.path.join(HERE, "in-class-label.patch")
+PAGE_BEFORE = "5ec2c33e359638e4ded4025983a5eb17db6715ff"  # live page the patch was made against (served 2026-10-12 as build 1c3k44t)
+PAGE_AFTER = "b43dbe84071b5c2711b75b375f6dd71a9bdfcd8d"   # the patched page that was tested
+PAGE_MARKER = b"function offlineLabel("                   # only the patched page has this
+RELEASE_TITLE = "Fixed: \"In class\" only on class days"
+RELEASE_NOTES = "Math work shows \"In class\" only when it's due on a Tuesday or Thursday; otherwise it says \"On paper\" or \"No online turn-in\"."
 SECRET_TYPES = {"secret_text", "secret_key"}
 
 TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
