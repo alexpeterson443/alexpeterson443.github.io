@@ -1,4 +1,4 @@
-# One-off: publish the "swipe to hide" page change to the live Grades Worker
+# Publish a page change (deploy/gradebook/*.patch) to the live Grades Worker
 # (gradebook.alexpeterson443.workers.dev). The Grades source on GitHub is behind
 # what's live, so deploy/gradebook/deploy.py patches the Worker that's deployed
 # right now instead of building from source, keeps every binding, secret and

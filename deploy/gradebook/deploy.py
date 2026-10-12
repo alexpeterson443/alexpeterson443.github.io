@@ -35,13 +35,12 @@ SCRIPT = "gradebook"
 SITE = "https://gradebook.alexpeterson443.workers.dev"
 API = "https://api.cloudflare.com/client/v4"
 HERE = os.path.dirname(os.path.abspath(__file__))
-PATCH = os.path.join(HERE, "swipe-hide-recent.patch")
-PAGE_BEFORE = "379416db71bf722b078146ef61bb3c4cab4579b7"  # live page the patch was made against (deployed 2026-09-29 18:09 UTC, with Inbox)
-PAGE_AFTER = "c211047dca2a73344c73b3ab7de97e11df2f39c7"   # the patched page that was tested
-# index.js of the deployed version 13a3ec45, downloaded before any upload from this branch
-INDEX_SHA1 = "176f6bead19a3f9d18d2b2c2dd4fa45db56bdda6"
-RELEASE_TITLE = "New: swipe to hide"
-RELEASE_NOTES = "Swipe left on a graded assignment in Recent to hide it from the list."
+PATCH = os.path.join(HERE, "attendance-off-todo.patch")
+PAGE_BEFORE = "112b0ab61ce2c22cc9dfb00473ce5885d00e8a46"  # live page the patch was made against (served 2026-10-12 as build 7zryea)
+PAGE_AFTER = "5ec2c33e359638e4ded4025983a5eb17db6715ff"   # the patched page that was tested
+PAGE_MARKER = b"const isAttendance = "                    # only the patched page has this
+RELEASE_TITLE = "Fixed: attendance isn't a to-do"
+RELEASE_NOTES = "Class attendance no longer shows up on To Do or in the badge as if it were due."
 SECRET_TYPES = {"secret_text", "secret_key"}
 
 TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
@@ -231,12 +230,15 @@ def main():
         fail(f"Expected one page module, found {[n for _, n in pages]}")
     page_index, page_name = pages[0]
     page = modules[page_index][1]
-    # This download is the newest upload, which isn't always what's deployed, so every module is pinned:
-    # index.js to the deployed version's, icons to the fingerprint wrangler put in their names, and the
-    # page to either the deployed page (patched below) or the already-patched, tested page.
+    # This download is the newest upload, which isn't always what's deployed: only go on when the newest
+    # upload is the deployed version, icons match the fingerprint wrangler put in their names, and the
+    # page is either the deployed page (patched below) or the already-patched, tested page.
+    listed = call("GET", f"{base}/versions")
+    listed = listed.get("items", []) if isinstance(listed, dict) else listed
+    listed.sort(key=lambda v: (v.get("number") or 0, (v.get("metadata") or {}).get("created_on") or ""), reverse=True)
+    if not listed or listed[0].get("id") != prev_version:
+        fail(f"The newest upload ({listed[0].get('id') if listed else 'none'}) isn't the deployed version {prev_version}; not deploying.")
     for name, data in modules:
-        if name == main_module and sha1(data) != INDEX_SHA1:
-            fail(f"{name} isn't the deployed code (sha1 {sha1(data)}); not deploying.")
         if name.endswith(".png") and not name.split("/")[-1].startswith(sha1(data)):
             fail(f"{name} doesn't match its fingerprint; not deploying.")
     if sha1(page) == PAGE_AFTER:
@@ -246,7 +248,7 @@ def main():
         fail(f"The live page has changed since the patch was made (sha1 {sha1(page)}); not deploying over it.")
     else:
         patched = None
-    print(f"index.js and icons match the deployed version {prev_version}.")
+    print(f"The download is the deployed version {prev_version}; icons match their fingerprints.")
 
     # Patch it and make sure the result is exactly the page that was tested
     if patched is None:
@@ -345,7 +347,7 @@ def main():
         status, html = get_site(f"/?deployed={int(time.time())}")
         if status != 200:
             problems.append(f"/ answered {status}")
-        elif b"data-hide-recent" not in html:
+        elif PAGE_MARKER not in html:
             problems.append("/ is still serving the old page")
         me_after = get_site("/api/me")
         if me_after != me_before:
@@ -380,7 +382,7 @@ def main():
     # A second load, like scripts/deploy.sh, so the update notice goes out now rather than on the next cron
     time.sleep(10)
     get_site(f"/?deployed={int(time.time())}")
-    print(f"Live: version {new_version} is serving the swipe-to-hide page; bindings, secrets and crons unchanged.")
+    print(f"Live: version {new_version} is serving the patched page; bindings, secrets and crons unchanged.")
     print(f"Previous version for rollback: {prev_version}")
 
 
