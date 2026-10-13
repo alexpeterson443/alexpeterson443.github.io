@@ -1,0 +1,38 @@
+# Grades can't reach Canvas: its Netlify relay is out of free usage (503 "Usage exceeded").
+# deploy/grades-direct/direct.py checks whether Cloudflare can reach UWM's Canvas again and, only if so,
+# removes CANVAS_RELAY from the live Grades Worker so it calls Canvas directly. Rolls back if checks fail.
+name: Grades - call Canvas directly
+
+on:
+  push:
+    branches: [claude/grades-cloudflare-direct]
+    paths:
+      - "deploy/grades-direct/**"
+      - ".github/workflows/grades-direct.yml"
+  workflow_dispatch:
+    inputs:
+      probe_only:
+        description: "Only test whether Cloudflare can reach Canvas"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-gradebook
+  cancel-in-progress: false
+
+jobs:
+  direct:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      PROBE_ONLY: ${{ inputs.probe_only && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe Canvas from Cloudflare, then switch Grades off the relay
+        run: python3 deploy/grades-direct/direct.py
