@@ -7,11 +7,11 @@ answer 406 to every request from Cloudflare. This script:
 
   1. Probes: uploads a throwaway Worker (grades-canvas-probe) with the same placement as Grades, has it call
      UWM's Canvas without a token, and reads the status codes. 401 = Canvas is reachable; 406 = still blocked.
-     The probe Worker is deleted afterwards either way.
-  2. Only if Canvas answered 401 to a request without a User-Agent (what Grades sends when calling directly):
-     uploads the exact live Worker again with the CANVAS_RELAY binding removed and nothing else changed (same
-     modules, bindings, secrets, placement, release title, so no "App updated" notification goes out), sends
-     all traffic to it, checks the live site and settings, and rolls back if anything is off.
+     The probe Worker is deleted afterwards either way. (Oct 13 2026: 401 with a browser User-Agent, 403 without.)
+  2. Only if Canvas answered 401 to a request with a browser User-Agent: uploads the exact live Worker again with
+     the CANVAS_RELAY binding removed and that User-Agent added to the direct Canvas fetch, nothing else changed
+     (same other modules, bindings, secrets, placement, release title, so no "App updated" notification goes
+     out), sends all traffic to it, checks the live site and settings, and rolls back if anything is off.
 
 Standard library only. Needs CLOUDFLARE_API_TOKEN ("Edit Cloudflare Workers"). Binding values, the token and the
 account id stay out of the log.
@@ -19,6 +19,7 @@ account id stay out of the log.
 
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -31,6 +32,11 @@ SITE = "https://gradebook.alexpeterson443.workers.dev"
 API = "https://api.cloudflare.com/client/v4"
 DROP = "CANVAS_RELAY"
 SECRET_TYPES = {"secret_text", "secret_key"}
+BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+# The direct Canvas fetch in the live entry module: Bearer token then accept, with no User-Agent (the relay fetch
+# has x-relay-secret in between, so it doesn't match). Instructure now answers 403 to requests without one.
+DIRECT_FETCH = re.compile(rb'(headers:\s*\{\s*authorization:\s*`Bearer \$\{env\.CANVAS_TOKEN\}`,\s*accept:\s*"application/json")(,?)((?:\s*//[^\n]*)*\s*\})')
+UA_MARKER = b'"user-agent": "' + BROWSER_UA.encode() + b'"'
 TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
 PROBE_ONLY = os.environ.get("PROBE_ONLY") == "1"
 
@@ -253,10 +259,10 @@ def main():
     results = probe(account, forms)
     if not results:
         fail("The probe Worker never answered; nothing changed.")
-    direct_ok = all(r.get("api_no_ua") == 401 for r in results)
-    print(f"Canvas from Cloudflare without a User-Agent: {'reachable (401)' if direct_ok else 'blocked or failing'}")
+    direct_ok = all(r.get("api_browser_ua") == 401 for r in results)
+    print(f"Canvas from Cloudflare with a browser User-Agent: {'reachable (401)' if direct_ok else 'blocked or failing'}")
     if not direct_ok:
-        fail(f"UWM's Canvas still doesn't answer Cloudflare normally ({[r.get('api_no_ua') for r in results]}); left Grades as it is.")
+        fail(f"UWM's Canvas still doesn't answer Cloudflare normally ({[r.get('api_browser_ua') for r in results]}); left Grades as it is.")
     if not any(b.get("name") == DROP for b in prev_bindings):
         print(f"The live Worker has no {DROP} binding; it already calls Canvas directly. Nothing to change.")
         return
@@ -276,6 +282,20 @@ def main():
     if main_module not in [n for n, _ in modules]:
         fail(f"Entry point {main_module} isn't among the downloaded modules.")
     print(f"Downloaded the live Worker: {len(modules)} modules, entry point {main_module}.")
+    entry_index = [n for n, _ in modules].index(main_module)
+    entry = modules[entry_index][1]
+    if UA_MARKER in entry:
+        print("The direct Canvas fetch already sends the User-Agent.")
+    else:
+        matches = DIRECT_FETCH.findall(entry)
+        if len(matches) != 1:
+            at = entry.find(b"CANVAS_TOKEN}`")
+            fail(f"Expected one direct Canvas fetch in {main_module}, found {len(matches)}; not deploying. Near the token: {entry[max(0, at - 200):at + 300]!r}")
+        entry = DIRECT_FETCH.sub(lambda m: m.group(1) + b", " + UA_MARKER + m.group(3), entry)
+        if len(DIRECT_FETCH.findall(entry)) != 0 or entry.count(UA_MARKER) != 1:
+            fail("Adding the User-Agent didn't come out as expected; not deploying.")
+        modules[entry_index] = (main_module, entry)
+        print("Added a browser User-Agent to the direct Canvas fetch.")
 
     bindings = [dict(b) for b in prev_bindings if b.get("type") not in SECRET_TYPES and b.get("name") != DROP]
     metadata = {
