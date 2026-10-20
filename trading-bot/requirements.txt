@@ -1,0 +1,5 @@
+# The bot itself needs nothing beyond the Python standard library.
+# Python 3.9 or newer is the only requirement, so there is nothing to install.
+#
+# Optional, only if you would rather use yfinance than the built in Yahoo client:
+#   yfinance>=0.2.40
