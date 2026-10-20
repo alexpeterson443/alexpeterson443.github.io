@@ -1,0 +1,42 @@
+diff --git a/src/page.html b/src/page.html
+index 9a12c99..652716a 100644
+--- a/src/page.html
++++ b/src/page.html
+@@ -1114,14 +1114,15 @@ const allAssignments = () =>
+   );
+ 
+ const offline = (a) => a.submissionTypes.length > 0 && a.submissionTypes.every((t) => t === "none" || t === "on_paper");
+-// Work Canvas can't see: "In class" only when it's due on a day that class meets (COURSE_CATALOG meets,
+-// Chicago time). Otherwise say what Canvas actually knows, rather than guess it happens in class.
++// Paper work: "In class" when it's due on a day that class meets (COURSE_CATALOG meets, Chicago time),
++// otherwise "On paper". "No submission" items (ALEKS and other outside work) get no label and look like any
++// other assignment.
+ const weekdayFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" });
+ function offlineLabel(a) {
++  if (!a.submissionTypes.includes("on_paper")) return "";
+   const course = (data?.courses || []).find((c) => c.name === a.course);
+   const meets = course && catalogFor(course)?.meets;
+-  if (meets && a.due && meets.includes(weekdayFmt.format(new Date(a.due)))) return "In class";
+-  return a.submissionTypes.includes("on_paper") ? "On paper" : "No online turn-in";
++  return meets && a.due && meets.includes(weekdayFmt.format(new Date(a.due))) ? "In class" : "On paper";
+ }
+ // Attendance is the teacher taking roll in class. Canvas gives it a due time (when class meets), but it isn't
+ // something to do or check off, so it stays off To Do, the badge and the week ahead. A missed class still
+@@ -1183,7 +1184,7 @@ function assignmentRow(a, { showCourse = true, isNew = false, whatIfInput = fals
+     a.missing && !a.locked ? '<span class="pill missing">Missing</span>' : "",
+     a.locked ? '<span class="pill late">Locked in Canvas</span>' : "",
+     a.late ? '<span class="pill late">Late</span>' : "",
+-    st === "upcoming" && offline(a) ? `<span class="pill soon">${offlineLabel(a)}</span>` : "",
++    st === "upcoming" && offline(a) && offlineLabel(a) ? `<span class="pill soon">${offlineLabel(a)}</span>` : "",
+     showCourse ? `<span>${esc(a.course)}</span>` : "",
+     submittedRow
+       ? `<span>Turned in ${esc(dueText(a.submittedAt, true))}</span>`
+@@ -2085,7 +2086,7 @@ function renderTodo() {
+   if (doneCount) {
+     html += `<button class="done-toggle" type="button" data-toggle-done>${showDone ? "Hide" : "Show"} ${doneCount} checked item${doneCount === 1 ? "" : "s"}</button>`;
+   }
+-  html += '<p class="note">Checked items disappear. Green = done in Canvas (submitted or graded); gold = you checked it off, and Canvas still decides what counts. Days use Chicago time, and your checks sync across devices. Work Canvas can\'t see shows "In class" only when it\'s due on a day that class meets; otherwise "On paper" or "No online turn-in". The line under a name is the share of the final grade that work\'s category carries in Canvas — gold when it counts, grey when it doesn\'t.</p>';
++  html += '<p class="note">Checked items disappear. Green = done in Canvas (submitted or graded); gold = you checked it off, and Canvas still decides what counts. Days use Chicago time, and your checks sync across devices. Paper work shows "In class" when it\'s due on a day that class meets, otherwise "On paper". The line under a name is the share of the final grade that work\'s category carries in Canvas — gold when it counts, grey when it doesn\'t.</p>';
+   return html;
+ }
+ 
