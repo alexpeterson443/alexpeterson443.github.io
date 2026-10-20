@@ -369,11 +369,15 @@ input[type="text"], input[type="search"] {
   font: inherit; padding: .5rem .7rem; border-radius: var(--r-sm);
   border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 0; flex: 1;
 }
-code.copy {
+/* A real <button> so it is focusable and announced as a control, dressed as
+   the code it carries. */
+.copy {
+  display: inline-block; text-align: left; color: inherit;
   font: .85rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm);
   padding: .3rem .5rem; cursor: pointer; word-break: break-all;
 }
+.copy:hover { border-color: var(--ink-3); }
 
 .drop {
   border: 2px dashed var(--line); border-radius: var(--r-lg); padding: 1.6rem 1rem;
