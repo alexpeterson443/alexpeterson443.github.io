@@ -1,0 +1,32 @@
+{
+  "name": "REDLINE — Car Spotting Dex",
+  "short_name": "REDLINE",
+  "description": "Spot a car in the wild, scan it, keep it as a card. An on-device vision model names it for you. 257 vehicles across six rarity tiers. Works offline and stores everything on your device.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
+  "categories": ["games", "lifestyle", "entertainment"],
+  "icons": [
+    { "src": "./assets/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./assets/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan a car",
+      "short_name": "Scan",
+      "url": "./index.html#scan",
+      "description": "Open the camera and log a spot"
+    },
+    {
+      "name": "Today's hunts",
+      "short_name": "Hunts",
+      "url": "./index.html#hunts",
+      "description": "See today's bounties"
+    }
+  ]
+}
