@@ -2070,7 +2070,7 @@ function paintRemind() {
 const notify = { prefs: null, error: "", saved: "" };
 
 const NOTIFY_HELP = {
-  headsup: "Afternoon: your streak and what one game tonight makes it.",
+  headsup: "Streak check, timed from your calendar: 30 minutes before bowling on it, otherwise when your last class or plan of the day ends (4 PM if the calendar is empty).",
   lastcall: "Two hours before last call, if there is still no game.",
   weekly: "Monday morning: last week's games, average and best.",
 };
@@ -2078,15 +2078,12 @@ const NOTIFY_HELP = {
 function paintNotify() {
   const p = notify.prefs;
   $("notify-kinds").hidden = !p;
-  $("notify-at").closest(".set-field").hidden = !p;
   if (!p) { $("notify-note").textContent = notify.error; return; }
   for (const b of document.querySelectorAll(".notify-kind")) {
     const on = !!p[b.dataset.kind];
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", on ? "true" : "false");
   }
-  if (document.activeElement !== $("notify-at")) $("notify-at").value = p.at;
-  $("notify-at").disabled = !p.headsup;
   const lines = Object.keys(NOTIFY_HELP).filter((k) => p[k]).map((k) => NOTIFY_HELP[k]);
   $("notify-note").textContent = notify.error || notify.saved
     || (lines.length ? lines.join(" ") : "Everything is off. Nothing will be sent.");
@@ -2137,25 +2134,15 @@ $("notify-kinds").addEventListener("click", (e) => {
   if (b && notify.prefs) saveNotify({ [b.dataset.kind]: !notify.prefs[b.dataset.kind] });
 });
 
-$("notify-at").addEventListener("change", (e) => {
-  // Kept out of the settings form's own save; this one saves on its own.
-  e.stopPropagation();
-  const m = /^(\d{2}):(\d{2})$/.exec(e.target.value);
-  if (!m) return;
-  // The timer ticks on the quarter hour, so the time snaps to one. iOS's
-  // picker ignores the input's step, so this is where it happens.
-  const total = Math.min(23 * 60 + 45, Math.round((Number(m[1]) * 60 + Number(m[2])) / 15) * 15);
-  const at = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-  e.target.value = at;
-  saveNotify({ at });
-});
-
 $("remind-test").addEventListener("click", async () => {
   const btn = $("remind-test");
   btn.disabled = true;
   try {
     const out = await api("/api/nudge?send=1&kind=test", { method: "POST" });
-    pushState.error = out.delivered ? "Sent. It should arrive in a few seconds." : `Not delivered${out.why ? `: ${out.why}` : ""}.`;
+    const said = (out.reasons || []).filter(Boolean).join("; ") || (out.statuses || []).join(", ");
+    pushState.error = out.delivered
+      ? "Sent. It should arrive in a few seconds."
+      : `Not delivered: ${out.why || said || "the push service refused it"}${said && out.why ? ` (${said})` : ""}.`;
   } catch (err) {
     pushState.error = `Could not send a test. ${err.message || ""}`.trim();
   } finally {
@@ -2225,7 +2212,7 @@ $("remind-toggle").addEventListener("click", toggleRemind);
 // signal and the gated HTML cannot be re-fetched.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").then(loadRemind).catch(() => paintRemind());
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(loadRemind).catch(() => paintRemind());
   });
 } else {
   paintRemind();

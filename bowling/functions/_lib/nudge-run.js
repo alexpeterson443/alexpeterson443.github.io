@@ -13,12 +13,16 @@ import { todayIn, computeStats } from "./streak.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 import { dueByClock, streakNotice, weeklyRecap, KINDS } from "./notify.js";
 import { loadDays, loadScores, loadExcused, loadSubs, saveSubs, configFor, loadPrefs, saveNotice } from "./store.js";
-import { sendPush } from "./push.js";
+import { sendPush, publicKeyOf } from "./push.js";
+import { bowlingSchedule } from "./calendar.js";
 
 /** The date each kind last went out, so an evening gets one and not eight. */
 const sentKey = (kind) => `push_sent:${kind}`;
 
 const STREAK_KINDS = new Set(["headsup", "lastcall"]);
+
+/** What the push services said last time, for when a notification goes missing. */
+const LAST_KEY = "push_last";
 
 function clock(env, nowMs) {
   const tz = env.TIMEZONE || "America/Chicago";
@@ -36,9 +40,9 @@ export async function streakNow(env, today) {
 }
 
 /** The words for one kind, given the log as it stands. */
-export function compose(kind, { streak, scores, hours, today }) {
+export function compose(kind, { streak, scores, hours, today, plan = null, clock = null }) {
   if (kind === "weekly") return weeklyRecap(scores, today, streak);
-  if (STREAK_KINDS.has(kind)) return streakNotice(kind, streak, hours);
+  if (STREAK_KINDS.has(kind)) return streakNotice(kind, streak, hours, plan, clock);
   // "test": proves a device is reachable, and says something true while at it.
   const n = Number(streak.current) || 0;
   return {
@@ -63,9 +67,22 @@ export async function runNudge(rawEnv, nowMs = Date.now(), { force = false, kind
   // the app is showing him.
   const env = await configFor(rawEnv);
   const { tz, today, hours } = clock(env, nowMs);
-  const prefs = await loadPrefs(env);
-  const byClock = dueByClock({ nowMs, today, tz, hours, prefs });
-  const detail = { today, lastCall: hours.lastCallAt, prefs, kinds: byClock.why };
+  // The calendar times the heads up. It is cached in KV for ten minutes, so
+  // most ticks read it rather than fetch it; a feed that fails falls back to
+  // the fixed time rather than skipping the day.
+  const [prefs, calendar] = await Promise.all([loadPrefs(env), bowlingSchedule(env).catch(() => null)]);
+  const byClock = dueByClock({ nowMs, today, tz, hours, prefs, calendar });
+  const clockOf = (ms) => new Date(ms).toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const detail = {
+    today, lastCall: hours.lastCallAt, prefs, kinds: byClock.why,
+    // Public by definition; it must equal VAPID_PUBLIC in app.js or every
+    // push service refuses the signature.
+    signingKey: publicKeyOf(env.VAPID_PRIVATE_JWK),
+    // What the calendar made of today, in words, so a dry run explains itself.
+    headsupAt: byClock.plan ? { from: clockOf(byClock.plan.start), to: clockOf(byClock.plan.end), because: byClock.plan.reason } : null,
+    calendar: calendar ? { configured: calendar.configured, error: calendar.error || null, eventsToday: (calendar.busy || []).length, bowlingToday: (calendar.today || []).length } : null,
+    lastPush: await env.STREAK_KV.get(LAST_KEY, "json"),
+  };
 
   if (force && kind !== "test" && !KINDS.includes(kind)) {
     return { ...detail, send: false, why: `unknown kind; use test, ${KINDS.join(", ")}` };
@@ -80,7 +97,7 @@ export async function runNudge(rawEnv, nowMs = Date.now(), { force = false, kind
   for (const k of wanted) {
     if (STREAK_KINDS.has(k) && !unsettled) { detail.kinds[k] = "today already has a game or a pause"; continue; }
     if (!force && (await env.STREAK_KV.get(sentKey(k), "json")) === today) { detail.kinds[k] = "already sent today"; continue; }
-    notice = compose(k, { streak, scores, hours, today });
+    notice = compose(k, { streak, scores, hours, today, plan: byClock.plan, clock: clockOf });
     break;
   }
   if (!notice) return { ...detail, send: false, why: "nothing left to say" };
@@ -102,6 +119,11 @@ export async function runNudge(rawEnv, nowMs = Date.now(), { force = false, kind
   if (kept.length !== subs.length) await saveSubs(env, kept);
 
   const ok = results.filter((r) => r.ok).length;
+  await env.STREAK_KV.put(LAST_KEY, JSON.stringify({
+    at: new Date(nowMs).toISOString(),
+    kind: notice.kind,
+    results: results.map((r, i) => ({ host: new URL(subs[i].endpoint).host, status: r.status, reason: r.reason || r.error || "" })),
+  }));
   // Only a delivered push counts; a total failure is retried on the next tick
   // rather than written off until tomorrow.
   if (ok && notice.kind !== "test") {
@@ -115,5 +137,6 @@ export async function runNudge(rawEnv, nowMs = Date.now(), { force = false, kind
     delivered: ok,
     dropped: subs.length - kept.length,
     statuses: results.map((r) => r.status),
+    reasons: results.map((r) => r.reason || r.error || ""),
   };
 }

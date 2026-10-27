@@ -2,8 +2,9 @@
 //
 // Three kinds, each one he can turn off:
 //
-//   headsup   the afternoon, on a day with no game and no pause yet: where the
-//             streak stands and what one game tonight would make it
+//   headsup   on a day with no game and no pause yet, timed from his calendar:
+//             half an hour before a bowling session on it, otherwise when his
+//             last commitment of the day ends; 4 PM when the calendar is empty
 //   lastcall  two hours before the lanes stop taking games, same condition;
 //             the original evening reminder (see nudge.js)
 //   weekly    Monday morning: how last week went, in numbers
@@ -16,6 +17,7 @@ import { addDays } from "./streak.js";
 import { dayOfWeek } from "./hours.js";
 import { zonedToUtc } from "./ics.js";
 import { LEAD_MS, inNudgeWindow } from "./nudge.js";
+import { freeWindows } from "./window.js";
 
 export const KINDS = ["headsup", "lastcall", "weekly"];
 
@@ -78,19 +80,57 @@ function localMs(date, minutes, tz) {
   return zonedToUtc({ y, mo, d, h: Math.floor(minutes / 60), mi: minutes % 60 }, tz);
 }
 
+/** How long before a bowling session on the calendar the heads up goes out. */
+export const BOWL_LEAD_MS = 30 * 60 * 1000;
+
+/** The timer ticks every quarter hour; a shorter window could fall between two. */
+const MIN_SPAN_MS = 15 * 60 * 1000;
+
 /**
- * When today's heads up may go out, or null when it cannot.
+ * When today's heads up may go out, and why then; null when it cannot.
  *
- * It ends where the last call reminder's window begins, so the two never
- * compete for the same evening. A time set later than that simply means no
- * heads up, which is what someone asking for a 9 PM "heads up" would get from
- * the last call reminder anyway.
+ * Automatic, from his calendar:
+ *   - a bowling session on it: half an hour before it starts
+ *   - other commitments: the moment the last one before the evening ends, so
+ *     it lands when he is actually free; booked until late, the start of the
+ *     longest free stretch earlier on
+ *   - nothing on it, or no feed: the fallback time (4 PM)
+ *
+ * It always ends where the last call reminder's window begins, so the two
+ * never compete for the same evening. A plan computed from the whole day
+ * rather than from now, so it is the same plan on every tick.
  */
-export function headsupWindow(hours, today, tz, at = DEFAULT_PREFS.at) {
+export function headsupPlan({ hours, today, tz, at = DEFAULT_PREFS.at, calendar = null }) {
   if (!hours || hours.closedToday || typeof hours.lastCallMs !== "number") return null;
-  const start = localMs(today, minutesOf(at), tz);
-  const end = Math.min(start + HEADSUP_SPAN_MS, hours.lastCallMs - LEAD_MS);
-  return end > start ? { start, end } : null;
+  const cutoff = hours.lastCallMs - LEAD_MS;
+  const plan = (start, reason, extra = {}) => {
+    const end = Math.min(start + HEADSUP_SPAN_MS, cutoff, extra.session ? extra.session.start : Infinity, extra.freeUntil ?? Infinity);
+    return end - start >= MIN_SPAN_MS ? { start, end, reason, ...extra } : null;
+  };
+
+  const cal = calendar && calendar.configured && !calendar.error ? calendar : null;
+  if (cal) {
+    const session = (cal.today || []).filter((t) => !t.allDay && typeof t.start === "number")
+      .sort((a, b) => a.start - b.start)[0];
+    if (session) return plan(session.start - BOWL_LEAD_MS, "session", { session: { start: session.start, summary: session.summary || null } });
+
+    const busy = (cal.busy || []).filter((b) => typeof b.start === "number" && b.start < cutoff && b.end > hours.openMs);
+    if (busy.length) {
+      const lastEnd = Math.max(...busy.map((b) => b.end));
+      const wins = freeWindows(busy, hours, hours.openMs).filter((w) => w.start < cutoff);
+      const after = wins.find((w) => w.start >= lastEnd);
+      if (after) return plan(after.start, "free", { freeUntil: after.end });
+      const longest = wins.slice().sort((a, b) => b.minutes - a.minutes)[0];
+      // Booked solid until the evening: the last call reminder has it.
+      return longest ? plan(longest.start, "gap", { freeUntil: longest.end, before: longest.before || null }) : null;
+    }
+  }
+  return plan(localMs(today, minutesOf(at), tz), "default");
+}
+
+/** The old fixed time window, kept for callers that have no calendar. */
+export function headsupWindow(hours, today, tz, at = DEFAULT_PREFS.at) {
+  return headsupPlan({ hours, today, tz, at });
 }
 
 /** Monday morning, whatever the alley is doing. */
@@ -107,7 +147,7 @@ const inside = (w, nowMs) => !!w && nowMs >= w.start && nowMs < w.end;
  * Nothing here reads the log, so the tick that falls outside every window
  * costs no more than this.
  */
-export function dueByClock({ nowMs, today, tz, hours, prefs }) {
+export function dueByClock({ nowMs, today, tz, hours, prefs, calendar = null }) {
   const p = cleanPrefs(prefs);
   const why = {};
   const due = [];
@@ -118,19 +158,20 @@ export function dueByClock({ nowMs, today, tz, hours, prefs }) {
   };
   // Most urgent first: if two were ever due on one tick, the deadline wins.
   check("lastcall", inNudgeWindow(hours, nowMs), "outside its window");
-  const hw = headsupWindow(hours, today, tz, p.at);
+  const hw = headsupPlan({ hours, today, tz, at: p.at, calendar });
   check("headsup", inside(hw, nowMs), hw ? "outside its window" : "no window today");
   check("weekly", inside(weeklyWindow(today, tz), nowMs), "only on Monday morning");
-  return { due, why };
+  return { due, why, plan: hw };
 }
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
  * The words for a day with nothing logged yet. `streak` is computeStats'
- * output; `hours` is hoursStatus'.
+ * output; `hours` is hoursStatus'; `plan` is headsupPlan's, which says what
+ * the calendar made of the day; `clock` formats an instant as "3:15 PM".
  */
-export function streakNotice(kind, streak, hours) {
+export function streakNotice(kind, streak, hours, plan = null, clock = null) {
   const n = Number(streak.current) || 0;
   const next = n + 1;
   const by = hours && hours.lastCallAt ? ` by ${hours.lastCallAt}` : "";
@@ -141,6 +182,20 @@ export function streakNotice(kind, streak, hours) {
       kind,
       title: n > 0 ? `${plural(n, "day")} on the line` : "No game logged today",
       body: `Nothing logged yet. Last game goes on${by}.${n > 0 ? ` One game makes it ${next}.` : ""}`,
+    };
+  }
+
+  const stakes = n > 0 ? `One game makes it ${next}.${record}` : "One game starts a streak.";
+  const at = (ms) => (clock ? clock(ms) : null);
+  if (plan && plan.reason === "session" && at(plan.session.start)) {
+    return { kind, title: `Bowling at ${at(plan.session.start)}`, body: `On your calendar. ${stakes}` };
+  }
+  if (plan && (plan.reason === "free" || plan.reason === "gap") && at(plan.freeUntil)) {
+    const until = plan.freeUntil >= hours.lastCallMs ? `until last call at ${hours.lastCallAt}` : `until ${at(plan.freeUntil)}`;
+    return {
+      kind,
+      title: n > 0 && isMilestone(next) ? `Free now, one game from ${next} days` : "You're free now",
+      body: `Nothing on your calendar ${until}. ${stakes}`,
     };
   }
   if (n === 0) {

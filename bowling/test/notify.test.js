@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  headsupWindow, weeklyWindow, dueByClock, streakNotice, weeklyRecap,
+  headsupWindow, headsupPlan, weeklyWindow, dueByClock, streakNotice, weeklyRecap,
   validatePrefs, cleanPrefs, isMilestone, DEFAULT_PREFS,
 } from "../functions/_lib/notify.js";
 import { hoursStatus, parseHours } from "../functions/_lib/hours.js";
@@ -45,6 +45,62 @@ test("a heads up set too late for the evening simply does not happen", () => {
 test("no heads up on a day the alley never opens", () => {
   const closed = parseHours({ wed: null });
   assert.equal(headsupWindow(hoursOn(WED, "12:00", closed), WED, TZ), null);
+});
+
+// ---------- from the calendar ----------
+
+const cal = (busy = [], today = []) => ({ configured: true, busy, today });
+const ev = (date, from, to, summary = "Class") => ({ start: ms(date, from), end: ms(date, to), summary });
+const clock = (t) => new Date(t).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+
+test("bowling on the calendar gets its heads up half an hour before", () => {
+  const session = { ...ev(WED, "18:00", "19:30", "Bowling"), allDay: false };
+  const p = headsupPlan({ hours: hoursOn(WED, "12:00"), today: WED, tz: TZ, calendar: cal([], [session]) });
+  assert.equal(p.reason, "session");
+  assert.equal(p.start, ms(WED, "17:30"));
+  assert.equal(p.end, ms(WED, "18:00"));
+  const n = streakNotice("headsup", { current: 52, longest: 60 }, hoursOn(WED, "17:30"), p, clock);
+  assert.equal(n.title, "Bowling at 6:00 PM");
+  assert.equal(n.body, "On your calendar. One game makes it 53.");
+});
+
+test("a day of classes gets its heads up the moment the last one ends", () => {
+  const busy = [ev(WED, "10:00", "11:00"), ev(WED, "13:00", "15:30")];
+  const hours = hoursOn(WED, "12:00");
+  const p = headsupPlan({ hours, today: WED, tz: TZ, calendar: cal(busy) });
+  assert.equal(p.reason, "free");
+  assert.equal(p.start, ms(WED, "15:30"));
+  assert.equal(p.end, ms(WED, "17:30"));
+  const n = streakNotice("headsup", { current: 59, longest: 70 }, hours, p, clock);
+  assert.equal(n.title, "Free now, one game from 60 days");
+  assert.equal(n.body, "Nothing on your calendar until last call at 9:45 PM. One game makes it 60.");
+});
+
+test("booked into the evening, it picks the longest free stretch earlier", () => {
+  const busy = [ev(WED, "11:30", "12:00"), ev(WED, "14:00", "21:00", "Work")];
+  const hours = hoursOn(WED, "09:00");
+  const p = headsupPlan({ hours, today: WED, tz: TZ, calendar: cal(busy) });
+  assert.equal(p.reason, "gap");
+  assert.equal(p.start, ms(WED, "12:00"));
+  // Ends with the gap, not two hours later in the middle of work.
+  assert.equal(p.end, ms(WED, "14:00"));
+  assert.match(streakNotice("headsup", { current: 5, longest: 9 }, hours, p, clock).body, /until 2:00 PM/);
+});
+
+test("with no events, or a feed that fails, it falls back to 4 PM", () => {
+  const hours = hoursOn(WED, "12:00");
+  for (const calendar of [cal(), { configured: true, error: "calendar feed returned 404" }, { configured: false }, null]) {
+    const p = headsupPlan({ hours, today: WED, tz: TZ, calendar });
+    assert.equal(p.reason, "default");
+    assert.equal(p.start, ms(WED, "16:00"));
+  }
+});
+
+test("the calendar plan is what the clock check uses", () => {
+  const busy = [ev(WED, "10:00", "14:30")];
+  const at = (hhmm) => dueByClock({ nowMs: ms(WED, hhmm), today: WED, tz: TZ, hours: hoursOn(WED, hhmm), prefs: DEFAULT_PREFS, calendar: cal(busy) });
+  assert.deepEqual(at("14:30").due, ["headsup"]);
+  assert.deepEqual(at("16:45").due, []);
 });
 
 test("the recap is a Monday morning thing only", () => {

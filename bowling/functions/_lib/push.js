@@ -91,5 +91,19 @@ export async function sendPush(sub, env, now = Date.now(), topic = "bowl") {
       Topic: topic,
     },
   });
-  return { ok: res.ok, status: res.status, gone: res.status === 404 || res.status === 410 };
+  // A refusal says why in its body (Apple: {"reason":"BadJwtToken"}), which is
+  // the only clue there is when a push does not arrive.
+  const reason = res.ok ? "" : (await res.text().catch(() => "")).slice(0, 200);
+  return { ok: res.ok, status: res.status, gone: res.status === 404 || res.status === 410, reason };
+}
+
+/** The public half of the signing key, in the shape the client compiles in. */
+export function publicKeyOf(privateJwk) {
+  try {
+    const jwk = typeof privateJwk === "string" ? JSON.parse(privateJwk) : privateJwk;
+    const raw = (v) => Array.from(atob(v.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    return b64url(new Uint8Array([4, ...raw(jwk.x), ...raw(jwk.y)]));
+  } catch {
+    return null;
+  }
 }
