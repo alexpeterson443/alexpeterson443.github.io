@@ -8,9 +8,10 @@ import { frameReport } from "./frames.js";
 import { bowlingSchedule } from "./calendar.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 import { cleanRecord, mergeEnv } from "./settings.js";
-import { mirror } from "./live.js";
+import { mirror, liveKv } from "./live.js";
 import { loadDetail } from "./games.js";
 import { analyze } from "./stats.js";
+import { cleanPrefs } from "./notify.js";
 
 const KEY = "checkins";
 const SCORES_KEY = "scores";
@@ -19,6 +20,8 @@ const LAYOUT_KEY = "layout";
 const FRAMES_KEY = "frames_v1";
 const PUSH_KEY = "push_subs";
 const SETTINGS_KEY = "settings";
+const PREFS_KEY = "notify_prefs";
+const NOTICE_KEY = "push_notice";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -166,6 +169,38 @@ export async function saveSubs(env, subs) {
   const out = subs.slice(-10);
   await env.STREAK_KV.put(PUSH_KEY, JSON.stringify(out));
   return out;
+}
+
+/** Which notifications he wants, laid over the defaults (see notify.js). */
+export async function loadPrefs(env) {
+  return cleanPrefs(await env.STREAK_KV.get(PREFS_KEY, "json"));
+}
+
+export async function savePrefs(env, prefs) {
+  const clean = cleanPrefs(prefs);
+  await env.STREAK_KV.put(PREFS_KEY, JSON.stringify(clean));
+  return clean;
+}
+
+/**
+ * The notifications sent lately, newest first, for the service worker to
+ * display. Pushes carry no payload, so this is where the words wait. A list
+ * rather than the last one: a phone offline through two sends receives both
+ * pushes later, and each should still find its own words. A day is plenty;
+ * the push itself expires after an hour.
+ */
+export async function saveNotice(env, notice) {
+  const kept = (await loadNotices(env)).filter((n) => n.kind !== notice.kind);
+  const text = JSON.stringify([notice, ...kept].slice(0, 5));
+  await env.STREAK_KV.put(NOTICE_KEY, text, { expirationTtl: 86_400 });
+  // Read back through D1: the phone asks for it seconds after the push, from
+  // a data centre KV may not have reached yet.
+  await mirror(env, NOTICE_KEY, text);
+}
+
+export async function loadNotices(env) {
+  const raw = await liveKv(env.STREAK_KV, env.LIVE_DB).get(NOTICE_KEY, "json");
+  return Array.isArray(raw) ? raw.filter((n) => n && n.kind && n.title) : [];
 }
 
 export async function clearLayout(env) {

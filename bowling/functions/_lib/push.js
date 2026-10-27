@@ -76,7 +76,7 @@ export async function vapidHeader(endpoint, privateJwk, subject, now = Date.now(
  * subscription (404 or 410); the caller should forget it rather than retry it
  * every evening forever.
  */
-export async function sendPush(sub, env, now = Date.now()) {
+export async function sendPush(sub, env, now = Date.now(), topic = "bowl") {
   const auth = await vapidHeader(sub.endpoint, env.VAPID_PRIVATE_JWK, env.VAPID_SUBJECT || "mailto:nobody@example.com", now);
   const res = await fetch(sub.endpoint, {
     method: "POST",
@@ -86,9 +86,9 @@ export async function sendPush(sub, env, now = Date.now()) {
       // Bodyless, so the push service is told not to expect content.
       "Content-Length": "0",
       Urgency: "high",
-      // One pending nudge at a time: a later one replaces an undelivered
-      // earlier one rather than stacking on the lock screen.
-      Topic: "bowl",
+      // One pending push per kind: a later heads up replaces an undelivered
+      // one, but never swallows a weekly recap.
+      Topic: topic,
     },
   });
   return { ok: res.ok, status: res.status, gone: res.status === 404 || res.status === 410 };

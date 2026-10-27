@@ -1,24 +1,21 @@
 import { runNudge } from "../_lib/nudge-run.js";
 
-// GET  /api/nudge          -> tonight's reasoning, without sending anything
-// POST /api/nudge          -> the same decision, and the push if it says yes
-// POST /api/nudge?send=1   -> send regardless of the clock, for proving a
-//                             device is actually reachable
+// GET  /api/nudge                  -> what would go out right now, sending nothing
+// POST /api/nudge                  -> the same decision, and the push if it says yes
+// POST /api/nudge?send=1&kind=test -> send one kind regardless of the clock, for
+//                                     proving a device is actually reachable
+//                                     (kind: test, headsup, lastcall, weekly)
 //
-// This is the evening reminder's timer hook. The right home for it is the
-// Worker in nudge/, on Cloudflare's own cron; this exists because deploying
-// that Worker needs an API token with Workers permissions, and any scheduler
-// that can make one authenticated request every quarter hour is enough to get
-// the reminder working in the meantime. Both call the same code.
-//
-// The middleware gates it like everything else under /api/, so a caller needs
-// the access key. That is deliberate: without it, anyone who found the URL
-// could burn the day's KV reads and take the app down with it.
+// The POST is the timer hook. The Worker in nudge/ calls it every quarter hour
+// with the X-Nudge-Token header, which the middleware accepts for this one
+// route and method and nothing else.
 export async function onRequestGet({ env }) {
   return Response.json(await runNudge(env, Date.now(), { dryRun: true }));
 }
 
 export async function onRequestPost({ request, env }) {
-  const force = new URL(request.url).searchParams.get("send") === "1";
-  return Response.json(await runNudge(env, Date.now(), { force }));
+  const url = new URL(request.url);
+  const force = url.searchParams.get("send") === "1";
+  const kind = url.searchParams.get("kind") || (force ? "test" : null);
+  return Response.json(await runNudge(env, Date.now(), { force, kind }));
 }

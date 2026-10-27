@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="referrer" content="no-referrer" />
   <meta name="theme-color" content="#0a0b12" />
@@ -75,11 +75,24 @@
         </fieldset>
 
         <fieldset class="set-group">
-          <legend>Evening reminder</legend>
+          <legend>Notifications</legend>
           <div class="remind" id="remind" hidden>
-            <button type="button" class="pill remind-toggle" id="remind-toggle" hidden></button>
+            <div class="pills remind-row">
+              <button type="button" class="pill remind-toggle" id="remind-toggle" hidden></button>
+              <button type="button" class="pill" id="remind-test" hidden>Send a test</button>
+            </div>
             <p class="read quiet" id="remind-note"></p>
           </div>
+          <div class="notify-kinds" id="notify-kinds" role="group" aria-label="Which notifications to send">
+            <button type="button" class="pill notify-kind" data-kind="headsup" aria-pressed="false">Afternoon streak check</button>
+            <button type="button" class="pill notify-kind" data-kind="lastcall" aria-pressed="false">Before last call</button>
+            <button type="button" class="pill notify-kind" data-kind="weekly" aria-pressed="false">Monday recap</button>
+          </div>
+          <label class="set-field">
+            <span>Afternoon check at</span>
+            <input id="notify-at" class="field time narrow" type="time" step="900" />
+          </label>
+          <p class="read quiet" id="notify-note"></p>
         </fieldset>
 
         <fieldset class="set-group">

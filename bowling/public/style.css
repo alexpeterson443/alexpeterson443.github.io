@@ -56,6 +56,11 @@ body[data-form="cold"] {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html { background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* An app, not a page: a quick second tap (logging pins, the frame pad, "Add
+   game") must never zoom. manipulation keeps scrolling and pinch, drops only
+   double tap zoom. maximum-scale in the viewport stops iOS zooming into a
+   field when it gets focus. */
+html, body { touch-action: manipulation; }
 
 body {
   margin: 0;
@@ -584,8 +589,20 @@ button.primary.done {
   justify-items: start;
 }
 .remind[hidden] { display: none; }
-.remind-toggle[hidden] { display: none; }
+.remind-toggle[hidden], #remind-test[hidden] { display: none; }
 .remind .read { margin: 0; }
+.remind-row { justify-content: flex-start; }
+.notify-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+.notify-kinds[hidden], .set-field[hidden] { display: none; }
+.notify-kinds + .set-field { margin-top: 13px; }
+.set-field input.time:disabled { opacity: 0.45; }
 
 /* ---------- history ---------- */
 

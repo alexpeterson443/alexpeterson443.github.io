@@ -26,9 +26,11 @@ functions/
   api/excuse.js    POST {reason?} pause today, or {from, to?, reason?} pause a run of days; DELETE {date} | {from, to?} undo
   api/score.js     POST {score, date?, id?} log a scored game (verifies that day), DELETE {date, index}
   api/layout.js    GET/PUT the card arrangement, DELETE back to automatic order
-  api/push.js      POST/DELETE {endpoint} turn the evening reminder on or off for this device
+  api/push.js      POST/DELETE {endpoint} turn notifications on or off for this device
+  api/notify.js    GET/PUT which notifications go out, and the afternoon check's time
+  api/notice.js    GET the words for the notification just sent; the service worker asks
   api/settings.js  GET/PUT the settings he can change without a deploy, DELETE back to wrangler.toml
-  api/nudge.js     GET the evening reminder's reasoning, POST to act on it; the timer hook
+  api/nudge.js     GET what would be sent now, POST to act on it; the timer hook
   api/claude.js    GET the streak and scores as plain text, for Claude in a chat
   api/readkey.js   GET the read only link for Claude, POST to replace it
   _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
@@ -52,11 +54,12 @@ migrations/        D1 schema (games, frames, sessions); additive
   _lib/hours.js    alley opening hours (unit tested)
   _lib/streak.js   pure date + streak math (unit tested)
   _lib/store.js    KV read/write, caching, and first run seeding
-  _lib/nudge.js    whether tonight is worth a notification (unit tested)
+  _lib/nudge.js    the last call window (unit tested)
+  _lib/notify.js   when each notification is due and what it says (unit tested)
   _lib/settings.js validates them and lays them over the deploy config (unit tested)
-  _lib/nudge-run.js decides and sends; shared by the Worker and /api/nudge
+  _lib/nudge-run.js decides and sends; what /api/nudge runs
   _lib/push.js     VAPID signing and sending (unit tested)
-nudge/             the cron Worker that sends the evening reminder
+nudge/             the timer Worker (a self re-arming alarm) that knocks on /api/nudge
 icon/icon.svg      the app icon, drawn; the two PNGs are rendered from it
 test/              node --test
 public/sw.js       offline shell and the push handler
@@ -330,48 +333,65 @@ The calendar feed is the exception to reading settings back: it grants read
 access to your calendar, so the API stores it but never returns it. The screen
 is told only that one is set and which host it points at.
 
-## The evening reminder
+## Notifications
 
-One notification, and only one: on a day that still has no game and no pause,
-two hours before the lanes stop taking games. That is 7:45 PM on weekdays and
-Saturday, 5:45 PM on Sunday. No score reminders, no milestones, nothing else.
+Three kinds, each one switched on or off under **Settings > Notifications**:
 
-Turn it on under **Alley hours**, on the device you want it on. The phone and
-the iPad subscribe separately.
+- **Afternoon streak check.** On a day with no game and no pause yet, at the
+  time you pick, on the quarter hour (4 PM by default): where the streak stands and what one game
+  tonight makes it. It names a milestone (7, 14, 21, 30, 50, 60, 75, 100...)
+  and says when tonight would beat your longest run. It gives way to the last
+  call reminder, so a time later than two hours before last call means no
+  afternoon check that day.
+- **Before last call.** The original reminder: two hours before the lanes
+  stop taking games (7:45 PM on weekdays and Saturday, 5:45 PM on Sunday),
+  same condition.
+- **Monday recap.** Monday between 9 AM and noon: last Monday to Sunday's
+  nights and games, nightly average against the week before, best game (and
+  whether it was a personal best), and the streak.
+
+A day the alley never opens gets no streak notifications; it is yours to
+pause. Which kinds go out is stored on the server (`notify_prefs`), so the
+phone and the iPad agree. Whether a device receives them at all is per device:
+tap **Turn on for this device** on each one. **Send a test** proves a device is
+reachable.
 
 The decision is made on the server, before anything is sent, so a day you have
-already settled never produces a notification at all. The push itself carries
-no text: the service worker wakes, asks `/api/state` what the situation is, and
-writes the wording then, which is also why it can say the right thing if you
-logged a game in the meantime.
+already settled never produces a streak notification. Pushes carry no payload:
+the server adds the words to `push_notice`, the last few notices, one per kind
+(in KV, and in D1 so a phone in another data centre reads it at once), sends
+an empty push, and the service worker asks `/api/notice` what to show. It gets
+every notice from the last two hours, one per lock screen slot, so a phone that
+was offline through two sends still shows each one's own words. If you logged a
+game in the seconds in between, a streak notice says that instead. It always shows something, because iOS revokes
+a web app's push permission when a push shows nothing. Each kind has its own
+push topic and notification tag, so an afternoon check is replaced by the last
+call reminder but nothing replaces a recap.
 
-Pages Functions cannot be put on a timer, so something else has to knock every
-quarter hour. Two things can, and both call the same code in
-`_lib/nudge-run.js`, so they cannot drift apart:
+### The timer
 
-- **`nudge/`**, a Worker on Cloudflare's own cron. The right answer: no third
-  party, no extra hop, fires on the minute. Deploying it needs an API token
-  with Workers permissions, and `VAPID_PRIVATE_JWK` set on the Worker.
-- **`.github/workflows/bowl-nudge.yml`**, which POSTs to `/api/nudge` on a
-  schedule. Needs only a `BOWL_ACCESS_KEY` repository secret, since the Pages
-  project already holds the VAPID key. GitHub runs scheduled workflows late and
-  occasionally skips one; the window is two hours wide, so that is survivable
-  rather than ideal.
-
-Either way the decision is made server side and the clock is checked before any
-KV read, so the ticks that fall outside the window cost one pure function call.
+Pages Functions cannot be put on a timer, so **`nudge/`**, a small Worker,
+knocks on `POST /api/nudge` every quarter hour with an `X-Nudge-Token` header.
+Its clock is a Durable Object alarm that re-arms itself each time it fires,
+not a cron trigger: the free plan allows five cron triggers per account and
+other projects use them all. Alarms survive deploys; it was armed once with
+`POST /arm` (same token) and arming again is harmless. The middleware accepts that token for exactly that
+method and path with no query string: it cannot force a send, read anything,
+or get a session. The Pages project holds the VAPID key and does all the
+deciding and sending, so there is one copy of each.
 
 ```bash
-# A key pair. The public half goes in public/app.js, the private half is a secret.
+openssl rand -hex 32   # one token, set in both places
+npx wrangler pages secret put NUDGE_TOKEN --project-name bowling-streak
 npx wrangler deploy -c nudge/wrangler.toml
-npx wrangler secret put VAPID_PRIVATE_JWK -c nudge/wrangler.toml
-npx wrangler secret put VAPID_SUBJECT     -c nudge/wrangler.toml   # mailto: for push services
-npx wrangler secret put ACCESS_KEY        -c nudge/wrangler.toml   # same key as the site
+npx wrangler secret put NUDGE_TOKEN -c nudge/wrangler.toml
+curl -X POST -H "X-Nudge-Token: <token>" https://bowling-nudge.alexpeterson443.workers.dev/arm
 ```
 
-The Worker also answers a GET, gated by the same access key, which reports
-tonight's reasoning without waiting for the evening. `?send=1` on that URL
-actually sends, for proving a device is reachable.
+With the private link: `GET /api/nudge` reports what would go out right now and
+why each kind is or is not due, and `POST /api/nudge?send=1&kind=test` (or
+`headsup`, `lastcall`, `weekly`) sends one now. The Worker's logs show every
+tick's reasoning (`npx wrangler tail -c nudge/wrangler.toml`).
 
 On iPhone this needs iOS 16.4 or newer **and** the app added to the Home
 Screen. Safari in a tab cannot receive push at all; the toggle says so rather
@@ -413,8 +433,9 @@ npm test
 | `CALENDAR_KEYWORD` | wrangler.toml | Word that marks a bowling event         |
 | `HOURS`          | wrangler.toml  | Alley opening hours (optional override)  |
 | `LAST_CALL_MINUTES` | wrangler.toml | Minutes before close that games stop  |
-| `VAPID_PRIVATE_JWK` | secret (nudge/) | Signs the evening reminder            |
-| `VAPID_SUBJECT`  | secret (nudge/) | Contact address for push services     |
+| `VAPID_PRIVATE_JWK` | secret     | Signs notifications                      |
+| `VAPID_SUBJECT`  | secret         | Contact address for push services        |
+| `NUDGE_TOKEN`    | secret (both)  | Lets the timer Worker reach /api/nudge   |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.

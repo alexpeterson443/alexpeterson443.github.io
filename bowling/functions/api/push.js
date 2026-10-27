@@ -1,7 +1,7 @@
 import { loadSubs, saveSubs } from "../_lib/store.js";
 import { isSubscription } from "../_lib/push.js";
 
-// POST   /api/push {endpoint} -> this device wants the evening reminder
+// POST   /api/push {endpoint} -> this device wants notifications
 // DELETE /api/push {endpoint} -> it does not, or not any more
 //
 // Only the endpoint is kept. Payload encryption would need the device's keys

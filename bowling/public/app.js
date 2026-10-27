@@ -1924,6 +1924,7 @@ function showSettings(on) {
   $("set-error").hidden = true;
   if (!on) return;
   window.scrollTo(0, 0);
+  loadNotify();
   const pending = readOutbox().length;
   $("set-device").textContent = storedKey()
     ? `This device is linked.${pending ? ` ${pending} game${pending === 1 ? "" : "s"} still waiting to send.` : ""}`
@@ -1998,11 +1999,13 @@ $("set-claude-rotate").addEventListener("click", async () => {
   }
 });
 
-// ---------- the evening reminder ----------
+// ---------- notifications ----------
 //
-// One push, on a day that still has no game and no pause, two hours before the
-// lanes stop taking games. The server decides whether to send it at all, so
-// every push he receives is one that was worth receiving.
+// Three kinds, each one he can switch off: an afternoon streak check and a
+// last call reminder, both only on a day with no game and no pause, and a
+// Monday recap of the week. The server decides whether to send at all, so
+// every push he receives is one that was worth receiving. Whether this device
+// receives them is separate, and set per device below.
 
 // The public half of the VAPID key pair. Public by definition: it travels with
 // every push request so the push service can check the signature.
@@ -2041,7 +2044,7 @@ function paintRemind() {
   if (!pushState.supported) {
     btn.hidden = true;
     note.textContent = homeScreenOnly()
-      ? "Add this to your Home Screen, then a reminder can be turned on here."
+      ? "Add this to your Home Screen, then notifications can be turned on here."
       : "This browser cannot send notifications.";
     return;
   }
@@ -2053,12 +2056,114 @@ function paintRemind() {
 
   btn.hidden = false;
   btn.classList.toggle("on", !!pushState.sub);
-  btn.textContent = pushState.sub ? "Reminder is on" : "Remind me if the day is at risk";
+  btn.setAttribute("aria-pressed", pushState.sub ? "true" : "false");
+  btn.textContent = pushState.sub ? "On for this device" : "Turn on for this device";
+  $("remind-test").hidden = !pushState.sub;
   note.textContent = pushState.error
     || (pushState.sub
-      ? "Two hours before last call, only on a day with no game and no pause. Tap to turn it off."
-      : "One push, two hours before last call, only if the day still has no game and no pause.");
+      ? "This device gets the notifications switched on below. Tap to turn them off here."
+      : "Notifications go only to devices turned on here. The phone and the iPad each need it.");
 }
+
+// Which kinds go out, and when the afternoon check does. Stored on the
+// server, so both devices agree; saved the moment a pill is tapped.
+const notify = { prefs: null, error: "", saved: "" };
+
+const NOTIFY_HELP = {
+  headsup: "Afternoon: your streak and what one game tonight makes it.",
+  lastcall: "Two hours before last call, if there is still no game.",
+  weekly: "Monday morning: last week's games, average and best.",
+};
+
+function paintNotify() {
+  const p = notify.prefs;
+  $("notify-kinds").hidden = !p;
+  $("notify-at").closest(".set-field").hidden = !p;
+  if (!p) { $("notify-note").textContent = notify.error; return; }
+  for (const b of document.querySelectorAll(".notify-kind")) {
+    const on = !!p[b.dataset.kind];
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  if (document.activeElement !== $("notify-at")) $("notify-at").value = p.at;
+  $("notify-at").disabled = !p.headsup;
+  const lines = Object.keys(NOTIFY_HELP).filter((k) => p[k]).map((k) => NOTIFY_HELP[k]);
+  $("notify-note").textContent = notify.error || notify.saved
+    || (lines.length ? lines.join(" ") : "Everything is off. Nothing will be sent.");
+}
+
+async function loadNotify() {
+  try {
+    notify.prefs = await api("/api/notify");
+    notify.error = "";
+  } catch {
+    notify.error = notify.prefs ? "" : "Could not load notification settings.";
+  }
+  paintNotify();
+}
+
+// Saves go one at a time and each sends the whole set as it now stands, so
+// two quick taps cannot overwrite each other and an older reply never paints
+// over a newer choice.
+let notifyQueue = Promise.resolve();
+let notifyRev = 0;
+
+function saveNotify(patch) {
+  if (!notify.prefs) return;
+  notify.prefs = { ...notify.prefs, ...patch };
+  notify.error = "";
+  notify.saved = "";
+  paintNotify();
+  const rev = ++notifyRev;
+  notifyQueue = notifyQueue.then(async () => {
+    if (rev !== notifyRev) return; // a later tap will send the newer set
+    try {
+      const saved = await api("/api/notify", { method: "PUT", body: JSON.stringify(notify.prefs) });
+      if (rev === notifyRev) { notify.prefs = saved; notify.saved = "Saved."; }
+    } catch (e) {
+      if (rev === notifyRev) {
+        notify.error = `Could not save that. ${e.message || ""}`.trim();
+        // Show what is really stored, keeping the message.
+        notify.prefs = await api("/api/notify").catch(() => notify.prefs);
+      }
+    }
+    paintNotify();
+    setTimeout(() => { notify.saved = ""; paintNotify(); }, 2500);
+  });
+}
+
+$("notify-kinds").addEventListener("click", (e) => {
+  const b = e.target.closest(".notify-kind");
+  if (b && notify.prefs) saveNotify({ [b.dataset.kind]: !notify.prefs[b.dataset.kind] });
+});
+
+$("notify-at").addEventListener("change", (e) => {
+  // Kept out of the settings form's own save; this one saves on its own.
+  e.stopPropagation();
+  const m = /^(\d{2}):(\d{2})$/.exec(e.target.value);
+  if (!m) return;
+  // The timer ticks on the quarter hour, so the time snaps to one. iOS's
+  // picker ignores the input's step, so this is where it happens.
+  const total = Math.min(23 * 60 + 45, Math.round((Number(m[1]) * 60 + Number(m[2])) / 15) * 15);
+  const at = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  e.target.value = at;
+  saveNotify({ at });
+});
+
+$("remind-test").addEventListener("click", async () => {
+  const btn = $("remind-test");
+  btn.disabled = true;
+  try {
+    const out = await api("/api/nudge?send=1&kind=test", { method: "POST" });
+    pushState.error = out.delivered ? "Sent. It should arrive in a few seconds." : `Not delivered${out.why ? `: ${out.why}` : ""}.`;
+  } catch (err) {
+    pushState.error = `Could not send a test. ${err.message || ""}`.trim();
+  } finally {
+    btn.disabled = false;
+    paintRemind();
+    setTimeout(() => { pushState.error = ""; paintRemind(); }, 6000);
+  }
+});
 
 /** Whatever this device has already agreed to, read back from the browser. */
 async function loadRemind() {
@@ -2106,8 +2211,8 @@ async function toggleRemind() {
     }
   } catch (e) {
     pushState.error = wasOn
-      ? "Could not turn the reminder off. Try again."
-      : `Could not turn the reminder on. ${e.message || ""}`.trim();
+      ? "Could not turn notifications off. Try again."
+      : `Could not turn notifications on. ${e.message || ""}`.trim();
   } finally {
     pushState.busy = false;
     paintRemind();

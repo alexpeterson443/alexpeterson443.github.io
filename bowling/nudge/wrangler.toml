@@ -1,39 +1,35 @@
-# The evening nudge, as its own Worker.
+# The notification timer, as its own Worker.
 #
-# Pages Functions cannot be put on a timer, so the reminder lives here. It
-# shares the site's KV namespace, which is the whole point: it reads the same
-# scores and pauses the site does, and there is no second copy of the truth.
+# Pages Functions cannot be put on a timer, so this knocks on the site's
+# POST /api/nudge every quarter hour. The site decides and sends; this holds
+# only the token for that one door. The clock is a Durable Object alarm, not a
+# cron trigger, because the account's five free cron triggers are taken.
 #
 #   npx wrangler deploy -c nudge/wrangler.toml
-#   npx wrangler secret put VAPID_PRIVATE_JWK -c nudge/wrangler.toml
-#   npx wrangler secret put ACCESS_KEY        -c nudge/wrangler.toml
+#   npx wrangler secret put NUDGE_TOKEN -c nudge/wrangler.toml
+#   curl -X POST -H "X-Nudge-Token: <token>" https://bowling-nudge.<subdomain>.workers.dev/arm
 #
-# The same VAPID_PRIVATE_JWK is not needed by the Pages site: the site only
-# stores subscriptions, this Worker is what signs and sends.
+# The same NUDGE_TOKEN must be set on the Pages project:
+#   npx wrangler pages secret put NUDGE_TOKEN --project-name bowling-streak
 
 name = "bowling-nudge"
 main = "index.js"
 compatibility_date = "2026-08-01"
 
-# Not a public site. The fetch handler exists only as an authenticated dry run.
+# Reachable only for POST /arm with the token; everything else is a 404.
 workers_dev = true
+preview_urls = false
 
-[[kv_namespaces]]
-binding = "STREAK_KV"
-id = "5a22857ff2534e83a8ea89871c179cd2"
+[[durable_objects.bindings]]
+name = "TIMER"
+class_name = "Timer"
 
-[triggers]
-# Every quarter hour. The window is two hours wide, so the first tick inside it
-# is the one that sends; the rest cost a pure function call and return. Quarter
-# hours also line up exactly with a 9:45 PM last call in a whole hour timezone.
-crons = ["*/15 * * * *"]
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Timer"]
 
 [vars]
-# These must agree with the Pages site, or the Worker will be reasoning about a
-# different day than the app is showing. Alley hours default to the table in
-# functions/_lib/hours.js; if HOURS is ever set on the site, set it here too.
-TIMEZONE = "America/Chicago"
-LAST_CALL_MINUTES = "15"
-# Who a push service should contact about a misbehaving sender. Set it as a
-# secret rather than committing an address:
-#   npx wrangler secret put VAPID_SUBJECT -c nudge/wrangler.toml
+SITE_URL = "https://bowling-streak.pages.dev"
+
+[observability]
+enabled = true

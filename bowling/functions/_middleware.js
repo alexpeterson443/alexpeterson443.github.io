@@ -1,4 +1,4 @@
-import { keyMatches, hasValidSession, makeSessionCookie } from "./_lib/auth.js";
+import { keyMatches, hasValidSession, makeSessionCookie, timerMatches } from "./_lib/auth.js";
 import { READ_PATHS, readKeyMatches } from "./_lib/readkey.js";
 
 // Assets that reveal nothing are public so installs and icons always work.
@@ -33,6 +33,16 @@ export async function onRequest({ request, env, next }) {
 
   if (!env.ACCESS_KEY) {
     return new Response("ACCESS_KEY secret is not set.", { status: 500 });
+  }
+
+  // The notification timer (nudge/) gets one door: a plain POST to /api/nudge,
+  // which decides for itself whether anything is due. It cannot force a send,
+  // read anything back beyond that decision, or get a session cookie.
+  if (
+    request.method === "POST" && url.pathname === "/api/nudge" && !url.search &&
+    (await timerMatches(env, request.headers.get("X-Nudge-Token")))
+  ) {
+    return withHeaders(await next(), { "Cache-Control": "private, no-store" });
   }
 
   const key = url.searchParams.get("key") ?? request.headers.get("X-Access-Key");

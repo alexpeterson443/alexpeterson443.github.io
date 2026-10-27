@@ -9,7 +9,8 @@
 // and /api/claude reads from here first. A failed copy never fails the save;
 // the next save of that record puts it right.
 
-export const LIVE_KEYS = new Set(["checkins", "scores", "excused", "settings"]);
+// push_notice too: the service worker reads it seconds after it is written.
+export const LIVE_KEYS = new Set(["checkins", "scores", "excused", "settings", "push_notice"]);
 
 export async function mirror(env, key, value) {
   if (!env.LIVE_DB || !LIVE_KEYS.has(key)) return;

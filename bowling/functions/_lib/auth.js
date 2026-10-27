@@ -33,6 +33,14 @@ export async function keyMatches(env, supplied) {
   return timingSafeEqual(a, b);
 }
 
+/** The notification timer's token, a separate secret so it can be rotated alone. */
+export async function timerMatches(env, supplied) {
+  if (!env.NUDGE_TOKEN || typeof supplied !== "string") return false;
+  const a = await hmac(env.NUDGE_TOKEN, supplied);
+  const b = await hmac(env.NUDGE_TOKEN, env.NUDGE_TOKEN);
+  return timingSafeEqual(a, b);
+}
+
 export async function makeSessionCookie(env, request) {
   const exp = Date.now() + SESSION_DAYS * 86_400_000;
   const sig = await hmac(env.ACCESS_KEY, "session:" + exp);

@@ -7,7 +7,7 @@
 //
 // Only the shell is cached. No scores, no state, no API response ever lands here.
 
-const CACHE = "bowl-shell-v10";
+const CACHE = "bowl-shell-v12";
 const SHELL = ["/style.css", "/frames-core.js", "/app.js", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
@@ -80,50 +80,46 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-// The evening nudge.
+// Notifications.
 //
-// The push carries no payload, only the fact that the server thinks tonight is
-// at risk. That is deliberate: a payload would mean implementing RFC 8291
-// encryption, and the worker can simply ask the API what the state is, using
-// the same session cookie the app uses. It also means the wording is decided
-// here, at the moment it is shown, rather than however long ago the push was
-// queued.
+// A push carries no payload, only the fact that the server sent something.
+// The words are waiting at /api/notice, which the worker reads with the same
+// session cookie the app uses. That keeps RFC 8291 encryption out of the app,
+// and lets the wording reflect a game logged in the seconds since the push.
+//
+// Every push must end in a visible notification: iOS revokes a web app's push
+// permission when one does not. So nothing here returns early, and the fetch
+// is bounded so a slow network still ends in something on screen.
 self.addEventListener("push", (e) => {
-  e.waitUntil(nudge());
+  e.waitUntil(notify());
 });
 
-async function nudge() {
-  let title = "No game logged today";
-  let body = "The lanes stop taking games soon.";
-
+async function notify() {
+  let list = [{ group: "streak", title: "Bowling", body: "Open the app to see where your streak stands." }];
   try {
-    const res = await fetch("/api/state", { credentials: "same-origin", cache: "no-store" });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch("/api/notice", { credentials: "same-origin", cache: "no-store", signal: ctrl.signal });
+    clearTimeout(timer);
     if (res.ok) {
-      const s = await res.json();
-      // He settled the day in the seconds between the server deciding and the
-      // push arriving. Saying nothing risks the browser's own "updated in the
-      // background" placeholder, which is still better than a warning about a
-      // day that is already safe.
-      if (s.verifiedToday || s.excusedToday) return;
-      const n = Number(s.current) || 0;
-      if (n > 0) title = `${n} day${n === 1 ? "" : "s"} on the line`;
-      const last = s.hours && s.hours.lastCallAt;
-      body = last
-        ? `Nothing logged today. Last game goes on by ${last}.`
-        : "Nothing logged today.";
+      const got = await res.json();
+      if (got && Array.isArray(got.notices) && got.notices.length) list = got.notices;
     }
   } catch {
-    // No signal, or the session cookie is gone. The generic wording above is
-    // still true and still worth waking him for.
+    // No signal, or the session cookie is gone. The generic wording is still
+    // true, and showing it is what keeps the permission.
   }
 
-  await self.registration.showNotification(title, {
-    body,
-    tag: "bowl-nudge",
+  // One on the lock screen per group: a last call reminder replaces the
+  // afternoon check, and neither replaces the weekly recap. Showing one that
+  // is already there replaces it in place.
+  await Promise.all(list.map((n) => self.registration.showNotification(n.title, {
+    body: n.body || "",
+    tag: `bowl-${n.group || "streak"}`,
     icon: "/icon-180.png",
     badge: "/icon-180.png",
     data: { url: "/" },
-  });
+  })));
 }
 
 self.addEventListener("notificationclick", (e) => {
