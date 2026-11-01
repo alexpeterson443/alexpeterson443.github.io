@@ -6,7 +6,8 @@ import { normalizeLayout } from "./layout.js";
 import { planWindow, windowSentence, windowShort } from "./window.js";
 import { frameReport } from "./frames.js";
 import { bowlingSchedule } from "./calendar.js";
-import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
+import { hoursFromEnv, hoursStatus, lastCallFromEnv, hoursRecord, isHoursRecord } from "./hours.js";
+import { cleanClosures, closureExcuses } from "./closures.js";
 import { cleanRecord, mergeEnv } from "./settings.js";
 import { mirror, liveKv } from "./live.js";
 import { loadDetail } from "./games.js";
@@ -22,6 +23,8 @@ const PUSH_KEY = "push_subs";
 const SETTINGS_KEY = "settings";
 const PREFS_KEY = "notify_prefs";
 const NOTICE_KEY = "push_notice";
+const CLOSURES_KEY = "closures";
+const HOURS_KEY = "hours";
 
 /**
  * Days verified before this site existed. The streak began Fri 2026-08-28
@@ -57,7 +60,80 @@ export async function saveSettings(env, record) {
  * at once, rather than the half of them that happened to be rewritten.
  */
 export async function configFor(env) {
-  return mergeEnv(env, await loadSettings(env));
+  const merged = mergeEnv(env, await loadSettings(env));
+  // The weekly hours, last call included, come from the live `hours` record.
+  const hours = await loadLiveHours(merged);
+  return hours ? { ...merged, HOURS: hours } : merged;
+}
+
+/**
+ * The alley's weekly hours from the `hours` record in the D1 `live` table:
+ * {sun: ["12:00", "20:00", "19:45"], ..., sat: [...]}, null for a day it never
+ * opens. The third time is last call, read as given rather than worked out.
+ *
+ * The first read with D1 bound and no record seeds it from the config in force
+ * (wrangler.toml with his settings laid over it), so the table starts out as
+ * what the app was already using. Null without D1 and without a record, which
+ * leaves the config exactly as it was.
+ */
+export async function loadLiveHours(env) {
+  let raw = null;
+  try {
+    raw = await liveKv(env.STREAK_KV, env.LIVE_DB).get(HOURS_KEY, "json");
+  } catch {
+    raw = null;
+  }
+  if (isHoursRecord(raw)) return raw;
+  if (!env.LIVE_DB) return null;
+  return saveLiveHours(env, hoursRecord(env));
+}
+
+/** Write the weekly hours record. `env` here must not already carry it. */
+export async function saveLiveHours(env, record) {
+  const text = JSON.stringify(record);
+  await env.STREAK_KV.put(HOURS_KEY, text);
+  await mirror(env, HOURS_KEY, text);
+  return record;
+}
+
+/**
+ * Days the alley is shut, as {date: reason}, from the `closures` record in
+ * the D1 `live` table. Read through D1 first, since a closure set remotely
+ * has to be in force on the very next tick.
+ */
+export async function loadClosures(env) {
+  try {
+    return cleanClosures(await liveKv(env.STREAK_KV, env.LIVE_DB).get(CLOSURES_KEY, "json"));
+  } catch {
+    return {};
+  }
+}
+
+export async function saveClosures(env, closures) {
+  const clean = cleanClosures(closures);
+  const text = JSON.stringify(clean);
+  await env.STREAK_KV.put(CLOSURES_KEY, text);
+  await mirror(env, CLOSURES_KEY, text);
+  return clean;
+}
+
+/** Dates with a scored game, plus legacy check ins: what the streak counts. */
+function bowledDates(days, scores) {
+  const scored = Object.keys(scores).filter((d) => scores[d].some((n) => typeof n === "number"));
+  return new Set([...days, ...scored]);
+}
+
+/**
+ * Write every closed date that has rolled past without a game into `excused`
+ * as "lanes". Returns the dates it added; writes nothing when there are none.
+ */
+export async function settleClosures(env, today) {
+  const [closures, days, scores, excused] = await Promise.all([
+    loadClosures(env), loadDays(env), loadScores(env), loadExcused(env),
+  ]);
+  const { excused: next, added } = closureExcuses(closures, excused, bowledDates(days, scores), today, env.START_DATE);
+  if (added.length) await saveExcused(env, next);
+  return added;
 }
 
 export async function loadDays(env) {
@@ -230,14 +306,18 @@ export async function buildState(env, days, scores = {}, excused = null, opts = 
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz);
   if (excused === null) excused = await loadExcused(env);
+  const closures = await loadClosures(env);
   // A day counts as bowled only when it has a scored game. Check ins in
   // `days` are legacy records from before scores were required.
   const scored = Object.keys(scores).filter((d) => scores[d].some((n) => typeof n === "number"));
   const bowled = [...days, ...scored];
+  // A closed date already behind him counts as paused for "lanes" even before
+  // the timer has written it down, so no read ever shows it as a miss.
+  excused = closureExcuses(closures, excused, new Set(bowled), today, env.START_DATE).excused;
   const stats = computeStats(bowled, today, env.START_DATE, excused);
   const calendar = await bowlingSchedule(env).catch((e) => ({ configured: true, today: [], next: null, error: e.message }));
   const progress = progressReport(scores);
-  const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(), lastCallFromEnv(env));
+  const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(), lastCallFromEnv(env), closures);
   const scoresToday = (scores[today] || []).filter((n) => typeof n === "number");
   const layout = await loadLayout(env);
 
@@ -253,7 +333,9 @@ export async function buildState(env, days, scores = {}, excused = null, opts = 
   // app's refresh reads the last 30 nights, which is all its list shows.
   const since = opts.analysis ? null : Object.keys(scores).sort().slice(-30)[0] || null;
   const detail = await loadDetail(env, scores, { since }).catch(() => null);
-  const plan = planWindow(calendar.busy || [], hours, nowMs);
+  // No free window on a day the lanes are shut; planWindow already refuses a
+  // closed day, this only makes it explicit.
+  const plan = hours.closedToday ? null : planWindow(calendar.busy || [], hours, nowMs);
   const bowlWindow = plan
     ? { ...plan, sentence: windowSentence(plan, clock), short: windowShort(plan, clock) }
     : null;
@@ -280,6 +362,8 @@ export async function buildState(env, days, scores = {}, excused = null, opts = 
         .sort()
         .map((d) => ({ date: d, reason: excused[d] })),
     ).slice(0, 40),
+    // Closures from today on, so a shut day ahead is visible too.
+    closures: Object.keys(closures).filter((d) => d >= today).slice(0, 40).map((d) => ({ date: d, reason: closures[d] })),
     // Per game flags for the Games list, and tonight's notes for the entry
     // screen. The analysis built from the same detail is further down.
     games: detail ? gameFlags(detail, today) : null,

@@ -176,6 +176,14 @@ function alleyPart(s) {
   const h = s.hours || {};
   const coach = s.coach || {};
   const out = [];
+  // A closure: the lanes are shut whatever the weekly hours say, so there are
+  // no hours to print and no free window to look for.
+  if (h.closure) {
+    out.push("## Alley today");
+    out.push(`- Closed today: ${h.closure}. The lanes are shut all day; once it is over the day is paused (lanes), not missed.`);
+    out.push("");
+    return out;
+  }
   if (h.todayLabel) {
     out.push("## Alley today");
     out.push(`- Hours: ${h.todayLabel}${h.lastCallAt ? `, last game goes on at ${h.lastCallAt}` : ""}`);

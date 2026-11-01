@@ -1,4 +1,4 @@
-import { keyMatches, hasValidSession, makeSessionCookie, timerMatches } from "./_lib/auth.js";
+import { keyMatches, hasValidSession, makeSessionCookie, timerMatches, closuresTokenMatches } from "./_lib/auth.js";
 import { READ_PATHS, readKeyMatches } from "./_lib/readkey.js";
 
 // Assets that reveal nothing are public so installs and icons always work.
@@ -41,6 +41,16 @@ export async function onRequest({ request, env, next }) {
   if (
     request.method === "POST" && url.pathname === "/api/nudge" && !url.search &&
     (await timerMatches(env, request.headers.get("X-Nudge-Token")))
+  ) {
+    return withHeaders(await next(), { "Cache-Control": "private, no-store" });
+  }
+
+  // Alley closures get the same kind of door: a plain POST to /api/closures
+  // with the X-Closures-Token header. It can set or lift a closure and nothing
+  // else, and never gets a session cookie.
+  if (
+    request.method === "POST" && url.pathname === "/api/closures" && !url.search &&
+    (await closuresTokenMatches(env, request.headers.get("X-Closures-Token")))
   ) {
     return withHeaders(await next(), { "Cache-Control": "private, no-store" });
   }

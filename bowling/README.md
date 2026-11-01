@@ -31,6 +31,8 @@ functions/
   api/notice.js    GET the words for the notification just sent; the service worker asks
   api/settings.js  GET/PUT the settings he can change without a deploy, DELETE back to wrangler.toml
   api/nudge.js     GET what would be sent now, POST to act on it; the timer hook
+  api/closures.js  GET the alley closures, POST {date, reason} to set one (reason null lifts it)
+  _lib/closures.js closed dates, and turning a passed one into a "lanes" pause (unit tested)
   api/claude.js    GET the streak and scores as plain text, for Claude in a chat
   api/readkey.js   GET the read only link for Claude, POST to replace it
   _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
@@ -183,6 +185,36 @@ through costs nothing. When the calendar has an all day event mentioning closed,
 recess, holiday, break, or no classes, the page shows a hint but never pauses a
 day on its own.
 
+## Alley closures
+
+Days the alley itself is shut (a holiday, an event, a broken machine) live in
+the `closures` record of the D1 `live` table, as `{date: reason}`, the same
+shape as `excused`. On a closed date:
+
+- No notification of any kind goes out: no afternoon check, no last call, no
+  Monday recap, and not even a forced `?send=1` test.
+- The alley reads as shut all day in the app and in Claude's link, whose
+  "Alley today" section says closed and gives the reason instead of hours and
+  a free window. The next opening skips closed dates.
+- Once the date has passed with no game logged, it is written into `excused`
+  with the reason `lanes`, so it pauses the streak instead of counting as a
+  miss. The timer does this on its first tick after midnight, `/api/state`
+  does it as well, and every read treats it that way even before it is
+  written. A day you bowled, or one already paused for another reason, is left
+  alone. The streak math is unchanged; it only sees an ordinary paused day.
+
+Set closures remotely with `POST /api/closures` and a `{date, reason}` body.
+Besides the private link it accepts an `X-Closures-Token` header, the same
+kind of door the timer has to `/api/nudge`: a plain POST to that one path, no
+query string, no cookie, nothing else. `reason: null` lifts a closure.
+
+```bash
+openssl rand -hex 32
+npx wrangler pages secret put CLOSURES_TOKEN --project-name bowling-streak
+curl -X POST -H "X-Closures-Token: <token>" -H "Content-Type: application/json" \
+  -d '{"date":"2026-11-26","reason":"Thanksgiving"}' https://bowling-streak.pages.dev/api/closures
+```
+
 ## Your dashboard
 
 Everything below the score form is a card you arrange. **Edit** in the top right
@@ -301,6 +333,13 @@ the wait until the lanes open again, skipping any day the alley never opens,
 rather than counting down to the midnight rollover. Logging a score stays
 possible until midnight, so a game you bowled earlier can still be entered
 afterwards.
+
+The weekly hours in force are the `hours` record in the D1 `live` table:
+`{"sun": ["12:00", "20:00", "19:45"], ...}`, `null` for a day the alley never
+opens. The third time on each day is last call, and it is read from there
+rather than worked out from a fixed number of minutes. The first request with
+D1 bound seeds the record from the config below; after that, edit it in D1 or
+change hours or last call on the settings screen, which rewrites it.
 
 The defaults live in `functions/_lib/hours.js`. Override them with the `HOURS`
 var in wrangler.toml: JSON mapping `sun` through `sat` to `["HH:MM", "HH:MM"]`,
@@ -436,6 +475,7 @@ npm test
 | `VAPID_PRIVATE_JWK` | secret     | Signs notifications                      |
 | `VAPID_SUBJECT`  | secret         | Contact address for push services        |
 | `NUDGE_TOKEN`    | secret (both)  | Lets the timer Worker reach /api/nudge   |
+| `CLOSURES_TOKEN` | secret         | Lets a remote caller POST /api/closures  |
 
 Seeded days (Aug 28 to Sep 3) live in `functions/_lib/store.js` and are written to
 KV only the very first time the API runs with an empty namespace.

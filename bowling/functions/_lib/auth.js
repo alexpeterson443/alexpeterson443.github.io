@@ -41,6 +41,18 @@ export async function timerMatches(env, supplied) {
   return timingSafeEqual(a, b);
 }
 
+/**
+ * The closures token, for setting alley closures remotely (POST /api/closures).
+ * Its own secret, on the same pattern as the timer's, so either can be rotated
+ * without touching the other.
+ */
+export async function closuresTokenMatches(env, supplied) {
+  if (!env.CLOSURES_TOKEN || typeof supplied !== "string") return false;
+  const a = await hmac(env.CLOSURES_TOKEN, supplied);
+  const b = await hmac(env.CLOSURES_TOKEN, env.CLOSURES_TOKEN);
+  return timingSafeEqual(a, b);
+}
+
 export async function makeSessionCookie(env, request) {
   const exp = Date.now() + SESSION_DAYS * 86_400_000;
   const sig = await hmac(env.ACCESS_KEY, "session:" + exp);

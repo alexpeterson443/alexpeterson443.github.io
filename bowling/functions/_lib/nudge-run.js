@@ -12,7 +12,8 @@
 import { todayIn, computeStats } from "./streak.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "./hours.js";
 import { dueByClock, streakNotice, weeklyRecap, KINDS } from "./notify.js";
-import { loadDays, loadScores, loadExcused, loadSubs, saveSubs, configFor, loadPrefs, saveNotice } from "./store.js";
+import { loadDays, loadScores, loadExcused, loadSubs, saveSubs, configFor, loadPrefs, saveNotice, loadClosures, settleClosures } from "./store.js";
+import { closureOn } from "./closures.js";
 import { sendPush, publicKeyOf } from "./push.js";
 import { bowlingSchedule } from "./calendar.js";
 
@@ -24,10 +25,10 @@ const STREAK_KINDS = new Set(["headsup", "lastcall"]);
 /** What the push services said last time, for when a notification goes missing. */
 const LAST_KEY = "push_last";
 
-function clock(env, nowMs) {
+function clock(env, nowMs, closures = null) {
   const tz = env.TIMEZONE || "America/Chicago";
   const today = todayIn(tz, new Date(nowMs));
-  const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(nowMs), lastCallFromEnv(env));
+  const hours = hoursStatus(hoursFromEnv(env), tz, today, new Date(nowMs), lastCallFromEnv(env), closures);
   return { tz, today, hours };
 }
 
@@ -66,7 +67,12 @@ export async function runNudge(rawEnv, nowMs = Date.now(), { force = false, kind
   // to read them too or it will be reasoning about a different evening than
   // the app is showing him.
   const env = await configFor(rawEnv);
-  const { tz, today, hours } = clock(env, nowMs);
+  const closures = await loadClosures(env);
+  const { tz, today, hours } = clock(env, nowMs, closures);
+  // A closed date that has rolled past with no game becomes a "lanes" pause.
+  // The timer runs every quarter hour, so this lands just after midnight. A
+  // dry run writes nothing, this included.
+  const settled = dryRun ? [] : await settleClosures(env, today).catch(() => []);
   // The calendar times the heads up. It is cached in KV for ten minutes, so
   // most ticks read it rather than fetch it; a feed that fails falls back to
   // the fixed time rather than skipping the day.
@@ -82,7 +88,14 @@ export async function runNudge(rawEnv, nowMs = Date.now(), { force = false, kind
     headsupAt: byClock.plan ? { from: clockOf(byClock.plan.start), to: clockOf(byClock.plan.end), because: byClock.plan.reason } : null,
     calendar: calendar ? { configured: calendar.configured, error: calendar.error || null, eventsToday: (calendar.busy || []).length, bowlingToday: (calendar.today || []).length } : null,
     lastPush: await env.STREAK_KV.get(LAST_KEY, "json"),
+    closure: closureOn(closures, today),
+    settled,
   };
+
+  // Lanes closed: nothing goes out today, of any kind, forced or not.
+  if (detail.closure !== null) {
+    return { ...detail, send: false, why: `the lanes are closed today (${detail.closure}), so no notifications go out` };
+  }
 
   if (force && kind !== "test" && !KINDS.includes(kind)) {
     return { ...detail, send: false, why: `unknown kind; use test, ${KINDS.join(", ")}` };

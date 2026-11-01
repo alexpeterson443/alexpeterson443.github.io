@@ -1,4 +1,4 @@
-import { configFor, loadNotices } from "../_lib/store.js";
+import { configFor, loadNotices, loadClosures } from "../_lib/store.js";
 import { streakNow, compose } from "../_lib/nudge-run.js";
 import { todayIn } from "../_lib/streak.js";
 import { hoursFromEnv, hoursStatus, lastCallFromEnv } from "../_lib/hours.js";
@@ -24,8 +24,8 @@ export async function onRequestGet({ env }) {
   const tz = cfg.TIMEZONE || "America/Chicago";
   const now = Date.now();
   const today = todayIn(tz);
-  const [stored, { streak, scores, unsettled }] = await Promise.all([loadNotices(cfg), streakNow(cfg, today)]);
-  const hours = hoursStatus(hoursFromEnv(cfg), tz, today, new Date(now), lastCallFromEnv(cfg));
+  const [stored, { streak, scores, unsettled }, closures] = await Promise.all([loadNotices(cfg), streakNow(cfg, today), loadClosures(cfg)]);
+  const hours = hoursStatus(hoursFromEnv(cfg), tz, today, new Date(now), lastCallFromEnv(cfg), closures);
   const n = Number(streak.current) || 0;
 
   const seen = new Set();
