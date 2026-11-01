@@ -681,6 +681,14 @@ button.primary.done {
 .yesterday .pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .yesterday .pill { justify-content: center; padding: 8px 6px; }
 .yesterday #verify-yesterday { grid-column: 1 / -1; }
+.yesterday .pill.wide { grid-column: 1 / -1; }
+.fix-day .pills[hidden] { display: none; }
+.fix-day .pills + .read { margin-top: 10px; }
+.fix-day .pill.on { outline: 2px solid currentColor; outline-offset: -2px; }
+.grid-hint { margin-top: 10px; }
+.cell.fixable { cursor: pointer; }
+.cell.fixable:focus-visible { outline: 2px solid var(--today); outline-offset: 1px; }
+.cell.picked { outline: 2px solid var(--text, #fff); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

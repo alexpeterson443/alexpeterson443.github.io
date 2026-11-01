@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let state = null;
+/** The past day open in the fix-a-day panel under the history grid, or null. */
+let fixDate = null;
 let timer = null;
 
 // Remember the private link key on this device as a backup to the cookie.
@@ -393,7 +395,12 @@ function render() {
     }
   }
 
-  const yesterdayMissed = s.missed.includes(s.yesterday);
+  // The day being fixed, if it still needs fixing. A day he has since bowled,
+  // or one that is no longer in the past, closes the panel.
+  if (fixDate && (fixDate >= s.today || (s.days || []).includes(fixDate))) fixDate = null;
+  renderFixDay(s);
+  $("grid-hint").hidden = !(s.missed || []).some((d) => d !== s.yesterday) && !Object.keys(s.excuseReasons || {}).some((d) => d < s.today);
+    const yesterdayMissed = s.missed.includes(s.yesterday);
   $("yesterday-hint").hidden = !yesterdayMissed;
   $("yesterday-label").textContent = prettyDate(s.yesterday);
   $("history-meta").textContent = `${s.total} day${s.total === 1 ? "" : "s"}`;
@@ -424,6 +431,21 @@ function render() {
       c.title += ` · ${excuseCopy(excusedDays[cursor]).title}`;
     } else if (cursor < s.today) c.classList.add("miss");
     if (cursor === s.today) c.classList.add("today");
+    // A day that has passed and was not bowled can be fixed from here: a
+    // missed day marked as one he could not bowl, or a pause put right.
+    if (cursor < s.today && !hits.has(cursor)) {
+      const day = cursor;
+      c.classList.add("fixable");
+      c.dataset.date = day;
+      if (day === fixDate) c.classList.add("picked");
+      c.setAttribute("role", "button");
+      c.tabIndex = 0;
+      c.title += " · tap to fix";
+      c.addEventListener("click", () => openFixDay(day));
+      c.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openFixDay(day); }
+      });
+    }
     grid.appendChild(c);
     const d = new Date(cursor + "T00:00:00Z");
     d.setUTCDate(d.getUTCDate() + 1);
@@ -1044,6 +1066,64 @@ for (const button of document.querySelectorAll(".excuse")) {
 
 $("unexcuse").addEventListener("click", () => {
   act($("unexcuse"), () => api("/api/excuse", { method: "DELETE", body: JSON.stringify({ date: state.today }) }));
+});
+
+// ---------- fixing a past day ----------
+
+/** Open (or, tapped again, close) the panel for a day. Only the panel and the
+ *  highlight change; a full render here would also re-apply the card layout. */
+function openFixDay(date) {
+  fixDate = fixDate === date ? null : date;
+  for (const c of document.querySelectorAll("#grid .cell.fixable")) {
+    c.classList.toggle("picked", c.dataset.date === fixDate);
+  }
+  if (state) renderFixDay(state);
+  if (fixDate) $("fix-day").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderFixDay(s) {
+  const panel = $("fix-day");
+  panel.hidden = !fixDate;
+  if (!fixDate) return;
+  const reason = (s.excuseReasons || {})[fixDate] || null;
+  $("fix-day-label").textContent = prettyDate(fixDate);
+  $("fix-day-status").textContent = reason ? `paused (${excuseCopy(reason).title})` : "missed";
+  $("fix-day-prompt").textContent = reason ? "Wrong reason? Pick the right one:" : "If you could not bowl, mark that day:";
+  for (const button of document.querySelectorAll(".fix-reason")) {
+    button.classList.toggle("on", button.dataset.reason === reason);
+  }
+  $("fix-day-undo-row").hidden = !reason;
+}
+
+$("fix-day-score").addEventListener("click", () => {
+  if (!fixDate) return;
+  openForm();
+  $("score-date").value = fixDate;
+  $("score").focus();
+  $("score").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+$("fix-day-close").addEventListener("click", () => { if (fixDate) openFixDay(fixDate); });
+
+for (const button of document.querySelectorAll(".fix-reason")) {
+  const reason = button.dataset.reason;
+  button.addEventListener("click", () => {
+    const date = fixDate;
+    if (!date) return;
+    if (!confirm(`Mark ${prettyDate(date)} as ${excuseCopy(reason).title}? It won't break the streak, and it won't count either.`)) return;
+    // The range form, since a bare date is only accepted for today and
+    // yesterday; a range of one reaches any day back to the start.
+    act(button, () => api("/api/excuse", { method: "POST", body: JSON.stringify({ from: date, reason }) }))
+      .then((ok) => { if (ok && fixDate === date) openFixDay(date); });
+  });
+}
+
+$("fix-day-undo").addEventListener("click", () => {
+  const date = fixDate;
+  if (!date) return;
+  if (!confirm(`Unpause ${prettyDate(date)}? It will count as a missed day again.`)) return;
+  act($("fix-day-undo"), () => api("/api/excuse", { method: "DELETE", body: JSON.stringify({ date }) }))
+    .then((ok) => { if (ok && fixDate === date) openFixDay(date); });
 });
 
 for (const button of document.querySelectorAll(".excuse-yesterday")) {

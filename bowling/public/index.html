@@ -399,6 +399,28 @@
           <span><i class="dot excused away"></i>away</span>
           <span><i class="dot today"></i>today</span>
         </div>
+        <p class="read quiet grid-hint" id="grid-hint" hidden>Tap a red day to fix it, or a paused day to change it.</p>
+        <!-- Any past day that went wrong: a missed day he could not bowl, or a
+             pause with the wrong reason. Opened by tapping the day in the grid. -->
+        <div class="yesterday fix-day" id="fix-day" hidden>
+          <p class="read"><span id="fix-day-label">That day</span>: <span id="fix-day-status">missed</span>.</p>
+          <p class="read quiet">If you bowled:</p>
+          <div class="pills">
+            <button type="button" id="fix-day-score" class="pill wide">Enter the score</button>
+          </div>
+          <p class="read quiet" id="fix-day-prompt">If you could not bowl, mark that day:</p>
+          <div class="pills">
+            <button type="button" class="pill fix-reason" data-reason="closed"><i class="dot excused closed"></i>Closed</button>
+            <button type="button" class="pill fix-reason" data-reason="lanes"><i class="dot excused lanes"></i>No lanes</button>
+            <button type="button" class="pill fix-reason" data-reason="sick"><i class="dot excused sick"></i>Sick</button>
+            <button type="button" class="pill fix-reason" data-reason="injured"><i class="dot excused injured"></i>Injured</button>
+            <button type="button" class="pill fix-reason" data-reason="away"><i class="dot excused away"></i>Away</button>
+            <button type="button" class="pill" id="fix-day-close">Cancel</button>
+          </div>
+          <div class="pills" id="fix-day-undo-row" hidden>
+            <button type="button" id="fix-day-undo" class="pill wide">Undo the pause (counts as missed)</button>
+          </div>
+        </div>
         <div class="yesterday" id="yesterday-hint" hidden>
           <p class="read">Nothing logged for <span id="yesterday-label">yesterday</span>. You can still settle it today.</p>
           <p class="read quiet">If you bowled:</p>
