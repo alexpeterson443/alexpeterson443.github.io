@@ -494,6 +494,7 @@ export function sessionPrompt(report, ctx = {}) {
   }
 
   // Nothing logged yet today.
+  if (hours && hours.closure) return { phase: "shut", text: `The lanes are closed today (${hours.closure}). Once the day is over it is paused for you.` };
   if (hours && hours.closedToday) return { phase: "shut", text: "Lanes are shut all day. Mark it closed rather than letting it read as a miss." };
   if (hours && hours.beforeOpen) {
     return {

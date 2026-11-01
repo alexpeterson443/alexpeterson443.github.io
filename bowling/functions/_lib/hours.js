@@ -4,6 +4,12 @@
 // Override the defaults with the HOURS var: JSON mapping a three letter day to
 // ["HH:MM", "HH:MM"], or null for a day the alley never opens. Anything that
 // does not parse falls back to that day's default rather than failing the page.
+//
+// A day may carry a third time, ["10:00", "22:00", "21:45"]: the last call
+// itself. The `hours` record in the D1 `live` table always does (see
+// hoursRecord), so last call is read from it rather than worked out from a
+// fixed number of minutes. Without one, last call is LAST_CALL_MINUTES before
+// close, as before.
 
 import { zonedToUtc } from "./ics.js";
 
@@ -58,7 +64,11 @@ export function dayOfWeek(iso) {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
-/** Normalise an hours table to { 0..6: [openMinutes, closeMinutes] | null }. */
+/**
+ * Normalise an hours table to { 0..6: [openMinutes, closeMinutes] | null },
+ * or [open, close, lastCall] for a day that names its last call. A last call
+ * outside opening hours is ignored rather than trusted.
+ */
 export function parseHours(raw) {
   let src = raw;
   if (typeof src === "string") {
@@ -71,8 +81,10 @@ export function parseHours(raw) {
     if (entry === null) { out[i] = null; continue; }
     const open = Array.isArray(entry) ? toMinutes(entry[0]) : null;
     const close = Array.isArray(entry) ? toMinutes(entry[1]) : null;
-    if (open !== null && close !== null && close > open) out[i] = [open, close];
-    else out[i] = [toMinutes(DEFAULT_HOURS[DAYS[i]][0]), toMinutes(DEFAULT_HOURS[DAYS[i]][1])];
+    const last = Array.isArray(entry) && entry.length > 2 ? toMinutes(entry[2]) : null;
+    if (open !== null && close !== null && close > open) {
+      out[i] = last !== null && last >= open && last <= close ? [open, close, last] : [open, close];
+    } else out[i] = [toMinutes(DEFAULT_HOURS[DAYS[i]][0]), toMinutes(DEFAULT_HOURS[DAYS[i]][1])];
   }
   return out;
 }
@@ -85,6 +97,30 @@ export function hoursFromEnv(env) {
 export function lastCallFromEnv(env) {
   const n = Number(env && env.LAST_CALL_MINUTES);
   return Number.isInteger(n) && n >= 0 && n <= 240 ? n : DEFAULT_LAST_CALL;
+}
+
+/**
+ * The weekly hours as they are stored in the live `hours` record: every day
+ * spelled out, each with its last call written down, so whatever reads it
+ * gets the deadline itself instead of recomputing it from minutes.
+ */
+export function hoursRecord(env) {
+  const hours = hoursFromEnv(env);
+  const lastCall = lastCallFromEnv(env);
+  const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const out = {};
+  for (let i = 0; i < 7; i++) {
+    const h = hours[i];
+    if (!h) { out[DAYS[i]] = null; continue; }
+    const last = h.length > 2 ? h[2] : h[1] - Math.min(lastCall, h[1] - h[0]);
+    out[DAYS[i]] = [hhmm(h[0]), hhmm(h[1]), hhmm(last)];
+  }
+  return out;
+}
+
+/** True for a stored hours record worth using: an object naming at least one day. */
+export function isHoursRecord(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) && DAYS.some((d) => Object.hasOwn(v, d));
 }
 
 /**
@@ -111,18 +147,27 @@ export function weekRows(hours) {
 /**
  * Where `now` sits against the alley's hours on `today`.
  * Times are resolved through the timezone, so DST is handled.
+ *
+ * `closures` is the {date: reason} record of days the alley is shut whatever
+ * its hours say. A closed today reads exactly like a day the alley never
+ * opens, with the reason in `closure`, and the next opening skips closed dates.
  */
-export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAULT_LAST_CALL) {
+export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAULT_LAST_CALL, closures = null) {
   const dow = dayOfWeek(today);
-  const h = hours[dow];
+  const isClosed = (date) => !!closures && Object.hasOwn(closures, date);
+  const closure = isClosed(today) ? closures[today] : null;
+  const h = closure ? null : hours[dow];
   const [y, mo, d] = today.split("-").map(Number);
   const at = (min) => zonedToUtc({ y, mo, d, h: Math.floor(min / 60), mi: min % 60 }, tz);
   const t = now.getTime();
 
   const openMs = h ? at(h[0]) : null;
   const closeMs = h ? at(h[1]) : null;
-  // Never earlier than opening, in case a day's window is shorter than the cut off.
-  const lastCallMs = h ? Math.max(openMs, closeMs - lastCall * 60_000) : null;
+  // A last call written into the hours is the deadline as given. Otherwise it
+  // is worked out, never earlier than opening, in case a day's window is
+  // shorter than the cut off.
+  const statedLast = h && h.length > 2 ? h[2] : null;
+  const lastCallMs = h ? (statedLast !== null ? at(statedLast) : Math.max(openMs, closeMs - lastCall * 60_000)) : null;
   const open = h !== null && t >= openMs && t < closeMs;
   const beforeOpen = h !== null && t < openMs;
 
@@ -134,11 +179,13 @@ export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAU
   if (beforeOpen) {
     next = { day: NAMES[dow], today: true, tomorrow: false, opens: clockLabel(h[0]), date: today, msUntil: openMs - t };
   }
-  for (let step = 1; next === null && step <= 7; step++) {
+  // Two weeks, so a week of closures still finds the opening after it.
+  for (let step = 1; next === null && step <= 14; step++) {
     const i = (dow + step) % 7;
     const nh = hours[i];
     if (!nh) continue;
     const date = addIsoDays(today, step);
+    if (isClosed(date)) continue;
     const [ny, nmo, nd] = date.split("-").map(Number);
     const opensMs = zonedToUtc({ y: ny, mo: nmo, d: nd, h: Math.floor(nh[0] / 60), mi: nh[0] % 60 }, tz);
     next = { day: NAMES[i], today: false, tomorrow: step === 1, opens: clockLabel(nh[0]), date, msUntil: opensMs - t };
@@ -148,12 +195,15 @@ export function hoursStatus(hours, tz, today, now = new Date(), lastCall = DEFAU
   return {
     todayLabel: h ? `${clockLabel(h[0])} – ${clockLabel(h[1])}` : "Closed",
     closedToday: h === null,
+    // Why the lanes are shut today when it is a closure rather than the
+    // weekly hours; null otherwise.
+    closure,
     open,
     beforeOpen,
     opensAt: h ? clockLabel(h[0]) : null,
     closesAt: h ? clockLabel(h[1]) : null,
-    lastCallAt: h ? clockLabel(h[1] - Math.min(lastCall, h[1] - h[0])) : null,
-    lastCallMinutes: lastCall,
+    lastCallAt: h ? clockLabel(statedLast !== null ? statedLast : h[1] - Math.min(lastCall, h[1] - h[0])) : null,
+    lastCallMinutes: statedLast !== null ? h[1] - statedLast : lastCall,
     lastCallPassed: h !== null && t >= lastCallMs,
     msUntilOpen: beforeOpen ? openMs - t : null,
     // Real instants, so the free window maths can work in absolute time rather

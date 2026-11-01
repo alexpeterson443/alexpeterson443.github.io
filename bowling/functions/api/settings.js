@@ -1,5 +1,6 @@
-import { loadSettings, saveSettings, loadDays, loadScores, buildState, configFor } from "../_lib/store.js";
-import { validateSettings, applySettings, settingsView, mergeHours, pruneDefaults } from "../_lib/settings.js";
+import { loadSettings, saveSettings, loadDays, loadScores, buildState, configFor, saveLiveHours } from "../_lib/store.js";
+import { hoursRecord } from "../_lib/hours.js";
+import { validateSettings, applySettings, settingsView, mergeHours, pruneDefaults, mergeEnv } from "../_lib/settings.js";
 import { todayIn } from "../_lib/streak.js";
 
 // GET    /api/settings          -> what is in force, what wrangler.toml says, what he has changed
@@ -30,6 +31,11 @@ export async function onRequestPut({ request, env }) {
   // storing it as one would both misreport what he has changed and freeze that
   // field against a later deploy.
   const saved = await saveSettings(env, pruneDefaults(env, applySettings(previous, clean)));
+  // The weekly hours, last call included, are read from the live `hours`
+  // record, so a change to either is written through to it.
+  if (Object.hasOwn(clean, "HOURS") || Object.hasOwn(clean, "LAST_CALL_MINUTES")) {
+    await saveLiveHours(env, hoursRecord(mergeEnv(env, saved)));
+  }
   // The state comes back with it, because a changed timezone or start date
   // moves the streak itself and the screen should not have to ask twice.
   const cfg = await configFor(env);
@@ -41,6 +47,7 @@ export async function onRequestPut({ request, env }) {
 
 export async function onRequestDelete({ env }) {
   const saved = await saveSettings(env, {});
+  await saveLiveHours(env, hoursRecord(env));
   const cfg = await configFor(env);
   return Response.json({
     ...settingsView(env, saved),

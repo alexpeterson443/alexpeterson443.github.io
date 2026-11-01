@@ -10,7 +10,9 @@
 // the next save of that record puts it right.
 
 // push_notice too: the service worker reads it seconds after it is written.
-export const LIVE_KEYS = new Set(["checkins", "scores", "excused", "settings", "push_notice"]);
+// closures and hours: the alley's own calendar, which can be set remotely
+// (see /api/closures) and has to be in force on the very next tick.
+export const LIVE_KEYS = new Set(["checkins", "scores", "excused", "settings", "push_notice", "closures", "hours"]);
 
 export async function mirror(env, key, value) {
   if (!env.LIVE_DB || !LIVE_KEYS.has(key)) return;
