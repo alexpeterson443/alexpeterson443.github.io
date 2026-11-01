@@ -180,6 +180,11 @@ are the point: a day paused in advance does nothing to the streak until it
 arrives. A pause covers at most 60 days and reaches a year ahead. Runs you have
 already booked are listed under the link, and tapping one undoes it.
 
+Any day already gone can be put right from **Streak history**: tap a red
+(missed) day and pick why you could not bowl, or **Enter the score** if you did.
+Tap a paused day to change its reason or undo it. That reaches back to the
+first day of the streak, not just yesterday.
+
 A bowled day always wins over a pause, so marking a trip you end up bowling
 through costs nothing. When the calendar has an all day event mentioning closed,
 recess, holiday, break, or no classes, the page shows a hint but never pauses a
