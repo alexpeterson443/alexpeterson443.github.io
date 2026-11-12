@@ -9,7 +9,7 @@
 <meta property="og:title" content="Life in Lyrics"><meta property="og:description" content="A musical journey through one playlist.">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
 </head><body>
-<script>(function(){var B="010437de5f";function chk(){fetch(location.pathname+"version.txt?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():""}).then(function(v){v=(v||"").trim();if(v&&v!==B){location.replace(location.pathname+"?v="+v)}}).catch(function(){})}chk();document.addEventListener("visibilitychange",function(){if(!document.hidden)chk()})})();</script><title>Life in Lyrics</title>
+<script>(function(){var B="c0be658af9";function chk(){fetch(location.pathname+"version.txt?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():""}).then(function(v){v=(v||"").trim();if(v&&v!==B){location.replace(location.pathname+"?v="+v)}}).catch(function(){})}chk();document.addEventListener("visibilitychange",function(){if(!document.hidden)chk()})})();</script><title>Life in Lyrics</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap">
@@ -255,7 +255,8 @@ h3 span{color:var(--faint);font-weight:500}
 .shacts button,.shconnect{font:700 13.5px var(--f-body);padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
 .shacts button.on{background:#fff;color:#06070b}
 #shDel{color:#ffb4c0;border-color:rgba(255,140,160,.45)}
-.shconnect{background:#fff;color:#06070b}
+.shconnect{background:#fff;color:#06070b;text-decoration:none}
+#clMsg:empty{display:none}
 .shctl button:focus-visible,.shacts button:focus-visible,.shconnect:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .toast{position:fixed;z-index:60;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px);
   padding:11px 16px;border-radius:16px;font:600 14px var(--f-body);background:rgba(20,22,32,.75);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.25)}
@@ -389,6 +390,7 @@ h3 span{color:var(--faint);font-weight:500}
     <div class="shacts"><button type="button" id="shLike">♡ Add to Liked Songs</button><button type="button" id="shDel">Remove from playlist</button></div>
     <div id="shEmbed"></div>
     <button type="button" class="shconnect" id="shConnect" hidden>Connect Spotify</button>
+    <a class="shconnect" id="shOpen" href="spotify:" hidden>Open Spotify</a>
     <p class="story" id="shMsg" aria-live="polite"></p>
     <button type="button" class="close" id="shClose">Close</button>
   </div>
@@ -403,6 +405,8 @@ h3 span{color:var(--faint);font-weight:500}
     <div class="clbtns"><button type="button" id="clDel" aria-label="Remove">✕</button><button type="button" id="clHear" aria-label="Play this song">▶</button><button type="button" id="clKeep" aria-label="Keep">♥</button></div>
     <div class="clhint">← remove · keep →</div>
     <div id="clEmbed"></div>
+    <p class="story" id="clMsg" aria-live="polite"></p>
+    <a class="shconnect" id="clOpen" href="spotify:" hidden>Open Spotify</a>
     <div class="shacts"><button type="button" id="clUndo" disabled>Undo</button><button type="button" id="clClose">Done</button></div>
   </div>
 </div>
@@ -691,27 +695,51 @@ async function shLiked(){
 }
 async function shSync(){   // read what Spotify is actually playing
   const r = await LIVE.call("GET", "/me/player/currently-playing");
-  if (r.ok && r.json && r.json.item){ const s = byId[r.json.item.id] || LIVE.toSong(r.json.item); SH.playing = !!r.json.is_playing; SH.prog = r.json.progress_ms || 0; SH.dur = r.json.item.duration_ms || 1; SH.at = Date.now();
+  if (r.ok && r.json && r.json.item){ const s = byId[r.json.item.id] || LIVE.toSong(r.json.item); SH.playing = !!r.json.is_playing;
+    if (SH.playing && !$("#shOpen").hidden){ $("#shOpen").hidden = true; shMsg("Playing on your " + (onPhone ? "phone" : "Spotify")); } SH.prog = r.json.progress_ms || 0; SH.dur = r.json.item.duration_ms || 1; SH.at = Date.now();
     if (!SH.cur || SH.cur.id !== s.id || $("#shToggle").textContent !== (SH.playing ? "❚❚" : "▶")) shShow(s, SH.playing); }
 }
-async function playOn(uris){   // play on his Spotify; if nothing is active, wake his phone (or any device it knows)
-  let r = await LIVE.call("PUT", "/me/player/play", { uris });
-  if (r.status === 404){
-    const d = await LIVE.call("GET", "/me/player/devices"); const devs = (d.json && d.json.devices) || [];
-    const dev = devs.find(x => x.type === "Smartphone") || devs[0];
-    if (dev) r = await LIVE.call("PUT", "/me/player/play?device_id=" + encodeURIComponent(dev.id), { uris });
-  }
-  return r;
+// Spotify's "play these exact songs" (uris) is broken since late Oct 2026: it answers OK and stops the music.
+// Playing a song *inside a playlist* (context + offset) works, so everything plays that way.
+const onPhone = /iPhone|iPad|Android/i.test(navigator.userAgent);
+const nap = ms => new Promise(r => setTimeout(r, ms));
+let MYID = "";
+async function pickDevice(){   // on the phone: the phone's Spotify. On the Mac: whatever is active.
+  const d = await LIVE.call("GET", "/me/player/devices"); const devs = (d.json && d.json.devices) || [];
+  if (onPhone) return devs.find(x => x.type === "Smartphone") || null;
+  return devs.find(x => x.is_active) || devs.find(x => x.type === "Computer") || devs[0] || null;
 }
+async function playIn(context, id, dev){
+  dev = dev || await pickDevice();
+  if (!dev) return { state:"nodevice" };
+  const body = { context_uri:context, position_ms:0 }; if (id) body.offset = { uri:"spotify:track:" + id };
+  const r = await LIVE.call("PUT", "/me/player/play?device_id=" + encodeURIComponent(dev.id), body);
+  if (!(r.ok || r.status === 204)) return { state: r.status === 403 ? "premium" : "error", status:r.status };
+  await nap(1500);
+  const p = await LIVE.call("GET", "/me/player");
+  return { state: p.json && p.json.is_playing ? "playing" : "loaded", dev };
+}
+const HINT_LOADED = "It's cued up in Spotify. Your iPhone needs one tap on ▶ in Spotify to start, then this page runs it.";
+const HINT_NODEV = onPhone ? "Open Spotify on your phone, then come back here." : "Open Spotify on any device, then try again.";
+let shPending = false;
 async function shStart(){
-  SH.list = shuffled(); SH.i = 0;
-  const uris = SH.list.slice(0, 50).map(s => "spotify:track:" + s.id);
-  const r = await playOn(uris);
-  if (r.ok || r.status === 204){ SH.mode = "remote"; shMsg("Playing on your Spotify"); shShow(SH.list[0], true); setTimeout(shSync, 900); return; }
-  // can't control playback (not Premium, or no device open): play inside the page with Spotify's player
-  SH.mode = "embed"; shMsg(r.status === 404 ? "Open Spotify on your phone to play full songs here. Playing previews for now." : r.status === 403 ? "Full playback needs Spotify Premium. Playing previews." : "Playing previews.");
+  SH.list = shuffled(); SH.i = 0; shPending = false; $("#shOpen").hidden = true;
+  const first = SH.list[0], dev = await pickDevice();
+  if (dev) await LIVE.call("PUT", "/me/player/shuffle?state=true&device_id=" + encodeURIComponent(dev.id));
+  const r = await playIn("spotify:playlist:" + LIVE.PLAYLIST, first.id, dev);
+  if (r.state === "playing"){ SH.mode = "remote"; shMsg("Playing on your " + (onPhone ? "phone" : "Spotify")); shShow(first, true); setTimeout(shSync, 900); return; }
+  if (r.state === "loaded"){ SH.mode = "remote"; shMsg(HINT_LOADED); $("#shOpen").hidden = false; shShow(first, false); return; }
+  if (r.state === "nodevice"){ SH.mode = ""; shPending = true; shMsg(HINT_NODEV); $("#shOpen").hidden = false; shShow(first, false); return; }
+  // can't control playback (not Premium): play inside the page with Spotify's player
+  SH.mode = "embed"; shMsg(r.state === "premium" ? "Full playback needs Spotify Premium. Playing previews." : "Spotify didn't answer. Playing previews.");
   shEmbed();
 }
+// back from the Spotify app: pick up where we left off
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (!pSheet.hidden){ if (shPending) shStart(); else if (SH.mode === "remote") shSync(); }
+  if (!cleanSheet.hidden && CL.pending) clHear();
+});
 function shEmbed(){
   const s = SH.list[SH.i]; shShow(s, true); const box = $("#shEmbed"); box.textContent = "";
   const f = document.createElement("iframe"); f.className = "player"; f.title = "Spotify player"; f.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
@@ -769,7 +797,7 @@ async function loadPlaylists(){
   const box = $("#plists"), btn = $("#cleanLoad");
   if (!LIVE.connected() || !LIVE.can("playlist-modify-private")){ btn.textContent = LIVE.connected() ? "Reconnect Spotify to clean up playlists" : "Connect Spotify"; btn.onclick = () => LIVE.login(); return; }
   btn.textContent = "Loading…";
-  const me = await LIVE.call("GET", "/me"), myId = me.json && me.json.id;
+  const me = await LIVE.call("GET", "/me"), myId = me.json && me.json.id; MYID = myId || "";
   const lists = []; let next = "/me/playlists?limit=50";
   while (next && lists.length < 200){ const r = await LIVE.call("GET", next); if (!r.ok || !r.json) break; (r.json.items || []).forEach(p => { if (p && (p.owner && p.owner.id === myId || p.collaborative)) lists.push(p); }); next = r.json.next ? r.json.next.replace("https://api.spotify.com/v1", "") : null; }
   const total = p => ((p.items || p.tracks || {}).total);
@@ -878,10 +906,15 @@ $("#clUndo").addEventListener("click", () => clLock(async () => {
   CL.i = Math.max(0, CL.i - 1); CL.list[CL.i] = h.s; clDraw();
 }));
 async function clHear(){
-  const s = CL.list[CL.i]; if (!s) return;
-  const r = LIVE.can("user-modify-playback-state") ? await playOn(["spotify:track:" + s.id]) : { ok:false };
-  if (r.ok || r.status === 204){ CL.auto = true; $("#clEmbed").textContent = ""; return; }
-  CL.auto = false;   // no Premium/device: Spotify's own player right here
+  const s = CL.list[CL.i], src = CL.src; if (!s || !src) return;
+  CL.pending = false; $("#clOpen").hidden = true; $("#clMsg").textContent = "";
+  const ctx = src.id === "liked" ? "spotify:user:" + MYID + ":collection" : "spotify:playlist:" + src.id;
+  const r = LIVE.can("user-modify-playback-state") ? await playIn(ctx, s.id) : { state:"premium" };
+  if (!clLive(src)) return;
+  if (r.state === "playing"){ CL.auto = true; $("#clEmbed").textContent = ""; return; }
+  if (r.state === "loaded"){ CL.auto = true; $("#clEmbed").textContent = ""; $("#clMsg").textContent = HINT_LOADED; $("#clOpen").hidden = false; return; }
+  if (r.state === "nodevice"){ CL.auto = false; CL.pending = true; $("#clMsg").textContent = HINT_NODEV; $("#clOpen").hidden = false; return; }
+  CL.auto = false;   // no Premium: Spotify's own preview player right here
   const box = $("#clEmbed"); box.textContent = ""; const f = document.createElement("iframe"); f.className = "player"; f.title = "Spotify player";
   f.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"; f.src = "https://open.spotify.com/embed/track/" + encodeURIComponent(s.id) + "?theme=0"; box.append(f);
 }
