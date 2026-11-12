@@ -9,7 +9,7 @@
 <meta property="og:title" content="Life in Lyrics"><meta property="og:description" content="A musical journey through one playlist.">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
 </head><body>
-<script>(function(){var B="c0be658af9";function chk(){fetch(location.pathname+"version.txt?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():""}).then(function(v){v=(v||"").trim();if(v&&v!==B){location.replace(location.pathname+"?v="+v)}}).catch(function(){})}chk();document.addEventListener("visibilitychange",function(){if(!document.hidden)chk()})})();</script><title>Life in Lyrics</title>
+<script>(function(){var B="4a713a063f";function chk(){fetch(location.pathname+"version.txt?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():""}).then(function(v){v=(v||"").trim();if(v&&v!==B){location.replace(location.pathname+"?v="+v)}}).catch(function(){})}chk();document.addEventListener("visibilitychange",function(){if(!document.hidden)chk()})})();</script><title>Life in Lyrics</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap">
@@ -715,11 +715,13 @@ async function playIn(context, id, dev){
   const body = { context_uri:context, position_ms:0 }; if (id) body.offset = { uri:"spotify:track:" + id };
   const r = await LIVE.call("PUT", "/me/player/play?device_id=" + encodeURIComponent(dev.id), body);
   if (!(r.ok || r.status === 204)) return { state: r.status === 403 ? "premium" : "error", status:r.status };
-  await nap(1500);
-  const p = await LIVE.call("GET", "/me/player");
-  return { state: p.json && p.json.is_playing ? "playing" : "loaded", dev };
+  for (const ms of [1000, 1200, 1800]){   // Spotify takes a moment to report it started
+    await nap(ms); const p = await LIVE.call("GET", "/me/player");
+    if (p.json && p.json.is_playing) return { state:"playing", dev };
+  }
+  return { state:"loaded", dev };
 }
-const HINT_LOADED = "It's cued up in Spotify. Your iPhone needs one tap on ▶ in Spotify to start, then this page runs it.";
+const HINT_LOADED = onPhone ? "It's cued up in Spotify. Your iPhone needs one tap on ▶ in Spotify to start, then this page runs it." : "It's cued up in Spotify. Press play in Spotify once, then this page runs it.";
 const HINT_NODEV = onPhone ? "Open Spotify on your phone, then come back here." : "Open Spotify on any device, then try again.";
 let shPending = false;
 async function shStart(){
