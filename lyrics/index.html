@@ -9,7 +9,7 @@
 <meta property="og:title" content="Life in Lyrics"><meta property="og:description" content="A musical journey through one playlist.">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
 </head><body>
-<script>(function(){var B="4e2085ffd6";function chk(){fetch(location.pathname+"version.txt?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():""}).then(function(v){v=(v||"").trim();if(v&&v!==B){location.replace(location.pathname+"?v="+v)}}).catch(function(){})}chk();document.addEventListener("visibilitychange",function(){if(!document.hidden)chk()})})();</script><title>Life in Lyrics</title>
+<script>(function(){var B="010437de5f";function chk(){fetch(location.pathname+"version.txt?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():""}).then(function(v){v=(v||"").trim();if(v&&v!==B){location.replace(location.pathname+"?v="+v)}}).catch(function(){})}chk();document.addEventListener("visibilitychange",function(){if(!document.hidden)chk()})})();</script><title>Life in Lyrics</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap">
@@ -237,6 +237,61 @@ h3 span{color:var(--faint);font-weight:500}
 @keyframes blink{50%{opacity:.2}}
 .np:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .wrap{padding-bottom:84px}
+.sheet{position:fixed;inset:0;z-index:45;display:grid;place-items:center;padding:calc(20px + env(safe-area-inset-top,0px)) 18px calc(20px + env(safe-area-inset-bottom,0px));opacity:0;transition:opacity .28s ease}
+.sheet.in{opacity:1}
+.shbg{position:absolute;inset:-15%;z-index:0;background:#06070b}
+.shbg img{width:100%;height:100%;object-fit:cover;filter:blur(50px) saturate(1.8) brightness(.55);transform:scale(1.2)}
+.shpanel{position:relative;z-index:1;width:min(400px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:22px 20px;border-radius:32px;
+  background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.05));-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);
+  border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 30px 80px rgba(0,0,0,.5);transform:translateY(12px) scale(.98);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.sheet.in .shpanel{transform:none}
+.shcover{width:min(280px,70vw);aspect-ratio:1;border-radius:20px;object-fit:cover;box-shadow:0 24px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.35)}
+.shn{font:800 22px/1.2 var(--f-display);text-wrap:balance;margin-top:4px}.sha{color:var(--dim);font-size:14px}
+.shbar{width:100%;margin-top:4px}
+.shctl{display:flex;gap:18px;align-items:center;margin-top:6px}
+.shctl button{width:52px;height:52px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font:700 18px var(--f-body);cursor:pointer}
+.shctl button.big{width:68px;height:68px;background:#fff;color:#06070b;font-size:20px}
+.shacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.shacts button,.shconnect{font:700 13.5px var(--f-body);padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+.shacts button.on{background:#fff;color:#06070b}
+#shDel{color:#ffb4c0;border-color:rgba(255,140,160,.45)}
+.shconnect{background:#fff;color:#06070b}
+.shctl button:focus-visible,.shacts button:focus-visible,.shconnect:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.toast{position:fixed;z-index:60;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px);
+  padding:11px 16px;border-radius:16px;font:600 14px var(--f-body);background:rgba(20,22,32,.75);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.25)}
+.toast button{font:800 14px var(--f-body);color:var(--accent);background:none;border:0;cursor:pointer;padding:0}
+.plists{display:flex;gap:12px;overflow-x:auto;padding:10px 2px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.plists:empty{display:none}
+.pl{flex:0 0 132px;scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;text-align:left;background:none;border:0;color:var(--ink);cursor:pointer;padding:0}
+.pl img,.pl .ph{width:132px;height:132px;border-radius:16px;object-fit:cover;border:1px solid var(--edge);background:linear-gradient(135deg,#2a2f45,#121420)}
+.pl b{font:700 13.5px/1.2 var(--f-display);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pl i{font-style:normal;font-size:12px;color:var(--dim)}
+.pl:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:16px}
+.cbtn{margin-top:10px;font:700 14px var(--f-body);color:#06070b;background:#fff;border:0;border-radius:999px;padding:11px 16px;cursor:pointer}
+.cbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.clcount{font:600 12.5px var(--f-body);color:var(--dim);font-variant-numeric:tabular-nums}
+.deck{position:relative;width:min(300px,74vw);aspect-ratio:3/4;touch-action:none}
+.ccard{position:absolute;inset:0;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:24px;background:linear-gradient(160deg,rgba(44,48,66,.97),rgba(18,20,30,.97));
+  border:1px solid rgba(255,255,255,.3);box-shadow:0 24px 60px rgba(0,0,0,.45);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab;transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s}
+.ccard.next{transform:scale(.94) translateY(14px);opacity:.5;pointer-events:none}.ccard.next>*{visibility:hidden}
+.ccard.drag{transition:none;cursor:grabbing}
+.ccard img{width:100%;aspect-ratio:1;border-radius:16px;object-fit:cover;pointer-events:none}
+.ccard b{font:800 18px/1.2 var(--f-display);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccard i{font-style:normal;font-size:13px;color:var(--dim);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccard .stamp{position:absolute;top:22px;font:800 22px var(--f-display);letter-spacing:.08em;padding:4px 12px;border-radius:10px;border:3px solid;opacity:0;pointer-events:none}
+.ccard .keep{left:22px;color:#8ff0b0;transform:rotate(-12deg)}.ccard .gone{right:22px;color:#ff9fb0;transform:rotate(12deg)}
+.cldone{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font:700 17px/1.4 var(--f-display);padding:20px}
+.clbtns{display:flex;gap:22px;align-items:center;margin-top:4px}
+.clbtns button{width:58px;height:58px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font:800 20px var(--f-body);cursor:pointer}
+#clDel{color:#ff9fb0;border-color:rgba(255,140,160,.5)}#clKeep{color:#8ff0b0;border-color:rgba(140,240,176,.5)}
+#clHear{width:48px;height:48px;font-size:16px}
+.clbtns button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.clhint{font-size:12px;color:var(--faint);letter-spacing:.06em}
+.shacts button:disabled{opacity:.4;cursor:default}
+.slide{transition:opacity .5s ease,transform .6s cubic-bezier(.2,.8,.2,1),filter .5s ease;transform:scale(1.03);filter:blur(6px)}
+.slide.on{transform:none;filter:none}
+#story{transition:opacity .45s ease}
+#story.bye{opacity:0}
 
 </style>
 
@@ -284,9 +339,17 @@ h3 span{color:var(--faint);font-weight:500}
 
   <section class="glass" aria-label="Find a song">
     <div class="finder"><input id="q" type="search" placeholder="Find a song or artist" aria-label="Find a song or artist" autocomplete="off">
-      <button type="button" id="shuffle">Shuffle a memory</button><button type="button" class="ghost" id="replayStory">▶ Story</button><button type="button" class="ghost" id="liveBtn" hidden>Make it live</button></div>
+      <button type="button" id="shuffle">▶ Shuffle</button><button type="button" class="ghost" id="replayStory">▶ Story</button><button type="button" class="ghost" id="liveBtn" hidden>Make it live</button></div>
     <p class="story" id="liveNote" hidden></p>
     <div class="grid big" id="results" aria-live="polite"></div>
+  </section>
+
+  <section class="glass" aria-labelledby="cleanH">
+    <div class="eyebrow">Tidy up</div>
+    <h2 id="cleanH">Clean up a playlist</h2>
+    <p class="story">Pick one, then swipe each song: right keeps it, left removes it.</p>
+    <div class="plists" id="plists"></div>
+    <button type="button" class="cbtn" id="cleanLoad">Show my playlists</button>
   </section>
 
   <section class="glass" aria-labelledby="nowH">
@@ -315,6 +378,34 @@ h3 span{color:var(--faint);font-weight:500}
   <div class="foot">Tap any cover to see it big and play it on Spotify.</div>
 </main>
 <div class="tip" id="tip" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="Shuffle player">
+  <div class="shbg" aria-hidden="true"><img id="shBg" alt=""></div>
+  <div class="shpanel">
+    <div class="eyebrow">Shuffle · Life in lyrics</div>
+    <img class="shcover" id="shImg" alt="">
+    <div class="shn" id="shN"></div><div class="sha" id="shA"></div>
+    <div class="npbar shbar"><span id="shP"></span></div>
+    <div class="shctl"><button type="button" id="shPrev" aria-label="Previous">⏮</button><button type="button" id="shToggle" class="big" aria-label="Pause">❚❚</button><button type="button" id="shNext" aria-label="Skip">⏭</button></div>
+    <div class="shacts"><button type="button" id="shLike">♡ Add to Liked Songs</button><button type="button" id="shDel">Remove from playlist</button></div>
+    <div id="shEmbed"></div>
+    <button type="button" class="shconnect" id="shConnect" hidden>Connect Spotify</button>
+    <p class="story" id="shMsg" aria-live="polite"></p>
+    <button type="button" class="close" id="shClose">Close</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+<div class="sheet" id="clean" hidden role="dialog" aria-modal="true" aria-label="Clean up playlist">
+  <div class="shbg" aria-hidden="true"><img id="clBg" alt=""></div>
+  <div class="shpanel">
+    <div class="eyebrow" id="clName"></div>
+    <div class="clcount" id="clCount"></div>
+    <div class="deck" id="deck"></div>
+    <div class="clbtns"><button type="button" id="clDel" aria-label="Remove">✕</button><button type="button" id="clHear" aria-label="Play this song">▶</button><button type="button" id="clKeep" aria-label="Keep">♥</button></div>
+    <div class="clhint">← remove · keep →</div>
+    <div id="clEmbed"></div>
+    <div class="shacts"><button type="button" id="clUndo" disabled>Undo</button><button type="button" id="clClose">Done</button></div>
+  </div>
+</div>
 <button type="button" class="np" id="np" hidden aria-label="Now playing"><img id="npImg" alt=""><span class="npt"><small id="npK">Now playing</small><b id="npN"></b><i id="npA"></i></span><span class="npbar"><span id="npP"></span></span></button>
 <div class="show" id="show" hidden role="dialog" aria-modal="true" aria-label="Now showing">
   <div class="panel">
@@ -335,7 +426,7 @@ const DATA = {"songs":[{"id":"41Q5jNoPYMlJZdVJuvsyvb","n":"ONLY MY HANDS","a":"A
 const LIVE = (() => {
   const CLIENT = "f59a8d6d123d47afa48c771c694b2904", PLAYLIST = "07f9SB6VPAOHWE5rmSKcsi";
   const REDIRECT = location.origin + location.pathname;
-  const SCOPES = "user-read-currently-playing user-read-recently-played user-top-read playlist-read-private";
+  const SCOPES = "user-read-currently-playing user-read-recently-played user-top-read playlist-read-private user-read-playback-state user-modify-playback-state playlist-modify-private playlist-modify-public user-library-read user-library-modify";
   const ok = /github\.io$|localhost$/.test(location.hostname);
   const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
   const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -349,7 +440,7 @@ const LIVE = (() => {
     const r = await fetch("https://accounts.spotify.com/api/token", { method:"POST", headers:{ "Content-Type":"application/x-www-form-urlencoded" }, body:new URLSearchParams({ client_id:CLIENT, ...body }) });
     if (!r.ok) throw new Error("token " + r.status);
     const j = await r.json(), old = store.get("lil.tok") || {};
-    const t = { at:j.access_token, rt:j.refresh_token || old.rt, exp:Date.now() + (j.expires_in - 60) * 1000 };
+    const t = { at:j.access_token, rt:j.refresh_token || old.rt, exp:Date.now() + (j.expires_in - 60) * 1000, scope:j.scope || old.scope || "" };
     store.set("lil.tok", t); return t;
   }
   async function finishLogin(){
@@ -397,12 +488,31 @@ const LIVE = (() => {
     return before !== JSON.stringify(snap.songs).length + "|" + snap.onRepeat.map(s => s.id).join();
   }
   const connected = () => !!store.get("lil.tok");
+  const can = sc => ((store.get("lil.tok") || {}).scope || "").split(" ").includes(sc);
+  // any Web API call: {ok, status, json}
+  async function call(method, path, body){
+    const at = await access(); if (!at) return { ok:false, status:401, json:null };
+    const r = await fetch("https://api.spotify.com/v1" + path, { method, headers:Object.assign({ Authorization:"Bearer " + at }, body ? { "Content-Type":"application/json" } : {}), body: body ? JSON.stringify(body) : undefined });
+    let j = null; try { j = await r.json(); } catch (e) {}
+    return { ok:r.ok, status:r.status, json:j };
+  }
+  const stale = () => { const sn = store.get("lil.snap"); return !sn || Date.now() - sn.at > 5 * 60000; };
+  const applyLatest = () => apply(store.get("lil.snap"));
+  const forget = id => { const sn = store.get("lil.snap"); if (sn){ sn.songs = sn.songs.filter(s => s.id !== id); store.set("lil.snap", sn); } };
   if (ok && connected()) apply(store.get("lil.snap"));
-  return { ok, login, finishLogin, refresh, api, connected, toSong, logout(){ store.set("lil.tok", null); store.set("lil.snap", null); location.reload(); } };
+  return { ok, login, finishLogin, refresh, api, call, can, stale, applyLatest, forget, PLAYLIST, connected, toSong, logout(){ store.set("lil.tok", null); store.set("lil.snap", null); location.reload(); } };
 })();
 (async function(){
 "use strict";
-if (LIVE.ok && /[?&]code=/.test(location.search)){ await LIVE.finishLogin(); try { await LIVE.refresh(); } catch (e) {} location.reload(); return; }
+if (LIVE.ok && /[?&]code=/.test(location.search)){ await LIVE.finishLogin(); try { await LIVE.refresh(); } catch (e) {} LIVE.applyLatest(); }
+// seamless: if the saved copy is old, give Spotify a moment to answer before the page draws (no reload later)
+let synced = false, syncing = null;
+if (LIVE.ok && LIVE.connected() && LIVE.stale()){
+  let drawn = false;   // only redraw from it if the page hasn't been drawn yet
+  syncing = LIVE.refresh().then(changed => { if (!drawn) LIVE.applyLatest(); return changed; });
+  synced = await Promise.race([syncing.then(() => true).catch(() => false), new Promise(r => setTimeout(() => r(false), 2500))]);
+  drawn = true;
+}
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const songs = DATA.songs, C = DATA.covers, B = DATA.big;
@@ -562,7 +672,234 @@ $("#q").addEventListener("input", e => {
   const hits = songs.filter(s => (s.n + " " + s.a).toLowerCase().includes(q)).slice(0, 40);
   results.innerHTML = hits.length ? hits.map(tile).join("") : `<p class="story">Nothing on the playlist matches “${esc(q)}”.</p>`;
 });
-$("#shuffle").addEventListener("click", () => open(songs[Math.floor(Math.random() * songs.length)]));
+// ---------- shuffle player: plays on his Spotify; skip, like, remove ----------
+const pSheet = $("#sheet"), SH = { list:[], i:0, cur:null, mode:"", playing:false, prog:0, dur:1, at:0, liked:false };
+const shuffled = () => { const a = songs.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const shMsg = t => { $("#shMsg").textContent = t || ""; };
+function shShow(s, playing){
+  if (!s) return; SH.cur = s;
+  $("#shImg").src = cover(s, true); $("#shBg").src = cover(s, true); $("#shN").textContent = s.n; $("#shA").textContent = s.a + (s.y ? " · " + s.y : "");
+  $("#shToggle").textContent = playing ? "❚❚" : "▶"; $("#shToggle").setAttribute("aria-label", playing ? "Pause" : "Play");
+  shLiked();
+}
+async function shLiked(){
+  if (!SH.cur || !LIVE.can("user-library-read")) return;
+  let r = await LIVE.call("GET", "/me/library/contains?uris=" + encodeURIComponent("spotify:track:" + SH.cur.id));
+  if (!r.ok) r = await LIVE.call("GET", "/me/tracks/contains?ids=" + SH.cur.id);
+  SH.liked = !!(r.ok && Array.isArray(r.json) && r.json[0]);
+  $("#shLike").textContent = SH.liked ? "♥ In Liked Songs" : "♡ Add to Liked Songs"; $("#shLike").classList.toggle("on", SH.liked);
+}
+async function shSync(){   // read what Spotify is actually playing
+  const r = await LIVE.call("GET", "/me/player/currently-playing");
+  if (r.ok && r.json && r.json.item){ const s = byId[r.json.item.id] || LIVE.toSong(r.json.item); SH.playing = !!r.json.is_playing; SH.prog = r.json.progress_ms || 0; SH.dur = r.json.item.duration_ms || 1; SH.at = Date.now();
+    if (!SH.cur || SH.cur.id !== s.id || $("#shToggle").textContent !== (SH.playing ? "❚❚" : "▶")) shShow(s, SH.playing); }
+}
+async function playOn(uris){   // play on his Spotify; if nothing is active, wake his phone (or any device it knows)
+  let r = await LIVE.call("PUT", "/me/player/play", { uris });
+  if (r.status === 404){
+    const d = await LIVE.call("GET", "/me/player/devices"); const devs = (d.json && d.json.devices) || [];
+    const dev = devs.find(x => x.type === "Smartphone") || devs[0];
+    if (dev) r = await LIVE.call("PUT", "/me/player/play?device_id=" + encodeURIComponent(dev.id), { uris });
+  }
+  return r;
+}
+async function shStart(){
+  SH.list = shuffled(); SH.i = 0;
+  const uris = SH.list.slice(0, 50).map(s => "spotify:track:" + s.id);
+  const r = await playOn(uris);
+  if (r.ok || r.status === 204){ SH.mode = "remote"; shMsg("Playing on your Spotify"); shShow(SH.list[0], true); setTimeout(shSync, 900); return; }
+  // can't control playback (not Premium, or no device open): play inside the page with Spotify's player
+  SH.mode = "embed"; shMsg(r.status === 404 ? "Open Spotify on your phone to play full songs here. Playing previews for now." : r.status === 403 ? "Full playback needs Spotify Premium. Playing previews." : "Playing previews.");
+  shEmbed();
+}
+function shEmbed(){
+  const s = SH.list[SH.i]; shShow(s, true); const box = $("#shEmbed"); box.textContent = "";
+  const f = document.createElement("iframe"); f.className = "player"; f.title = "Spotify player"; f.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
+  f.src = "https://open.spotify.com/embed/track/" + encodeURIComponent(s.id) + "?theme=0"; box.appendChild(f);
+}
+async function openPlayer(fresh){
+  pSheet.hidden = false; requestAnimationFrame(() => pSheet.classList.add("in")); document.body.style.overflow = "hidden";
+  if (!LIVE.connected()){ shMsg("Connect Spotify to play, like and remove songs here."); $("#shConnect").hidden = false; shShow(songs[Math.floor(Math.random() * songs.length)], false); return; }
+  const need = ["user-modify-playback-state", "user-library-modify", "playlist-modify-private"].some(sc => !LIVE.can(sc));
+  $("#shConnect").hidden = !need; $("#shConnect").textContent = "Reconnect Spotify for player controls";
+  if (need){ shMsg("One more tap: reconnect Spotify so this player can play, skip, like and remove."); shShow(songs[0], false); return; }
+  if (fresh || !SH.mode) await shStart(); else await shSync();
+}
+function closePlayer(){ pSheet.classList.remove("in"); setTimeout(() => { pSheet.hidden = true; $("#shEmbed").textContent = ""; }, 280); document.body.style.overflow = ""; }
+$("#shuffle").addEventListener("click", () => openPlayer(true));
+$("#shClose").addEventListener("click", closePlayer);
+$("#shConnect").addEventListener("click", () => LIVE.login());
+$("#shNext").addEventListener("click", async () => {
+  if (SH.mode === "remote"){ await LIVE.call("POST", "/me/player/next"); setTimeout(shSync, 700); }
+  else if (SH.list.length){ SH.i = (SH.i + 1) % SH.list.length; shEmbed(); }
+});
+$("#shPrev").addEventListener("click", async () => {
+  if (SH.mode === "remote"){ await LIVE.call("POST", "/me/player/previous"); setTimeout(shSync, 700); }
+  else if (SH.list.length){ SH.i = (SH.i - 1 + SH.list.length) % SH.list.length; shEmbed(); }
+});
+$("#shToggle").addEventListener("click", async () => {
+  if (SH.mode !== "remote") return;
+  await LIVE.call("PUT", SH.playing ? "/me/player/pause" : "/me/player/play"); SH.playing = !SH.playing; shShow(SH.cur, SH.playing);
+});
+$("#shLike").addEventListener("click", async () => {
+  if (!SH.cur) return; const uri = "spotify:track:" + SH.cur.id, m = SH.liked ? "DELETE" : "PUT";
+  let r = await LIVE.call(m, "/me/library?uris=" + encodeURIComponent(uri));
+  if (!r.ok) r = await LIVE.call(m, "/me/tracks?ids=" + SH.cur.id);
+  if (r.ok){ SH.liked = !SH.liked; $("#shLike").textContent = SH.liked ? "♥ In Liked Songs" : "♡ Add to Liked Songs"; $("#shLike").classList.toggle("on", SH.liked); toast(SH.liked ? "Added to Liked Songs" : "Removed from Liked Songs"); }
+  else toast("Spotify said no (" + r.status + "). Try again.");
+});
+let undo = null;
+$("#shDel").addEventListener("click", async () => {
+  if (!SH.cur) return; const s = SH.cur, uri = "spotify:track:" + s.id, P = "/playlists/" + LIVE.PLAYLIST;
+  const k = songs.findIndex(x => x.id === s.id); if (k < 0){ toast("This song isn't on Life in lyrics."); return; }
+  let r = await LIVE.call("DELETE", P + "/items", { items:[{ uri }] });
+  if (!r.ok) r = await LIVE.call("DELETE", P + "/tracks", { tracks:[{ uri }] });
+  if (!r.ok){ toast("Couldn't remove it (" + r.status + ")."); return; }
+  LIVE.forget(s.id); songs.splice(k, 1);
+  undo = async () => { const b = { uris:[uri], position:k }; let a = await LIVE.call("POST", P + "/items", b); if (!a.ok) a = await LIVE.call("POST", P + "/tracks", b); if (a.ok){ songs.splice(k, 0, s); toast("Put back"); } };
+  toast("Removed " + s.n + " from Life in lyrics", "Undo");
+  $("#shNext").click();
+});
+// ---------- clean up a playlist: swipe right keeps, left removes (with undo) ----------
+const cleanSheet = $("#clean"), CL = { src:null, list:[], i:0, next:null, kept:0, gone:0, hist:[], auto:false, busy:false };
+const seenKey = id => "lil.clean." + id;
+const getSeen = id => { try { return new Set(JSON.parse(localStorage.getItem(seenKey(id)) || "[]")); } catch (e) { return new Set(); } };
+const putSeen = (id, set) => { try { localStorage.setItem(seenKey(id), JSON.stringify([...set])); } catch (e) {} };
+async function loadPlaylists(){
+  const box = $("#plists"), btn = $("#cleanLoad");
+  if (!LIVE.connected() || !LIVE.can("playlist-modify-private")){ btn.textContent = LIVE.connected() ? "Reconnect Spotify to clean up playlists" : "Connect Spotify"; btn.onclick = () => LIVE.login(); return; }
+  btn.textContent = "Loading…";
+  const me = await LIVE.call("GET", "/me"), myId = me.json && me.json.id;
+  const lists = []; let next = "/me/playlists?limit=50";
+  while (next && lists.length < 200){ const r = await LIVE.call("GET", next); if (!r.ok || !r.json) break; (r.json.items || []).forEach(p => { if (p && (p.owner && p.owner.id === myId || p.collaborative)) lists.push(p); }); next = r.json.next ? r.json.next.replace("https://api.spotify.com/v1", "") : null; }
+  const total = p => ((p.items || p.tracks || {}).total);
+  const srcs = [{ id:"liked", name:"Liked Songs", img:"", count:"" }].concat(lists.map(p => ({ id:p.id, name:p.name, img:((p.images || [])[0] || {}).url || "", count:total(p) })));
+  box.textContent = "";
+  srcs.forEach(p => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "pl";
+    if (p.img){ const im = document.createElement("img"); im.alt = ""; im.loading = "lazy"; im.src = p.img; b.append(im); } else { const d = document.createElement("span"); d.className = "ph"; b.append(d); }
+    const n = document.createElement("b"); n.textContent = p.name; const c = document.createElement("i"); c.textContent = p.count === "" || p.count == null ? "" : p.count + " songs";
+    b.append(n, c); b.addEventListener("click", () => openClean(p)); box.append(b);
+  });
+  btn.hidden = true;
+}
+$("#cleanLoad").addEventListener("click", loadPlaylists);
+// one lock for swipes and undo; it stays held until the next card is on screen
+const clLock = async fn => { if (CL.busy) return; CL.busy = true; $("#clUndo").disabled = true; try { await fn(); } finally { CL.busy = false; $("#clUndo").disabled = !CL.hist.length; } };
+const clLive = src => CL.src === src;   // false once he switched to another playlist
+async function clMore(){   // next page; offset counts removals so the shifted list doesn't skip songs
+  const src = CL.src; if (!CL.hasMore) return;
+  const base = src.id === "liked" ? "/me/tracks" : "/playlists/" + src.id + "/items";
+  const r = await LIVE.call("GET", base + "?limit=50&offset=" + Math.max(0, CL.base - CL.gone));
+  if (!clLive(src)) return;
+  if (!r.ok || !r.json){ CL.hasMore = false; return; }
+  const seen = getSeen(src.id), items = r.json.items || [], off = CL.base;
+  items.forEach((it, k) => { const s = LIVE.toSong(it.item || it.track, (it.added_at || "").slice(0, 10)); if (s){ s.pos = off + k; if (!seen.has(s.id)) CL.list.push(s); } });
+  CL.base += items.length; CL.hasMore = !!r.json.next && items.length > 0;
+}
+async function clFill(){ const src = CL.src; while (clLive(src) && CL.hasMore && CL.list.length - CL.i < 6) await clMore(); }
+const clCountText = () => { const s = CL.list[CL.i]; return (s ? (CL.i + 1) + " of " + CL.list.length + (CL.hasMore ? "+" : "") + " · " : "") + CL.kept + " kept · " + CL.gone + " removed"; };
+async function openClean(p){
+  Object.assign(CL, { src:p, list:[], i:0, kept:0, gone:0, hist:[], base:0, hasMore:true, busy:false });
+  $("#clName").textContent = "Cleaning up · " + p.name; $("#clUndo").disabled = true; $("#clEmbed").textContent = "";
+  cleanSheet.hidden = false; requestAnimationFrame(() => cleanSheet.classList.add("in")); document.body.style.overflow = "hidden";
+  $("#deck").textContent = ""; $("#clCount").textContent = "Loading…";
+  await clFill(); if (clLive(p)) clDraw();
+}
+function clCard(s, next){
+  const c = document.createElement("div"); c.className = "ccard" + (next ? " next" : "");
+  const im = document.createElement("img"); im.alt = ""; im.src = cover(s, true);
+  const n = document.createElement("b"); n.textContent = s.n; const a = document.createElement("i"); a.textContent = s.a + (s.y ? " · " + s.y : "") + (s.d ? " · added " + short(s.d) : "");
+  const k = document.createElement("span"); k.className = "stamp keep"; k.textContent = "KEEP";
+  const g = document.createElement("span"); g.className = "stamp gone"; g.textContent = "REMOVE";
+  c.append(im, n, a, k, g); return c;
+}
+function clDraw(){
+  const deck = $("#deck"); deck.textContent = "";
+  const s = CL.list[CL.i];
+  $("#clCount").textContent = clCountText();
+  if (!s){ const d = document.createElement("div"); d.className = "cldone"; d.textContent = CL.list.length ? "All done. Kept " + CL.kept + ", removed " + CL.gone + "." : "Nothing left to sort here. Already sorted songs stay hidden."; deck.append(d); return; }
+  if (CL.list[CL.i + 1]) deck.append(clCard(CL.list[CL.i + 1], true));
+  const top = clCard(s, false); deck.append(top); $("#clBg").src = cover(s, true);
+  clDrag(top);
+  if (CL.auto) clHear();
+  const src = CL.src; if (CL.hasMore && CL.list.length - CL.i < 6) clFill().then(() => { if (clLive(src)) $("#clCount").textContent = clCountText(); });
+}
+function clDrag(card){
+  let x0 = 0, y0 = 0, dx = 0, id = null;
+  const stamp = () => { card.querySelector(".keep").style.opacity = Math.max(0, Math.min(1, dx / 90)); card.querySelector(".gone").style.opacity = Math.max(0, Math.min(1, -dx / 90)); };
+  card.addEventListener("pointerdown", e => { if (CL.busy) return; id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; card.setPointerCapture(id); card.classList.add("drag"); });
+  card.addEventListener("pointermove", e => { if (e.pointerId !== id) return; dx = e.clientX - x0; const dy = (e.clientY - y0) * .3; card.style.transform = "translate(" + dx + "px," + dy + "px) rotate(" + dx / 18 + "deg)"; stamp(); });
+  const up = e => { if (e.pointerId !== id) return; id = null; card.classList.remove("drag");
+    if (dx > 90) clDecide(true); else if (dx < -90) clDecide(false); else { card.style.transform = ""; dx = 0; stamp(); } };
+  card.addEventListener("pointerup", up); card.addEventListener("pointercancel", up);
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const clDecide = keep => clLock(async () => {
+  const src = CL.src, s = CL.list[CL.i]; if (!s) return;
+  const card = $("#deck .ccard:not(.next)");
+  if (card){ card.style.transform = "translate(" + (keep ? 1 : -1) * 520 + "px,40px) rotate(" + (keep ? 24 : -24) + "deg)"; card.style.opacity = "0"; }
+  if (!keep){
+    const ok = await clRemove(src, s);
+    if (!clLive(src)) return;
+    if (!ok){ if (card){ card.style.transform = ""; card.style.opacity = ""; } toast("Couldn't remove it. Is this your playlist?"); return; }
+    CL.gone++;
+  } else CL.kept++;
+  const seen = getSeen(src.id); seen.add(s.id); putSeen(src.id, seen);
+  CL.hist.push({ s, keep }); CL.i++;
+  await wait(220); if (!clLive(src)) return;
+  if (!CL.list[CL.i] && CL.hasMore){ $("#deck").textContent = ""; $("#clCount").textContent = "Loading…"; await clFill(); if (!clLive(src)) return; }
+  clDraw();
+});
+async function clRemove(src, s){
+  const uri = "spotify:track:" + s.id;
+  if (src.id === "liked"){
+    let r = await LIVE.call("DELETE", "/me/library?uris=" + encodeURIComponent(uri)); if (!r.ok) r = await LIVE.call("DELETE", "/me/tracks?ids=" + s.id); return r.ok;
+  }
+  const P = "/playlists/" + src.id;
+  let r = await LIVE.call("DELETE", P + "/items", { items:[{ uri }] }); if (!r.ok) r = await LIVE.call("DELETE", P + "/tracks", { tracks:[{ uri }] });
+  if (r.ok && src.id === LIVE.PLAYLIST){ LIVE.forget(s.id); const k = songs.findIndex(x => x.id === s.id); if (k >= 0) songs.splice(k, 1); }
+  return r.ok;
+}
+async function clRestore(src, s){
+  const uri = "spotify:track:" + s.id;
+  if (src.id === "liked"){ let r = await LIVE.call("PUT", "/me/library?uris=" + encodeURIComponent(uri)); if (!r.ok) r = await LIVE.call("PUT", "/me/tracks?ids=" + s.id); return r.ok; }
+  // put it back where it was: its old spot minus the songs removed before it that are still gone
+  const before = CL.hist.filter(h => !h.keep && h.s.pos < s.pos).length;
+  const P = "/playlists/" + src.id, body = { uris:[uri], position: Math.max(0, s.pos - before) };
+  let r = await LIVE.call("POST", P + "/items", body); if (!r.ok) r = await LIVE.call("POST", P + "/tracks", body);
+  if (r.ok && src.id === LIVE.PLAYLIST && !songs.some(x => x.id === s.id)) songs.push(s);
+  return r.ok;
+}
+$("#clUndo").addEventListener("click", () => clLock(async () => {
+  const src = CL.src, h = CL.hist.pop(); if (!h) return;
+  if (!h.keep){ const ok = await clRestore(src, h.s); if (!clLive(src)) return; if (!ok){ CL.hist.push(h); toast("Couldn't put it back. Try again."); return; } CL.gone--; } else CL.kept--;
+  const seen = getSeen(src.id); seen.delete(h.s.id); putSeen(src.id, seen);
+  CL.i = Math.max(0, CL.i - 1); CL.list[CL.i] = h.s; clDraw();
+}));
+async function clHear(){
+  const s = CL.list[CL.i]; if (!s) return;
+  const r = LIVE.can("user-modify-playback-state") ? await playOn(["spotify:track:" + s.id]) : { ok:false };
+  if (r.ok || r.status === 204){ CL.auto = true; $("#clEmbed").textContent = ""; return; }
+  CL.auto = false;   // no Premium/device: Spotify's own player right here
+  const box = $("#clEmbed"); box.textContent = ""; const f = document.createElement("iframe"); f.className = "player"; f.title = "Spotify player";
+  f.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"; f.src = "https://open.spotify.com/embed/track/" + encodeURIComponent(s.id) + "?theme=0"; box.append(f);
+}
+$("#clKeep").addEventListener("click", () => clDecide(true));
+$("#clDel").addEventListener("click", () => clDecide(false));
+$("#clHear").addEventListener("click", clHear);
+$("#clClose").addEventListener("click", () => { CL.src = null; cleanSheet.classList.remove("in"); setTimeout(() => { cleanSheet.hidden = true; $("#clEmbed").textContent = ""; }, 280); document.body.style.overflow = ""; });
+document.addEventListener("keydown", e => { if (cleanSheet.hidden || e.repeat) return; if (e.key === "ArrowRight") clDecide(true); else if (e.key === "ArrowLeft") clDecide(false); else if (e.key === "Escape") $("#clClose").click(); });
+loadPlaylists();
+
+// small glass toast with an optional Undo
+function toast(text, action){
+  const t = $("#toast"); t.textContent = ""; t.append(text);
+  if (action){ const b = document.createElement("button"); b.type = "button"; b.textContent = action; b.addEventListener("click", () => { if (undo) undo(); undo = null; t.hidden = true; }); t.append(b); }
+  t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; undo = null; }, 6000);
+}
+setInterval(() => { if (!pSheet.hidden && SH.mode === "remote"){ $("#shP").style.width = Math.min(100, (SH.prog + (SH.playing ? Date.now() - SH.at : 0)) / SH.dur * 100) + "%"; } }, 500);
+setInterval(() => { if (!pSheet.hidden && SH.mode === "remote" && !document.hidden) shSync(); }, 4000);
 
 // ---------- live mode wiring ----------
 (function(){
@@ -573,7 +910,8 @@ $("#shuffle").addEventListener("click", () => open(songs[Math.floor(Math.random(
     btn.textContent = "Live ●"; btn.title = "Disconnect Spotify"; btn.addEventListener("click", () => LIVE.logout());
     note.hidden = false; note.textContent = DATA.liveAt ? "Live from your Spotify · updated " + new Date(DATA.liveAt).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) : "Live from your Spotify · syncing…";
     // pull the latest playlist and top songs; if anything changed, reopen with it (only before the story starts)
-    LIVE.refresh().then(changed => { if (changed && $("#sStart") && !$("#sStart").hidden) location.reload(); else note.textContent = "Live from your Spotify · up to date"; }).catch(() => {});
+    if (synced) note.textContent = "Live from your Spotify · up to date";
+    else (syncing || LIVE.refresh()).then(changed => { note.textContent = changed ? "Live from your Spotify · new songs show next time you open it" : "Live from your Spotify · up to date"; }).catch(() => {});
     // now playing, every 15 seconds while the page is open
     const np = $("#np"); let cur = null, prog = 0, dur = 1, playing = false, at = 0;
     async function poll(){
@@ -588,7 +926,8 @@ $("#shuffle").addEventListener("click", () => open(songs[Math.floor(Math.random(
       np.classList.toggle("playing", playing); prog = (j && j.progress_ms) || 0; dur = t.duration_ms || 1; at = Date.now(); np.hidden = false;
     }
     setInterval(() => { if (!np.hidden) $("#npP").style.width = Math.min(100, (prog + (playing ? Date.now() - at : 0)) / dur * 100) + "%"; }, 1000);
-    np.addEventListener("click", () => cur && open(cur));
+    np.addEventListener("click", () => openPlayer(false));
+    window.__npPoll = poll;
     poll(); setInterval(poll, 15000); document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
   } else {
     btn.addEventListener("click", () => LIVE.login());
@@ -711,7 +1050,7 @@ $("#shuffle").addEventListener("click", () => open(songs[Math.floor(Math.random(
     if (!running){ running = true; last = 0; requestAnimationFrame(frame); }   // never two loops at once (bug 7)
   }
   function finish(){ running = false; show(items.length - 1); bars.forEach(b => b.style.width = "100%"); if (audio) audio.pause(); }
-  function leave(){ running = false; if (audio) audio.pause(); story.hidden = true; document.body.style.overflow = ""; }
+  function leave(){ running = false; if (audio) audio.pause(); story.classList.add("bye"); setTimeout(() => { story.hidden = true; story.classList.remove("bye"); }, 450); document.body.style.overflow = ""; }
   document.body.style.overflow = "hidden";
   $("#sGo").addEventListener("click", start);
   $("#replayStory").addEventListener("click", start);
