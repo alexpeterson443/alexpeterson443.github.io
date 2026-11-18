@@ -48,10 +48,22 @@ jobs:
           git add -A sandburg/data
           if git diff --quiet --cached; then
             echo "menus unchanged"
-          else
-            git commit -m "Refresh UWM Eats menu data"
-            git push
+            exit 0
           fi
+          git commit -m "Refresh UWM Eats menu data"
+          # main can move while the fetch runs (a commit pushed mid run was
+          # rejected on Nov 12), and GitHub sometimes refuses a push outright
+          # (Nov 10). Rebase onto the latest main and try again a few times.
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed, rebasing onto latest main"
+            sleep $((attempt * 5))
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push refreshed menus after 4 attempts"
+          exit 1
 
       - uses: actions/setup-node@v4
         with:
