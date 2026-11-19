@@ -55,8 +55,12 @@ export function dateRange(start, end) {
  * "away" is for being off campus: home to see family, a trip, anywhere without
  * his alley. Those days are known in advance and usually come in runs, which is
  * why the pause below takes a range and accepts dates that have not happened.
+ *
+ * "time" is for a day with no window to get to the lanes: work ran late, class,
+ * nothing left over. Like every reason it bridges the streak without adding a
+ * day to it.
  */
-export const EXCUSE_REASONS = ["closed", "lanes", "sick", "injured", "away"];
+export const EXCUSE_REASONS = ["closed", "lanes", "sick", "injured", "away", "time"];
 
 /** Longest run of days one pause may cover. A semester is not a pause. */
 export const MAX_PAUSE_DAYS = 60;

@@ -124,7 +124,7 @@ test("a full alley is its own reason, not a closed one", () => {
 });
 
 test("a day away pauses the streak like any other reason", () => {
-  assert.deepEqual(EXCUSE_REASONS, ["closed", "lanes", "sick", "injured", "away"]);
+  assert.deepEqual(EXCUSE_REASONS, ["closed", "lanes", "sick", "injured", "away", "time"]);
   // Home to see family: the run neither breaks the streak nor extends it.
   const stats = computeStats(
     ["2026-09-01", "2026-09-02", "2026-09-06", "2026-09-07"],
@@ -201,4 +201,33 @@ test("undoing a pause is not held to the start date", () => {
     pauseRange({ from: "2026-08-01" }, today, start, { allowBefore: true }).dates,
     ["2026-08-01"],
   );
+});
+
+test("not enough time saves the streak today without adding a day", () => {
+  // Bowled the whole seeded week, then work ran late on the 4th.
+  const s = computeStats(seed, "2026-09-04", START, { "2026-09-04": "time" });
+  assert.equal(s.current, 7);
+  assert.equal(s.total, 7);
+  assert.equal(s.excusedToday, true);
+  assert.equal(s.excuseToday, "time");
+  assert.equal(s.atRisk, false);
+  assert.deepEqual(s.missed, []);
+});
+
+test("a past day marked not enough time bridges the run", () => {
+  const days = [...seed, "2026-09-05", "2026-09-06"];
+  const s = computeStats(days, "2026-09-06", START, { "2026-09-04": "time" });
+  assert.equal(s.current, 9);
+  assert.equal(s.longest, 9);
+  assert.equal(s.excuseReasons["2026-09-04"], "time");
+  assert.deepEqual(s.missed, []);
+  // Without it the 4th is a miss and the run starts over.
+  assert.equal(computeStats(days, "2026-09-06", START).current, 2);
+  assert.equal(pauseRange({ from: "2026-09-04", reason: "time" }, "2026-09-06", START).reason, "time");
+});
+
+test("bowling on a not enough time day still counts as bowled", () => {
+  const s = computeStats([...seed, "2026-09-04"], "2026-09-04", START, { "2026-09-04": "time" });
+  assert.equal(s.current, 8);
+  assert.equal(s.excusedToday, false);
 });

@@ -302,3 +302,15 @@ test("putting the hours back to the deploy table drops the override entirely", a
   assert.deepEqual(json.overridden, []);
   assert.equal(store.read("settings"), null);
 });
+
+test("not enough time can be marked for today and yesterday", async () => {
+  const store = kv();
+  const today = await call(excusePost, store, body({ reason: "time" }));
+  assert.equal(today.status, 200);
+  assert.equal(today.json.excuseToday, "time");
+  assert.equal(store.read("excused")[TODAY], "time");
+  const yesterday = addDays(TODAY, -1);
+  const y = await call(excusePost, store, body({ date: yesterday, reason: "time" }));
+  assert.equal(y.status, 200);
+  assert.equal(store.read("excused")[yesterday], "time");
+});
