@@ -140,3 +140,10 @@ test("a state with no analysis still reads, as totals", () => {
   const text = summaryText({ today: TODAY, start: "2026-08-28", scores: { games: 2, average: 105, high: 110, days: [] } }, NOW);
   assert.match(text, /Average per game: 105 \(n=2 games\) \[totals\]/);
 });
+
+test("Claude's link names a not enough time day in plain words", async () => {
+  const state = await stateOf(env({ excused: { [TODAY]: "time", [addDays(TODAY, -1)]: "time" } }));
+  const text = summaryText(state, NOW);
+  assert.match(text, /paused \(not enough time\)/);
+  assert.match(text, new RegExp(`${addDays(TODAY, -1)} \\(not enough time\\)`));
+});

@@ -147,6 +147,7 @@ const EXCUSES = {
   sick: { status: (n) => `Sick day. Rest up, streak paused at ${n}.`, confirm: "Mark today as a sick day?", undo: "Undo sick day", title: "sick" },
   injured: { status: (n) => `Injured. Heal up, streak paused at ${n}.`, confirm: "Mark today as an injured day?", undo: "Undo injured day", title: "injured" },
   away: { status: (n) => `Away from your alley. Streak paused at ${n}.`, confirm: "Mark today as a day away?", undo: "Undo day away", title: "away" },
+  time: { status: (n) => `Not enough time today. Streak saved at ${n}.`, confirm: "Mark today as not enough time?", undo: "Undo not enough time", title: "not enough time" },
 };
 const excuseCopy = (reason) => EXCUSES[reason] || EXCUSES.closed;
 

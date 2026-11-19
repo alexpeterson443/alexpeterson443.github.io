@@ -7,7 +7,7 @@ import { todayIn, addDays, isValidIsoDate, pauseRange } from "../_lib/streak.js"
 // DELETE /api/excuse {date} | {from, to?}       -> undo a day or a run
 //
 // A day paused neither breaks nor extends the streak. Reasons: closed, sick,
-// injured, away. A day with a scored game on it always wins over a pause, so
+// injured, away, time (not enough time). A day with a scored game on it always wins over a pause, so
 // marking a trip that he ends up bowling through costs him nothing.
 export async function onRequestPost({ request, env }) {
   const cfg = await configFor(env);

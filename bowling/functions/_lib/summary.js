@@ -14,7 +14,7 @@
 
 import { POSITIONS } from "./stats.js";
 
-const REASONS = { closed: "alley closed", sick: "sick", injured: "injured", away: "away" };
+const REASONS = { closed: "alley closed", sick: "sick", injured: "injured", away: "away", time: "not enough time" };
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
