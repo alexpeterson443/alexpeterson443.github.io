@@ -28,3 +28,20 @@ test("every reason has its own copy and colour", () => {
     assert.match(css, new RegExp(`\\.status\\.paused\\.${reason} `), `no status colour for ${reason}`);
   }
 });
+
+// The page's own copy table, lifted out of app.js and run, so the words he
+// sees for a paused today are checked rather than assumed.
+function pageCopy() {
+  const start = app.indexOf("const EXCUSES = {");
+  const end = app.indexOf("const excuseCopy", start);
+  const tail = app.slice(end, app.indexOf("\n", end));
+  return new Function(`${app.slice(start, end)}${tail}\nreturn excuseCopy;`)();
+}
+
+test("a not enough time day reads as not enough time on the page, not closed", () => {
+  const copy = pageCopy()("time");
+  assert.equal(copy.status(66), "Not enough time today. Streak saved at 66.");
+  assert.equal(copy.undo, "Undo not enough time");
+  assert.equal(copy.title, "not enough time");
+  assert.doesNotMatch(copy.status(66), /closed/i);
+});
