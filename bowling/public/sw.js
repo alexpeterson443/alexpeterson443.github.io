@@ -7,7 +7,9 @@
 //
 // Only the shell is cached. No scores, no state, no API response ever lands here.
 
-const CACHE = "bowl-shell-v13";
+// Bump on every change to a SHELL file: assets are served from this cache
+// first, so without a new name a phone keeps running the old app.js.
+const CACHE = "bowl-shell-v14";
 const SHELL = ["/style.css", "/frames-core.js", "/app.js", "/icon-180.png"];
 
 self.addEventListener("install", (e) => {
