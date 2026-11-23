@@ -23,5 +23,5 @@ export function scoreStats(scores) {
   const average = known.length ? Math.floor(known.reduce((a, b) => a + b, 0) / known.length) : null;
   const highDate = high === null ? null
     : Object.keys(scores).sort().find((d) => scores[d].includes(high));
-  return { games, scored: known.length, high, highDate, average, days: dayList(scores).slice(0, 30) };
+  return { games, scored: known.length, high, highDate, average, days: dayList(scores) };
 }

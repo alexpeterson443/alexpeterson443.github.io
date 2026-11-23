@@ -34,18 +34,17 @@ test("the average is always a whole number", () => {
 });
 
 test("the average covers every game, not just the days the list shows", () => {
-  // dayList caps at 30 days; the average must not inherit that cap.
+  // The game log lists every day back to the first score, not just the last 30.
   const scores = {};
   for (let i = 0; i < 40; i++) {
     scores[new Date(Date.UTC(2026, 5, 1) + i * 86400000).toISOString().slice(0, 10)] = [100];
   }
-  scores["2026-08-01"] = [200];   // newest, so it survives the 30 day cap
+  scores["2026-08-01"] = [200];
   const s = scoreStats(scores);
-  assert.equal(s.days.length, 30);
+  assert.equal(s.days.length, 41);
   assert.equal(s.games, 41);
   assert.equal(s.scored, 41);
-  // Every 100 plus the single 200 averages above 100, which only holds if the
-  // older days outside the 30 shown are still counted.
+  // Every 100 plus the single 200 averages above 100.
   assert.ok(s.average > 100);
   assert.equal(s.high, 200);
 });
