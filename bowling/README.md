@@ -35,6 +35,8 @@ functions/
   _lib/closures.js closed dates, and turning a passed one into a "lanes" pause (unit tested)
   api/claude.js    GET the streak and scores as plain text, for Claude in a chat
   api/mcp.js       POST the Claude connector (MCP): read and change the streak
+  api/mcpkey.js    GET the connector key and URL, POST to replace it
+  _lib/mcpkey.js   the connector key: derived from ACCESS_KEY, opens /api/mcp only
   api/readkey.js   GET the read only link for Claude, POST to replace it
   _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
   _lib/summary.js  the state written out as text (unit tested)
@@ -108,12 +110,24 @@ the streak from any chat. Tools: `get_streak`, `get_games`, `log_game`,
 `delete_game`, `pause_days`, `unpause_days`. Every write goes through the same
 handler the web app and the iPhone app use, with the same validation.
 
-It needs the full access key (the read only key cannot reach it):
+It takes its own **connector key**, which opens `POST /api/mcp` and nothing
+else (no page, no other endpoint, no cookie), so the private link's key never
+sits in a Claude client's settings. Get the ready-made URL, signed in through
+the private link:
+
+    https://bowling-streak.pages.dev/api/mcpkey   -> { key, url }
+
+`POST /api/mcpkey` retires the key and mints a new one (the private link and
+the read key are untouched). Then:
 
 - **claude.ai / Claude desktop / Claude on iPhone:** Settings > Connectors >
-  Add custom connector, URL `https://bowling-streak.pages.dev/api/mcp?key=<ACCESS_KEY>`.
+  Add custom connector, and paste that `url`.
 - **Claude Code:**
-  `claude mcp add --transport http bowling-streak https://bowling-streak.pages.dev/api/mcp --header "X-Access-Key: <ACCESS_KEY>"`
+  `claude mcp add --transport http bowling-streak https://bowling-streak.pages.dev/api/mcp --header "X-Access-Key: <connector key>"`
+
+The connector never accepts the session cookie, only a key on each request,
+and keyed API calls (header `X-Access-Key`) no longer receive a cookie at all;
+only the private link opened in a browser does.
 
 The iPhone app (Bowling Streak on the App Store, Settings > Server sync) syncs
 with this same server, so a game Claude logs shows up on the phone and its

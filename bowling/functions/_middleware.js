@@ -1,5 +1,6 @@
 import { keyMatches, hasValidSession, makeSessionCookie, timerMatches, closuresTokenMatches } from "./_lib/auth.js";
 import { READ_PATHS, readKeyMatches } from "./_lib/readkey.js";
+import { MCP_PATH, mcpKeyMatches } from "./_lib/mcpkey.js";
 
 // Assets that reveal nothing are public so installs and icons always work.
 // The HTML page, the API, and the manifest stay gated.
@@ -21,8 +22,8 @@ function withHeaders(res, extra) {
 }
 
 // Private link gate. Any request carrying the key (?key= in the URL, or the
-// X-Access-Key header from the app's own fetches) is allowed and receives a
-// one year cookie. The key is deliberately left in the page URL so bookmarks
+// X-Access-Key header from the app's own fetches) is allowed. Only the ?key=
+// form, the private link opened in a browser, receives a one year cookie. The key is deliberately left in the page URL so bookmarks
 // and iPhone home screen icons keep working even with a separate cookie jar.
 // The read only key (see _lib/readkey.js) opens GET on the read endpoints and
 // nothing more. Everyone else gets a plain 404.
@@ -55,14 +56,31 @@ export async function onRequest({ request, env, next }) {
     return withHeaders(await next(), { "Cache-Control": "private, no-store" });
   }
 
-  const key = url.searchParams.get("key") ?? request.headers.get("X-Access-Key");
+  const noStore = { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" };
+  const queryKey = url.searchParams.get("key");
+  const key = queryKey ?? request.headers.get("X-Access-Key");
+
+  // The Claude connector: a key on every request (its own connector key, or
+  // the private link's), never the session cookie, so another page can't
+  // drive it with the browser's cookie. It never gets a cookie either.
+  if (url.pathname === MCP_PATH) {
+    const ok = key !== null && (
+      (request.method === "POST" && (await mcpKeyMatches(env, key))) || (await keyMatches(env, key))
+    );
+    if (ok) return withHeaders(await next(), noStore);
+    if (key !== null) await new Promise((r) => setTimeout(r, 800));
+    return withHeaders(Response.json({ error: "unauthorized" }, { status: 401 }), noStore);
+  }
+
   let authed = await hasValidSession(env, request);
   let setCookie = null;
 
   if (key !== null) {
     if (await keyMatches(env, key)) {
       authed = true;
-      setCookie = await makeSessionCookie(env, request);
+      // Only the private link in a browser needs a cookie. Apps and scripts
+      // send the key on every request, and a cookie would outlive the key.
+      if (queryKey !== null) setCookie = await makeSessionCookie(env, request);
     } else if (
       !authed && request.method === "GET" && READ_PATHS.has(url.pathname) && (await readKeyMatches(env, key))
     ) {
@@ -73,8 +91,6 @@ export async function onRequest({ request, env, next }) {
       await new Promise((r) => setTimeout(r, 800));
     }
   }
-
-  const noStore = { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" };
 
   if (authed) {
     const out = withHeaders(await next(), noStore);

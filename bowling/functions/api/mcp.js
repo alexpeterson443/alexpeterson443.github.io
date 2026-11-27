@@ -10,7 +10,8 @@ import { onRequestPost as excusePost, onRequestDelete as excuseDelete } from "./
 //
 // Streamable HTTP, stateless, JSON responses only (no SSE). The middleware has
 // already checked the full access key (in ?key= or X-Access-Key) before this
-// runs; the read only key never reaches a POST, so it cannot get in here.
+// runs: the connector key (see _lib/mcpkey.js) or the private link's key, on
+// every request, never the session cookie. The read only key cannot get in.
 //
 // Every write goes through the same handler the app and the iPhone app use, so
 // a game Claude logs is validated exactly like one typed at the alley.
@@ -95,6 +96,7 @@ export const TOOLS = [
       required: ["from", "reason"],
       additionalProperties: false,
     },
+    annotations: { destructiveHint: true },
   },
   {
     name: "unpause_days",
@@ -108,6 +110,7 @@ export const TOOLS = [
       required: ["from"],
       additionalProperties: false,
     },
+    annotations: { destructiveHint: true },
   },
 ];
 
