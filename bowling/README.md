@@ -34,6 +34,7 @@ functions/
   api/closures.js  GET the alley closures, POST {date, reason} to set one (reason null lifts it)
   _lib/closures.js closed dates, and turning a passed one into a "lanes" pause (unit tested)
   api/claude.js    GET the streak and scores as plain text, for Claude in a chat
+  api/mcp.js       POST the Claude connector (MCP): read and change the streak
   api/readkey.js   GET the read only link for Claude, POST to replace it
   _lib/readkey.js  the read only key: derived from ACCESS_KEY, GET on two endpoints only
   _lib/summary.js  the state written out as text (unit tested)
@@ -99,6 +100,24 @@ In the Cloudflare dashboard: Workers & Pages > bowling-streak > Custom domains.
 To require your email login before the page loads, go to Zero Trust > Access >
 Applications, add a self hosted app for the `pages.dev` domain, and allow only your
 email. Free for up to 50 users.
+
+## Letting Claude change it too (connector)
+
+`/api/mcp` is a Model Context Protocol server, so Claude can read **and** change
+the streak from any chat. Tools: `get_streak`, `get_games`, `log_game`,
+`delete_game`, `pause_days`, `unpause_days`. Every write goes through the same
+handler the web app and the iPhone app use, with the same validation.
+
+It needs the full access key (the read only key cannot reach it):
+
+- **claude.ai / Claude desktop / Claude on iPhone:** Settings > Connectors >
+  Add custom connector, URL `https://bowling-streak.pages.dev/api/mcp?key=<ACCESS_KEY>`.
+- **Claude Code:**
+  `claude mcp add --transport http bowling-streak https://bowling-streak.pages.dev/api/mcp --header "X-Access-Key: <ACCESS_KEY>"`
+
+The iPhone app (Bowling Streak on the App Store, Settings > Server sync) syncs
+with this same server, so a game Claude logs shows up on the phone and its
+widgets, and a game logged on the phone is visible to Claude.
 
 ## Letting Claude see it
 
